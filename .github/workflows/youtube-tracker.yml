@@ -2,7 +2,7 @@ name: YouTube Reaction Tracker
 
 on:
   schedule:
-    - cron: '0 * * * *'   # Runs every day at 12:00 UTC
+    - cron: '0 * * * *'   # Runs every hour at minute 0
   workflow_dispatch:       # Allows manual trigger
 
 jobs:
@@ -20,6 +20,16 @@ jobs:
       - name: Install dependencies
         run: pip install google-api-python-client requests
 
+      # Restore last_run.json from cache (if it exists from a previous run)
+      - name: Restore last_run.json cache
+        uses: actions/cache@v4
+        id: cache-restore
+        with:
+          path: last_run.json
+          # Use a fixed key so all runs share the same cache
+          key: last-run-data
+          restore-keys: last-run-data
+
       - name: Run YouTube reaction tracker
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -29,9 +39,17 @@ jobs:
           MAX_TO_SEND: ${{ vars.MAX_TO_SEND }}
           FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
           LAST_RUN_FILE: ${{ vars.LAST_RUN_FILE }}
-        run: python autoreactions.py   # ← Change to your actual Python file name!
+        run: python autoreactions.py
 
-      - name: Upload CSV and HTML as artifacts (optional)
+      # Save the (potentially updated) last_run.json back to cache
+      - name: Save last_run.json cache
+        if: always()   # Even if the script fails, we want to keep the last successful run timestamp
+        uses: actions/cache@v4
+        with:
+          path: last_run.json
+          key: last-run-data
+
+      - name: Upload CSV and HTML as artifacts
         uses: actions/upload-artifact@v4
         with:
           name: youtube-reactions
