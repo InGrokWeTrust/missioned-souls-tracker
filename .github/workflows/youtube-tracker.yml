@@ -1,0 +1,41 @@
+name: YouTube Reaction Tracker
+
+on:
+  schedule:
+    - cron: '0 12 * * *'   # Runs every day at 12:00 UTC
+  workflow_dispatch:       # Allows manual trigger
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install google-api-python-client requests
+
+      - name: Run YouTube reaction tracker
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          CHANNEL_NAME: ${{ vars.CHANNEL_NAME }}
+          MAX_TOTAL_RESULTS: ${{ vars.MAX_TOTAL_RESULTS }}
+          MAX_TO_SEND: ${{ vars.MAX_TO_SEND }}
+          FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
+          LAST_RUN_FILE: ${{ vars.LAST_RUN_FILE }}
+        run: python autoreactions.py   # ← Change to your actual Python file name!
+
+      - name: Upload CSV and HTML as artifacts (optional)
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube-reactions
+          path: |
+            missioned_souls_reactions.csv
+            missioned_souls_reactions.html
+            last_run.json
