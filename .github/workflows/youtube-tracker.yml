@@ -12,6 +12,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Log run time          # <-- ADD THIS SNIPPET HERE
+        run: echo "Run at $(date) - triggered by ${{ github.event_name }}"
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
