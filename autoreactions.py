@@ -125,16 +125,20 @@ def send_to_discord(videos, max_to_send=5):
     print(f"\n📨 Sending {min(max_to_send, len(videos))} new reactions to Discord...\n")
 
     for video in videos[:max_to_send]:
+        # Build embed fields including comment count
+        fields = [
+            {"name": "Channel", "value": video['channel'], "inline": True},
+            {"name": "Views", "value": f"{video.get('view_count', 0):,}", "inline": True},
+            {"name": "Likes", "value": f"{video.get('like_count', 0):,}", "inline": True},
+            {"name": "Comments", "value": f"{video.get('comment_count', 0):,}", "inline": True}
+        ]
+
         embed = {
             "title": video['title'],
             "url": video['url'],
             "color": 0x1e88e5,
             "image": {"url": video.get('thumbnail')} if video.get('thumbnail') else None,
-            "fields": [
-                {"name": "Channel", "value": video['channel'], "inline": True},
-                {"name": "Views", "value": f"{video.get('view_count', 0):,}", "inline": True},
-                {"name": "Likes", "value": f"{video.get('like_count', 0):,}", "inline": True},
-            ],
+            "fields": fields,
             "timestamp": video['published_at']
         }
 
@@ -171,7 +175,7 @@ if __name__ == "__main__":
         new_videos = [v for v in videos if v['published_at'] > last_published]
         print(f"🆕 Found {len(new_videos)} new reactions since last run")
 
-    # Save CSV
+    # Save CSV (already includes comment_count in fieldnames)
     with open("missioned_souls_reactions.csv", 'w', newline='', encoding='utf-8') as f:
         fieldnames = ['title', 'channel', 'published_at', 'view_count', 
                      'like_count', 'comment_count', 'video_id', 'url']
@@ -183,7 +187,7 @@ if __name__ == "__main__":
 
     print(f"💾 Saved to missioned_souls_reactions.csv")
 
-    # Generate HTML
+    # Generate HTML – added Comments column
     html_content = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -211,6 +215,7 @@ if __name__ == "__main__":
         <th>Title</th>
         <th>Views</th>
         <th>Likes</th>
+        <th>Comments</th>
         <th>Link</th>
       </tr>
     </thead>
@@ -225,6 +230,7 @@ if __name__ == "__main__":
         <td>{v['title']}</td>
         <td>{v.get('view_count', 0):,}</td>
         <td>{v.get('like_count', 0):,}</td>
+        <td>{v.get('comment_count', 0):,}</td>
         <td><a href="{v['url']}" target="_blank">Watch →</a></td>
       </tr>"""
 
