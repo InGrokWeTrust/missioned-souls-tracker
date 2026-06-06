@@ -2,6 +2,7 @@ import os
 import csv
 import time
 import json
+import re
 import requests
 from datetime import datetime
 from googleapiclient.discovery import build
@@ -39,6 +40,34 @@ def save_last_run(published_at):
     print(f"💾 Updated {LAST_RUN_FILE} → {published_at[:10]}")
 
 
+def parse_duration(duration_str):
+    """Convert ISO 8601 duration string (e.g., PT2M30S) to total seconds."""
+    if not duration_str:
+        return 0
+    # Match pattern: PT (optional H, M, S)
+    pattern = r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?'
+    match = re.match(pattern, duration_str)
+    if not match:
+        return 0
+    hours = int(match.group(1) or 0)
+    minutes = int(match.group(2) or 0)
+    seconds = int(match.group(3) or 0)
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def is_short_or_too_short(video):
+    """Return True if video is a Short or duration < 120 seconds."""
+    # Exclude videos with #Shorts in title
+    title_lower = video.get('title', '').lower()
+    if '#shorts' in title_lower:
+        return True
+    # Exclude videos shorter than 2 minutes (120 sec)
+    duration_sec = video.get('duration_sec', 0)
+    if duration_sec < 120:
+        return True
+    return False
+
+
 def get_reactions_with_stats():
     all_videos = []
     next_page_token = None
@@ -59,6 +88,9 @@ def get_reactions_with_stats():
         search_response = search_request.execute()
         items = search_response.get('items', [])
         
+        if not items:
+            break
+        
         video_ids = []
         temp_videos = []
         
@@ -77,34 +109,47 @@ def get_reactions_with_stats():
             total_fetched += 1
 
         if video_ids:
+            # Fetch both statistics AND contentDetails (duration) in one call
             stats_request = youtube.videos().list(
-                part="statistics",
+                part="statistics,contentDetails",
                 id=",".join(video_ids)
             )
             stats_response = stats_request.execute()
             
-            # Build a lookup dict for O(1) mapping
+            # Build lookup dict for stats and duration
             stats_dict = {}
-            for stat_item in stats_response.get('items', []):
-                vid_id = stat_item['id']
-                stats = stat_item.get('statistics', {})
+            duration_dict = {}
+            for item in stats_response.get('items', []):
+                vid_id = item['id']
+                stats = item.get('statistics', {})
                 stats_dict[vid_id] = {
                     'view_count': int(stats.get('viewCount', 0)),
                     'like_count': int(stats.get('likeCount', 0)),
                     'comment_count': int(stats.get('commentCount', 0))
                 }
+                # Parse duration from contentDetails
+                content_details = item.get('contentDetails', {})
+                duration_str = content_details.get('duration', 'PT0S')
+                duration_dict[vid_id] = parse_duration(duration_str)
             
+            # Enrich temp_videos with stats and duration
             for video in temp_videos:
-                vid_stats = stats_dict.get(video['video_id'], {})
+                vid_id = video['video_id']
+                vid_stats = stats_dict.get(vid_id, {})
                 video['view_count'] = vid_stats.get('view_count', 0)
                 video['like_count'] = vid_stats.get('like_count', 0)
                 video['comment_count'] = vid_stats.get('comment_count', 0)
+                video['duration_sec'] = duration_dict.get(vid_id, 0)
 
-        all_videos.extend(temp_videos)
+        # Filter out Shorts and videos under 2 minutes
+        filtered_batch = [v for v in temp_videos if not is_short_or_too_short(v)]
+        all_videos.extend(filtered_batch)
 
+        # Print progress for all fetched (including those filtered)
         for video in temp_videos:
             views = video.get('view_count', 0)
-            print(f"{views:8,} views | {video['title'][:70]}")
+            status = "⏭️ (filtered)" if is_short_or_too_short(video) else "✅"
+            print(f"{views:8,} views | {video['title'][:70]} {status}")
 
         next_page_token = search_response.get('nextPageToken')
         if not next_page_token or total_fetched >= MAX_TOTAL_RESULTS:
@@ -113,7 +158,7 @@ def get_reactions_with_stats():
         time.sleep(0.7)
 
     all_videos.sort(key=lambda x: x['published_at'], reverse=True)
-    print(f"\n✅ Found {len(all_videos)} total reactions!")
+    print(f"\n✅ Found {len(all_videos)} total reactions (after filtering out Shorts & videos < 2 min).")
     return all_videos
 
 
@@ -125,20 +170,16 @@ def send_to_discord(videos, max_to_send=5):
     print(f"\n📨 Sending {min(max_to_send, len(videos))} new reactions to Discord...\n")
 
     for video in videos[:max_to_send]:
-        # Build embed fields including comment count
-        fields = [
-            {"name": "Channel", "value": video['channel'], "inline": True},
-            {"name": "Views", "value": f"{video.get('view_count', 0):,}", "inline": True},
-            {"name": "Likes", "value": f"{video.get('like_count', 0):,}", "inline": True},
-            {"name": "Comments", "value": f"{video.get('comment_count', 0):,}", "inline": True}
-        ]
-
         embed = {
             "title": video['title'],
             "url": video['url'],
             "color": 0x1e88e5,
             "image": {"url": video.get('thumbnail')} if video.get('thumbnail') else None,
-            "fields": fields,
+            "fields": [
+                {"name": "Channel", "value": video['channel'], "inline": True},
+                {"name": "Views", "value": f"{video.get('view_count', 0):,}", "inline": True},
+                {"name": "Likes", "value": f"{video.get('like_count', 0):,}", "inline": True},
+            ],
             "timestamp": video['published_at']
         }
 
@@ -175,7 +216,7 @@ if __name__ == "__main__":
         new_videos = [v for v in videos if v['published_at'] > last_published]
         print(f"🆕 Found {len(new_videos)} new reactions since last run")
 
-    # Save CSV (already includes comment_count in fieldnames)
+    # Save CSV (duration_sec not saved, only original fields)
     with open("missioned_souls_reactions.csv", 'w', newline='', encoding='utf-8') as f:
         fieldnames = ['title', 'channel', 'published_at', 'view_count', 
                      'like_count', 'comment_count', 'video_id', 'url']
@@ -187,7 +228,7 @@ if __name__ == "__main__":
 
     print(f"💾 Saved to missioned_souls_reactions.csv")
 
-    # Generate HTML – added Comments column
+    # Generate HTML (unchanged)
     html_content = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -215,7 +256,6 @@ if __name__ == "__main__":
         <th>Title</th>
         <th>Views</th>
         <th>Likes</th>
-        <th>Comments</th>
         <th>Link</th>
       </tr>
     </thead>
@@ -230,7 +270,6 @@ if __name__ == "__main__":
         <td>{v['title']}</td>
         <td>{v.get('view_count', 0):,}</td>
         <td>{v.get('like_count', 0):,}</td>
-        <td>{v.get('comment_count', 0):,}</td>
         <td><a href="{v['url']}" target="_blank">Watch →</a></td>
       </tr>"""
 
@@ -245,7 +284,7 @@ if __name__ == "__main__":
 
     print("🌐 Static website updated")
 
-    # Send to Discord
+    # Send to Discord (only new videos that passed filtering)
     send_to_discord(new_videos, max_to_send=MAX_TO_SEND)
 
     if new_videos:
