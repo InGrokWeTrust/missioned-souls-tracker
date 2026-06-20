@@ -1,0 +1,78 @@
+name: YouTube Multi Reaction Tracker
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'     # Runs every 30 minutes
+  workflow_dispatch:           # Allows manual trigger from GitHub
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log run time
+        run: echo "Run at $(date) - triggered by ${{ github.event_name }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install google-api-python-client requests rapidfuzz
+
+      # Download previous last_run.json
+      - name: Download previous last_run.json
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: YouTube-Multireactions-Tracker.yml   # Change this if you use different filename
+          name: last-run-state
+          path: ./
+          if_no_artifact_found: warn
+
+      - name: Run YouTube Multi Reaction Tracker
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          
+          # === Artist 1 ===
+          ARTIST_1_NAME:     ${{ vars.ARTIST_1_NAME }}
+          ARTIST_1_USERNAME: ${{ vars.ARTIST_1_USERNAME }}
+          ARTIST_1_COLOR:    ${{ vars.ARTIST_1_COLOR }}
+          ARTIST_1_WEBHOOK:  ${{ secrets.ARTIST_1_WEBHOOK }}
+          
+          # === Artist 2 ===
+          ARTIST_2_NAME:     ${{ vars.ARTIST_2_NAME }}
+          ARTIST_2_USERNAME: ${{ vars.ARTIST_2_USERNAME }}
+          ARTIST_2_COLOR:    ${{ vars.ARTIST_2_COLOR }}
+          ARTIST_2_WEBHOOK:  ${{ secrets.ARTIST_2_WEBHOOK }}
+          
+          # === Artist 3 ===
+          ARTIST_3_NAME:     ${{ vars.ARTIST_3_NAME }}
+          ARTIST_3_USERNAME: ${{ vars.ARTIST_3_USERNAME }}
+          ARTIST_3_COLOR:    ${{ vars.ARTIST_3_COLOR }}
+          ARTIST_3_WEBHOOK:  ${{ secrets.ARTIST_3_WEBHOOK }}
+
+          MAX_TOTAL_RESULTS: ${{ vars.MAX_TOTAL_RESULTS }}
+          MAX_TO_SEND:       ${{ vars.MAX_TO_SEND }}
+          FORCE_SEND_ALL:    ${{ vars.FORCE_SEND_ALL }}
+          LAST_RUN_FILE:     ${{ vars.LAST_RUN_FILE || 'last_run.json' }}
+
+        run: python multireactions.py
+
+      - name: Upload last_run.json for next run
+        uses: actions/upload-artifact@v4
+        with:
+          name: last-run-state
+          path: last_run.json
+          retention-days: 2
+
+      - name: Upload all reaction CSVs
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube-reactions
+          path: |
+            *_reactions.csv
+          retention-days: 7
