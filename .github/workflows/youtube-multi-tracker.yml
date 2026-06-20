@@ -2,12 +2,14 @@ name: YouTube Multi Tracker
 
 on:
   schedule:
-    - cron: '*/30 * * * *'   # Every 20 minutes (for testing – revert to '0 * * * *' later)
+    - cron: '*/30 * * * *'   # Every 30 minutes (adjust as needed)
   workflow_dispatch:       # Allows manual trigger
 
 jobs:
   track:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true   # Silence Node.js deprecation warning
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -21,11 +23,11 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install google-api-python-client requests
+        run: pip install google-api-python-client requests rapidfuzz   # added rapidfuzz
 
       # Download last_run.json from the most recent successful run (if any)
       - name: Download previous last_run.json
-        uses: dawidd6/action-download-artifact@v3
+        uses: dawidd6/action-download-artifact@v6   # upgraded from v3
         with:
           workflow: youtube-multi-tracker.yml
           name: last-run-state
