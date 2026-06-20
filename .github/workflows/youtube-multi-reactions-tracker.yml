@@ -33,7 +33,7 @@ jobs:
           if_no_artifact_found: warn
 
       # === Main Script Execution ===
-      - name: Run YouTube Multi Reaction Tracker
+      - name: Run YouTube multi reaction tracker
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           
