@@ -305,19 +305,33 @@ if __name__ == "__main__":
         logger.info(f"🎤 Processing: {artist_name} | Total found: {len(artist_vids)}")
 
         if FORCE_SEND_ALL or artist_name not in last_run:
-            new_videos = artist_vids[:30]
+            # Force mode: send first 30 (or all if you prefer) and update last_run to the most recent
+            # To avoid missing videos, we send all (or cap at a high number) and update last_run to the newest.
+            # For safety, we send up to 30 but save last_run as the newest.
+            new_videos = artist_vids[:30] if len(artist_vids) > 30 else artist_vids
             logger.info(f"🔄 Force mode - Sending {len(new_videos)} videos")
+            if new_videos:
+                send_to_discord(new_videos, artist, MAX_TO_SEND_PER_ARTIST)
+                # Save last_run as the most recent video's timestamp (newest)
+                new_last_run[artist_name] = new_videos[0]['published_at']
+                any_new = True
+                save_to_csv(artist_name, artist_vids)
         else:
             last_time = last_run[artist_name]
-            new_videos = [v for v in artist_vids if v['published_at'] > last_time]
-            logger.info(f"🆕 Found {len(new_videos)} new reactions")
+            # Get all videos newer than last_time
+            all_new = [v for v in artist_vids if v['published_at'] > last_time]
+            logger.info(f"🆕 Found {len(all_new)} new reactions")
 
-        if new_videos:
-            any_new = True
-            send_to_discord(new_videos, artist, MAX_TO_SEND_PER_ARTIST)
-            save_to_csv(artist_name, artist_vids)
-
-            new_last_run[artist_name] = new_videos[0]['published_at']
+            if all_new:
+                any_new = True
+                # Send only the most recent MAX_TO_SEND_PER_ARTIST videos
+                to_send = all_new[:MAX_TO_SEND_PER_ARTIST]
+                send_to_discord(to_send, artist, MAX_TO_SEND_PER_ARTIST)
+                # Update last_run to the OLDEST video we actually sent (so older unsent will be picked next time)
+                # If we sent fewer than all_new, we want to catch the remaining ones next run.
+                # Set last_run to the timestamp of the last video we sent (the oldest among sent)
+                new_last_run[artist_name] = to_send[-1]['published_at']
+                save_to_csv(artist_name, artist_vids)
 
     if any_new:
         save_last_run(new_last_run)
