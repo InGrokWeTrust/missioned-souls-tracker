@@ -1,9 +1,9 @@
-name: YouTube Multi Reaction Tracker
+name: YouTube Multi Tracker
 
 on:
   schedule:
-    - cron: '*/30 * * * *'     # Runs every 30 minutes
-  workflow_dispatch:           # Manual trigger
+    - cron: '*/30 * * * *'   # Every 20 minutes (for testing – revert to '0 * * * *' later)
+  workflow_dispatch:       # Allows manual trigger
 
 jobs:
   track:
@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Log run time
-        run: echo "Run started at $(date) - Trigger: ${{ github.event_name }}"
+        run: echo "Run at $(date) - triggered by ${{ github.event_name }}"
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -21,19 +21,19 @@ jobs:
           python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install google-api-python-client requests rapidfuzz
+        run: pip install google-api-python-client requests
 
-      # Download previous state
-      - name: Download last_run.json
+      # Download last_run.json from the most recent successful run (if any)
+      - name: Download previous last_run.json
         uses: dawidd6/action-download-artifact@v3
         with:
-          workflow: YouTube-Multireactions-Tracker.yml
+          workflow: youtube-multi-tracker.yml
           name: last-run-state
           path: ./
-          if_no_artifact_found: warn
+          if_no_artifact_found: warn   # Don't fail on first run
 
       # === Main Script Execution ===
-      - name: Run YouTube multi reaction tracker
+      - name: Run YouTube multi tracker
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           
