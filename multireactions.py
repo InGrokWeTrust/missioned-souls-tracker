@@ -14,7 +14,7 @@ if not API_KEY:
     raise ValueError("Missing YOUTUBE_API_KEY environment variable")
 
 MAX_TOTAL_RESULTS = int(os.environ.get("MAX_TOTAL_RESULTS", "150"))
-MAX_TO_SEND_PER_ARTIST = int(os.environ.get("MAX_TO_SEND", "6"))
+MAX_TO_SEND_PER_ARTIST = int(os.environ.get("MAX_TO_SEND", "10"))
 FORCE_SEND_ALL = os.environ.get("FORCE_SEND_ALL", "false").lower() == "true"
 LAST_RUN_FILE = os.environ.get("LAST_RUN_FILE", "last_run.json")
 LOG_FILE = "reaction_tracker.log"
