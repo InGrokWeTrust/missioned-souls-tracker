@@ -39,6 +39,8 @@ def load_artists():
         i += 1
     return artists
 
+artists = load_artists()
+
 # Fallback to single‑artist mode (CHANNEL_NAME + DISCORD_WEBHOOK_URL)
 if not artists:
     CHANNEL_NAME = os.environ.get("CHANNEL_NAME")
