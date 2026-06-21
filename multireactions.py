@@ -309,23 +309,22 @@ if __name__ == "__main__":
         logger.info(f"🎤 Processing: {artist_name} | Total found: {len(artist_vids)}")
 
         if FORCE_SEND_ALL or artist_name not in last_run:
-            # Force or first run: send the most recent videos (up to a limit)
-            # We'll send up to 30 to avoid overwhelming, but update bookmark to the oldest we send.
+            # Force or first run: send up to 30 most recent videos
             to_send = artist_vids[:30]
             if to_send:
                 send_to_discord(to_send, artist, MAX_TO_SEND_PER_ARTIST)
-                # Update bookmark to the oldest of what we sent (so older ones get picked up later)
+                # Bookmark = oldest of what we sent
                 new_last_run[artist_name] = to_send[-1]['published_at']
-                logger.info(f"🔄 Force mode - Sent {len(to_send)} videos, updated bookmark to {new_last_run[artist_name]}")
+                logger.info(f"🔄 Force mode - Sent {len(to_send)} videos, bookmark set to {new_last_run[artist_name]}")
                 any_new = True
                 save_to_csv(artist_name, artist_vids)
             else:
-                # No videos found for this artist
+                # No videos found – set a very old placeholder to avoid future force mode
                 if artist_name not in new_last_run:
-                    new_last_run[artist_name] = "1970-01-01T00:00:00Z"  # Placeholder
+                    new_last_run[artist_name] = "1970-01-01T00:00:00Z"
+                logger.info(f"ℹ️ No videos found for {artist_name} (force mode)")
         else:
             last_time = last_run[artist_name]
-            # Find videos newer than the last bookmark
             all_new = [v for v in artist_vids if v['published_at'] > last_time]
             logger.info(f"🆕 Found {len(all_new)} new reactions (since {last_time})")
 
@@ -334,22 +333,25 @@ if __name__ == "__main__":
                 # Determine how many to send
                 if len(all_new) <= MAX_TO_SEND_PER_ARTIST:
                     to_send = all_new
-                    # Bookmark becomes the oldest of all new (so all are considered sent)
-                    new_bookmark = all_new[-1]['published_at']
+                    new_bookmark = all_new[-1]['published_at']  # oldest of all new
                 else:
-                    # Send only the most recent MAX_TO_SEND_PER_ARTIST
                     to_send = all_new[:MAX_TO_SEND_PER_ARTIST]
-                    # Bookmark becomes the oldest of those we sent (so older ones remain for next run)
-                    new_bookmark = to_send[-1]['published_at']
+                    new_bookmark = to_send[-1]['published_at']  # oldest of sent
 
                 logger.info(f"📤 Sending {len(to_send)} videos, new bookmark: {new_bookmark}")
                 send_to_discord(to_send, artist, MAX_TO_SEND_PER_ARTIST)
                 new_last_run[artist_name] = new_bookmark
                 save_to_csv(artist_name, artist_vids)
 
-    if any_new:
-        save_last_run(new_last_run)
-    else:
+            # ✅ SAVE THE BOOKMARK IMMEDIATELY AFTER EACH ARTIST
+            try:
+                with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
+                    json.dump(new_last_run, f, indent=2)
+                logger.info(f"💾 Saved bookmark for {artist_name}: {new_last_run[artist_name]}")
+            except Exception as e:
+                logger.error(f"❌ Failed to save bookmark for {artist_name}: {e}")
+
+    if not any_new:
         logger.info("ℹ️ No new videos for any artist.")
 
     logger.info("🎉 All artists processed successfully!")
