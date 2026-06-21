@@ -48,7 +48,6 @@ def load_artists_from_env():
     artists = []
     i = 1
     
-    # Default emojis for known artists
     default_emojis = {
         "Missioned Souls": "🎤",
         "Hagane": "🎸",
@@ -100,9 +99,12 @@ def load_last_run():
 
 
 def save_last_run(last_run_dict):
-    with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
-        json.dump(last_run_dict, f, indent=2)
-    logger.info(f"💾 Saved last run timestamps")
+    try:
+        with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
+            json.dump(last_run_dict, f, indent=2)
+        logger.info(f"💾 Saved last run timestamps: {last_run_dict}")
+    except Exception as e:
+        logger.error(f"Failed to save last_run.json: {e}")
 
 
 def build_search_query(artists):
@@ -285,10 +287,12 @@ if __name__ == "__main__":
     logger.info(f"Loaded {len(ARTISTS)} artists")
 
     last_run = load_last_run()
+    logger.info(f"📅 Last run timestamps: {last_run}")
+
     videos = get_all_reactions()
 
+    # Assign each video to the best matching artist
     artist_videos = {artist["name"]: [] for artist in ARTISTS}
-
     for video in videos:
         matched = match_artist(video['title'], video['channel'], ARTISTS)
         if matched:
@@ -305,35 +309,47 @@ if __name__ == "__main__":
         logger.info(f"🎤 Processing: {artist_name} | Total found: {len(artist_vids)}")
 
         if FORCE_SEND_ALL or artist_name not in last_run:
-            # Force mode: send first 30 (or all if you prefer) and update last_run to the most recent
-            # To avoid missing videos, we send all (or cap at a high number) and update last_run to the newest.
-            # For safety, we send up to 30 but save last_run as the newest.
-            new_videos = artist_vids[:30] if len(artist_vids) > 30 else artist_vids
-            logger.info(f"🔄 Force mode - Sending {len(new_videos)} videos")
-            if new_videos:
-                send_to_discord(new_videos, artist, MAX_TO_SEND_PER_ARTIST)
-                # Save last_run as the most recent video's timestamp (newest)
-                new_last_run[artist_name] = new_videos[0]['published_at']
+            # Force or first run: send the most recent videos (up to a limit)
+            # We'll send up to 30 to avoid overwhelming, but update bookmark to the oldest we send.
+            to_send = artist_vids[:30]
+            if to_send:
+                send_to_discord(to_send, artist, MAX_TO_SEND_PER_ARTIST)
+                # Update bookmark to the oldest of what we sent (so older ones get picked up later)
+                new_last_run[artist_name] = to_send[-1]['published_at']
+                logger.info(f"🔄 Force mode - Sent {len(to_send)} videos, updated bookmark to {new_last_run[artist_name]}")
                 any_new = True
                 save_to_csv(artist_name, artist_vids)
+            else:
+                # No videos found for this artist
+                if artist_name not in new_last_run:
+                    new_last_run[artist_name] = "1970-01-01T00:00:00Z"  # Placeholder
         else:
             last_time = last_run[artist_name]
-            # Get all videos newer than last_time
+            # Find videos newer than the last bookmark
             all_new = [v for v in artist_vids if v['published_at'] > last_time]
-            logger.info(f"🆕 Found {len(all_new)} new reactions")
+            logger.info(f"🆕 Found {len(all_new)} new reactions (since {last_time})")
 
             if all_new:
                 any_new = True
-                # Send only the most recent MAX_TO_SEND_PER_ARTIST videos
-                to_send = all_new[:MAX_TO_SEND_PER_ARTIST]
+                # Determine how many to send
+                if len(all_new) <= MAX_TO_SEND_PER_ARTIST:
+                    to_send = all_new
+                    # Bookmark becomes the oldest of all new (so all are considered sent)
+                    new_bookmark = all_new[-1]['published_at']
+                else:
+                    # Send only the most recent MAX_TO_SEND_PER_ARTIST
+                    to_send = all_new[:MAX_TO_SEND_PER_ARTIST]
+                    # Bookmark becomes the oldest of those we sent (so older ones remain for next run)
+                    new_bookmark = to_send[-1]['published_at']
+
+                logger.info(f"📤 Sending {len(to_send)} videos, new bookmark: {new_bookmark}")
                 send_to_discord(to_send, artist, MAX_TO_SEND_PER_ARTIST)
-                # Update last_run to the OLDEST video we actually sent (so older unsent will be picked next time)
-                # If we sent fewer than all_new, we want to catch the remaining ones next run.
-                # Set last_run to the timestamp of the last video we sent (the oldest among sent)
-                new_last_run[artist_name] = to_send[-1]['published_at']
+                new_last_run[artist_name] = new_bookmark
                 save_to_csv(artist_name, artist_vids)
 
     if any_new:
         save_last_run(new_last_run)
+    else:
+        logger.info("ℹ️ No new videos for any artist.")
 
     logger.info("🎉 All artists processed successfully!")
