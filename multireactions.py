@@ -41,7 +41,6 @@ def load_artists():
 
 artists = load_artists()
 
-# Fallback to single‑artist mode (CHANNEL_NAME + DISCORD_WEBHOOK_URL)
 if not artists:
     CHANNEL_NAME = os.environ.get("CHANNEL_NAME")
     DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
@@ -60,7 +59,6 @@ if not artists:
 
 youtube = build('youtube', 'v3', developerKey=API_KEY)
 
-# ---------- Helper functions ----------
 def load_last_run():
     try:
         with open(LAST_RUN_FILE, 'r', encoding='utf-8') as f:
@@ -87,34 +85,46 @@ def is_short_or_too_short(video):
     return video.get('duration_sec', 0) < 120
 
 def match_artist(video_title, video_channel):
-    """Return the artist dict that matches (simple substring)."""
     combined = (video_title + " " + video_channel).lower()
     for artist in artists:
         if artist["name"].lower() in combined:
             return artist
     return None
 
-# ---------- Fetch videos ----------
-def get_reactions_with_stats():
+def build_search_query():
+    """Search for artist names AND their hashtag equivalents."""
+    queries = []
+    for artist in artists:
+        name = artist["name"]
+        # Plain name (without quotes) and the hashtag version (remove spaces)
+        hashtag = "#" + name.replace(" ", "")
+        queries.append(f'({name} OR "{hashtag}")')
+    return " OR ".join(queries)
+
+def get_reactions_with_stats(since=None):
     all_videos = []
     next_page_token = None
     total_fetched = 0
 
-    # Build combined search query
-    artist_queries = [f'"{a["name"]}"' for a in artists]
-    search_query = " OR ".join(artist_queries) + ' (reacts OR reaction OR "first time" OR "react to" OR reacting)'
-    print(f"🔍 Searching for: {', '.join([a['name'] for a in artists])}\n")
+    search_query = build_search_query()
+    print(f"🔍 Searching for: {', '.join([a['name'] for a in artists])}")
+    print(f"📋 Query: {search_query}\n")
+
+    search_params = {
+        "part": "snippet",
+        "q": search_query,
+        "type": "video",
+        "maxResults": 50,
+        "order": "date",
+        "pageToken": next_page_token
+    }
+    if since:
+        search_params["publishedAfter"] = since
+        print(f"⏰ Only fetching videos after {since}")
 
     while True:
         try:
-            search_request = youtube.search().list(
-                part="snippet",
-                q=search_query,
-                type="video",
-                maxResults=50,
-                order="date",
-                pageToken=next_page_token
-            )
+            search_request = youtube.search().list(**search_params)
             search_response = search_request.execute()
             items = search_response.get('items', [])
             if not items:
@@ -152,7 +162,6 @@ def get_reactions_with_stats():
                             video['duration_sec'] = parse_duration(item['contentDetails'].get('duration'))
                             break
 
-            # Filter out Shorts and videos under 2 minutes
             filtered_batch = [v for v in temp_videos if not is_short_or_too_short(v)]
             all_videos.extend(filtered_batch)
 
@@ -164,6 +173,7 @@ def get_reactions_with_stats():
             next_page_token = search_response.get('nextPageToken')
             if not next_page_token or total_fetched >= MAX_TOTAL_RESULTS:
                 break
+            search_params["pageToken"] = next_page_token
             time.sleep(0.7)
 
         except Exception as e:
@@ -171,10 +181,9 @@ def get_reactions_with_stats():
             break
 
     all_videos.sort(key=lambda x: x['published_at'], reverse=True)
-    print(f"\n✅ Found {len(all_videos)} total reactions (after filtering).")
+    print(f"\n✅ Found {len(all_videos)} valid videos (after filtering).")
     return all_videos
 
-# ---------- Send to Discord ----------
 def send_to_discord(videos, artist, max_to_send=5):
     if not videos:
         return
@@ -210,17 +219,15 @@ if __name__ == "__main__":
     last_published = load_last_run()
     print(f"📅 Last run timestamp: {last_published[:10] if last_published else 'First run'}")
 
-    videos = get_reactions_with_stats()
-
-    # Determine new videos using a single global timestamp
     if FORCE_SEND_ALL or not last_published:
+        videos = get_reactions_with_stats(since=None)
         new_videos = videos
-        print(f"🔄 Force mode: Sending latest {len(new_videos)} videos")
+        print(f"🔄 Force mode: treating all {len(new_videos)} as new")
     else:
-        new_videos = [v for v in videos if v['published_at'] > last_published]
-        print(f"🆕 Found {len(new_videos)} new reactions since last run")
+        videos = get_reactions_with_stats(since=last_published)
+        new_videos = videos
+        print(f"🆕 Found {len(new_videos)} new videos since last run")
 
-    # Group new videos by artist (simple match)
     grouped = {a["name"]: [] for a in artists}
     for video in new_videos:
         artist = match_artist(video['title'], video['channel'])
@@ -229,14 +236,12 @@ if __name__ == "__main__":
         else:
             print(f"⚠️ No artist match for: {video['title'][:50]}...")
 
-    # Send to each artist
     for artist in artists:
         artist_name = artist["name"]
         artist_vids = grouped.get(artist_name, [])
         if artist_vids:
             send_to_discord(artist_vids, artist, MAX_TO_SEND)
 
-    # Save CSV (all videos, not just new)
     with open("reactions_all.csv", 'w', newline='', encoding='utf-8') as f:
         fieldnames = ['title', 'channel', 'published_at', 'view_count',
                      'like_count', 'comment_count', 'video_id', 'url']
@@ -247,7 +252,6 @@ if __name__ == "__main__":
             writer.writerow(row)
     print("💾 Saved all reactions to reactions_all.csv")
 
-    # Generate HTML (same as before)
     html_content = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -291,7 +295,6 @@ if __name__ == "__main__":
         f.write(html_content)
     print("🌐 Static website updated (reactions_all.html)")
 
-    # Update the global bookmark with the newest video among all new videos
     if new_videos:
         save_last_run(new_videos[0]['published_at'])
 
