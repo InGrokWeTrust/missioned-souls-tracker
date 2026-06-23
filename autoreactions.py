@@ -44,7 +44,6 @@ def parse_duration(duration_str):
     """Convert ISO 8601 duration string (e.g., PT2M30S) to total seconds."""
     if not duration_str:
         return 0
-    # Match pattern: PT (optional H, M, S)
     pattern = r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?'
     match = re.match(pattern, duration_str)
     if not match:
@@ -57,11 +56,9 @@ def parse_duration(duration_str):
 
 def is_short_or_too_short(video):
     """Return True if video is a Short or duration < 120 seconds."""
-    # Exclude videos with #Shorts in title
     title_lower = video.get('title', '').lower()
     if '#shorts' in title_lower:
         return True
-    # Exclude videos shorter than 2 minutes (120 sec)
     duration_sec = video.get('duration_sec', 0)
     if duration_sec < 120:
         return True
@@ -109,14 +106,12 @@ def get_reactions_with_stats():
             total_fetched += 1
 
         if video_ids:
-            # Fetch both statistics AND contentDetails (duration) in one call
             stats_request = youtube.videos().list(
                 part="statistics,contentDetails",
                 id=",".join(video_ids)
             )
             stats_response = stats_request.execute()
             
-            # Build lookup dict for stats and duration
             stats_dict = {}
             duration_dict = {}
             for item in stats_response.get('items', []):
@@ -127,12 +122,10 @@ def get_reactions_with_stats():
                     'like_count': int(stats.get('likeCount', 0)),
                     'comment_count': int(stats.get('commentCount', 0))
                 }
-                # Parse duration from contentDetails
                 content_details = item.get('contentDetails', {})
                 duration_str = content_details.get('duration', 'PT0S')
                 duration_dict[vid_id] = parse_duration(duration_str)
             
-            # Enrich temp_videos with stats and duration
             for video in temp_videos:
                 vid_id = video['video_id']
                 vid_stats = stats_dict.get(vid_id, {})
@@ -141,11 +134,9 @@ def get_reactions_with_stats():
                 video['comment_count'] = vid_stats.get('comment_count', 0)
                 video['duration_sec'] = duration_dict.get(vid_id, 0)
 
-        # Filter out Shorts and videos under 2 minutes
         filtered_batch = [v for v in temp_videos if not is_short_or_too_short(v)]
         all_videos.extend(filtered_batch)
 
-        # Print progress for all fetched (including those filtered)
         for video in temp_videos:
             views = video.get('view_count', 0)
             status = "⏭️ (filtered)" if is_short_or_too_short(video) else "✅"
@@ -158,7 +149,7 @@ def get_reactions_with_stats():
         time.sleep(0.7)
 
     all_videos.sort(key=lambda x: x['published_at'], reverse=True)
-    print(f"\n✅ Found {len(all_videos)} total reactions (after filtering out Shorts & videos < 2 min).")
+    print(f"\n✅ Found {len(all_videos)} total reactions (after filtering).")
     return all_videos
 
 
@@ -228,7 +219,7 @@ if __name__ == "__main__":
 
     print(f"💾 Saved to missioned_souls_reactions.csv")
 
-    # Generate HTML (unchanged)
+    # Generate HTML
     html_content = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -284,10 +275,13 @@ if __name__ == "__main__":
 
     print("🌐 Static website updated")
 
-    # Send to Discord (only new videos that passed filtering)
-    send_to_discord(new_videos, max_to_send=MAX_TO_SEND)
-
+    # --- Send to Discord: oldest first, newest last ---
     if new_videos:
+        to_send = new_videos[::-1]   # reverse to oldest first
+        send_to_discord(to_send, max_to_send=MAX_TO_SEND)
+        # Update bookmark to the newest video (the one at the top of the original list)
         save_last_run(new_videos[0]['published_at'])
+    else:
+        send_to_discord([], max_to_send=MAX_TO_SEND)  # will print "No new videos"
 
     print("\n🎉 All done!")
