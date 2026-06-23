@@ -96,9 +96,9 @@ def build_search_query():
     queries = []
     for artist in artists:
         name = artist["name"]
-        # Plain name (without quotes) and the hashtag version (remove spaces)
         hashtag = "#" + name.replace(" ", "")
-        queries.append(f'({name} OR "{hashtag}")')
+        # Plain name and hashtag – no quotes for the hashtag
+        queries.append(f'({name} OR {hashtag})')
     return " OR ".join(queries)
 
 def get_reactions_with_stats(since=None):
@@ -222,10 +222,9 @@ if __name__ == "__main__":
     if FORCE_SEND_ALL or not last_published:
         videos = get_reactions_with_stats(since=None)
         new_videos = videos
-        print(f"🔄 Force mode: treating all {len(new_videos)} as new")
     else:
-        videos = get_reactions_with_stats(since=last_published)
-        new_videos = videos
+        videos = get_reactions_with_stats(since=None)  # fetch all
+        new_videos = [v for v in videos if v['published_at'] > last_published]  # filter in Python
         print(f"🆕 Found {len(new_videos)} new videos since last run")
 
     grouped = {a["name"]: [] for a in artists}
