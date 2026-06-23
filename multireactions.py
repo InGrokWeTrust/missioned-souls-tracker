@@ -41,7 +41,7 @@ def load_artists():
 
 artists = load_artists()
 
-# Fallback to single‑artist mode (exactly like your original script)
+# Fallback to single‑artist mode
 if not artists:
     CHANNEL_NAME = os.environ.get("CHANNEL_NAME")
     DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
@@ -62,7 +62,6 @@ youtube = build('youtube', 'v3', developerKey=API_KEY)
 
 # ---------- last_run helpers (per‑artist) ----------
 def load_last_run():
-    """Load the entire last_run.json dict."""
     try:
         with open(LAST_RUN_FILE, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -74,7 +73,7 @@ def save_last_run(data):
         json.dump(data, f, indent=2)
     print(f"💾 Updated {LAST_RUN_FILE}")
 
-# ---------- Duration parsing (unchanged) ----------
+# ---------- Duration parsing ----------
 def parse_duration(duration_str):
     if not duration_str:
         return 0
@@ -93,9 +92,8 @@ def is_short_or_too_short(video):
         return True
     return video.get('duration_sec', 0) < 120
 
-# ---------- Search per artist (EXACT same query as single‑artist) ----------
+# ---------- Search per artist (proven query) ----------
 def get_reactions_for_artist(artist_name):
-    """Fetch reaction videos for a single artist using the proven query."""
     all_videos = []
     next_page_token = None
     total_fetched = 0
@@ -207,7 +205,7 @@ def send_to_discord(videos, artist, max_to_send=5):
             print(f"❌ Failed to send to {artist['name']}: {e}")
         time.sleep(1.3)
 
-# ---------- Save per‑artist CSV (optional) ----------
+# ---------- Save per‑artist CSV ----------
 def save_artist_csv(artist_name, videos):
     if not videos:
         return
@@ -250,16 +248,19 @@ if __name__ == "__main__":
             print(f"🆕 {artist_name}: Found {len(new_videos)} new videos since {last_time}")
 
         if new_videos:
-            # Send to Discord
-            send_to_discord(new_videos, artist, MAX_TO_SEND)
+            # Always send oldest first (reverse the list)
+            to_send = new_videos[::-1]   # oldest to newest
+
+            # Send to Discord (limited by MAX_TO_SEND)
+            send_to_discord(to_send, artist, MAX_TO_SEND)
+
             # Save CSV for this artist (all videos, not just new)
             save_artist_csv(artist_name, all_videos)
 
-            # Update bookmark to the newest video's timestamp
+            # Update bookmark to the NEWEST video's timestamp (always use the most recent)
             new_last_run[artist_name] = new_videos[0]['published_at']
             any_new = True
 
-        # If no new videos, keep the existing timestamp
         else:
             # If artist didn't exist in last_run_data, set a default old timestamp
             if artist_name not in new_last_run:
@@ -270,7 +271,4 @@ if __name__ == "__main__":
         save_last_run(new_last_run)
         print("💾 Updated last_run.json with new timestamps")
 
-    # Also generate a combined CSV and HTML (optional – same as single‑artist)
-    # We can collect all videos from all artists by merging, but that's extra.
-    # For simplicity, we skip combined HTML to avoid confusion.
-    print("\n🎉 All artists processed successfully!") 
+    print("\n🎉 All artists processed successfully!")
