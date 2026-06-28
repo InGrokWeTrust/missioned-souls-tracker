@@ -70,6 +70,21 @@ jobs:
           ARTIST_6_COLOR:    ${{ vars.ARTIST_6_COLOR }}
           ARTIST_6_WEBHOOK:  ${{ secrets.ARTIST_6_WEBHOOK }}
 
+          ARTIST_7_NAME:     ${{ vars.ARTIST_7_NAME }}
+          ARTIST_7_USERNAME: ${{ vars.ARTIST_7_USERNAME }}
+          ARTIST_7_COLOR:    ${{ vars.ARTIST_7_COLOR }}
+          ARTIST_7_WEBHOOK:  ${{ secrets.ARTIST_7_WEBHOOK }}
+
+          ARTIST_8_NAME:     ${{ vars.ARTIST_8_NAME }}
+          ARTIST_8_USERNAME: ${{ vars.ARTIST_8_USERNAME }}
+          ARTIST_8_COLOR:    ${{ vars.ARTIST_8_COLOR }}
+          ARTIST_8_WEBHOOK:  ${{ secrets.ARTIST_8_WEBHOOK }}
+
+          ARTIST_9_NAME:     ${{ vars.ARTIST_9_NAME }}
+          ARTIST_9_USERNAME: ${{ vars.ARTIST_9_USERNAME }}
+          ARTIST_9_COLOR:    ${{ vars.ARTIST_9_COLOR }}
+          ARTIST_9_WEBHOOK:  ${{ secrets.ARTIST_9_WEBHOOK }}
+
           # General Settings
           MAX_TOTAL_RESULTS: ${{ vars.MAX_TOTAL_RESULTS || 150 }}
           MAX_TO_SEND:       ${{ vars.MAX_TO_SEND || 6 }}
