@@ -265,12 +265,10 @@ if __name__ == "__main__":
         f.write(html_content)
     print("🌐 Static website updated")
 
-    # --- Send to Discord: reverse so oldest appears at top ---
+    # --- CORRECT ORDER: send oldest first (no reversal) ---
     if new_videos:
-        # new_videos is sorted ascending (oldest first). Send reversed (newest first)
-        # so the oldest becomes the most recent message (at the top)
-        send_to_discord(new_videos[::-1], max_to_send=MAX_TO_SEND)
-        # Bookmark always the newest video (the last in ascending list)
+        send_to_discord(new_videos, max_to_send=MAX_TO_SEND)
+        # Bookmark to the newest video (last in ascending list)
         save_last_run(new_videos[-1]['published_at'])
     else:
         send_to_discord([], max_to_send=MAX_TO_SEND)
