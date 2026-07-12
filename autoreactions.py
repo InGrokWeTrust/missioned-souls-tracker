@@ -41,7 +41,6 @@ def save_last_run(published_at):
 
 
 def parse_duration(duration_str):
-    """Convert ISO 8601 duration string (e.g., PT2M30S) to total seconds."""
     if not duration_str:
         return 0
     pattern = r'PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?'
@@ -55,14 +54,10 @@ def parse_duration(duration_str):
 
 
 def is_short_or_too_short(video):
-    """Return True if video is a Short or duration < 120 seconds."""
     title_lower = video.get('title', '').lower()
     if '#shorts' in title_lower:
         return True
-    duration_sec = video.get('duration_sec', 0)
-    if duration_sec < 120:
-        return True
-    return False
+    return video.get('duration_sec', 0) < 120
 
 
 def get_reactions_with_stats():
@@ -81,16 +76,14 @@ def get_reactions_with_stats():
             order="date",
             pageToken=next_page_token
         )
-        
         search_response = search_request.execute()
         items = search_response.get('items', [])
-        
         if not items:
             break
-        
+
         video_ids = []
         temp_videos = []
-        
+
         for item in items:
             video_id = item['id']['videoId']
             video = {
@@ -111,7 +104,7 @@ def get_reactions_with_stats():
                 id=",".join(video_ids)
             )
             stats_response = stats_request.execute()
-            
+
             stats_dict = {}
             duration_dict = {}
             for item in stats_response.get('items', []):
@@ -125,7 +118,7 @@ def get_reactions_with_stats():
                 content_details = item.get('contentDetails', {})
                 duration_str = content_details.get('duration', 'PT0S')
                 duration_dict[vid_id] = parse_duration(duration_str)
-            
+
             for video in temp_videos:
                 vid_id = video['video_id']
                 vid_stats = stats_dict.get(vid_id, {})
@@ -145,9 +138,9 @@ def get_reactions_with_stats():
         next_page_token = search_response.get('nextPageToken')
         if not next_page_token or total_fetched >= MAX_TOTAL_RESULTS:
             break
-            
         time.sleep(0.7)
 
+    # Sort ascending (oldest first)
     all_videos.sort(key=lambda x: x['published_at'], reverse=False)
     print(f"\n✅ Found {len(all_videos)} total reactions (after filtering).")
     return all_videos
@@ -188,7 +181,6 @@ def send_to_discord(videos, max_to_send=5):
                 print(f"❌ Discord error {response.status_code}")
         except Exception as e:
             print(f"❌ Failed to send: {e}")
-        
         time.sleep(1.3)
 
 
@@ -208,7 +200,7 @@ if __name__ == "__main__":
         new_videos = [v for v in videos if v['published_at'] > last_published]
         print(f"🆕 Found {len(new_videos)} new reactions since last run")
 
-    # Save CSV (duration_sec not saved, only original fields)
+    # Save CSV
     with open("missioned_souls_reactions.csv", 'w', newline='', encoding='utf-8') as f:
         fieldnames = ['title', 'channel', 'published_at', 'view_count', 
                      'like_count', 'comment_count', 'video_id', 'url']
@@ -217,7 +209,6 @@ if __name__ == "__main__":
         for video in videos:
             video_copy = {k: v for k, v in video.items() if k in fieldnames}
             writer.writerow(video_copy)
-
     print(f"💾 Saved to missioned_souls_reactions.csv")
 
     # Generate HTML
@@ -264,7 +255,6 @@ if __name__ == "__main__":
         <td>{v.get('like_count', 0):,}</td>
         <td><a href="{v['url']}" target="_blank">Watch →</a></td>
       </tr>"""
-
     html_content += """
     </tbody>
   </table>
@@ -273,16 +263,15 @@ if __name__ == "__main__":
 
     with open("missioned_souls_reactions.html", "w", encoding="utf-8") as f:
         f.write(html_content)
-
     print("🌐 Static website updated")
 
     # --- Send to Discord: oldest first, newest last ---
     if new_videos:
-        to_send = new_videos[::-1]   # reverse to oldest first
-        send_to_discord(to_send, max_to_send=MAX_TO_SEND)
-        # Update bookmark to the newest video (the one at the top of the original list)
-        save_last_run(new_videos[0]['published_at'])
+        # new_videos is already sorted ascending (oldest first) → send as is
+        send_to_discord(new_videos, max_to_send=MAX_TO_SEND)
+        # Update bookmark to the newest video (which is the last element because ascending)
+        save_last_run(new_videos[-1]['published_at'])
     else:
-        send_to_discord([], max_to_send=MAX_TO_SEND)  # will print "No new videos"
+        send_to_discord([], max_to_send=MAX_TO_SEND)
 
     print("\n🎉 All done!")
