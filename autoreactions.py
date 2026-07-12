@@ -183,7 +183,6 @@ def send_to_discord(videos, max_to_send=5):
             print(f"❌ Failed to send: {e}")
         time.sleep(1.3)
 
-
 # ===================== MAIN =====================
 if __name__ == "__main__":
     print("🚀 Missioned Souls Reaction Tracker Started\n")
@@ -200,11 +199,10 @@ if __name__ == "__main__":
         new_videos = [v for v in videos if v['published_at'] > last_published]
         print(f"🆕 Found {len(new_videos)} new reactions since last run")
 
-    # --- Ensure new_videos is sorted correctly ---
-    # Sort ascending (oldest first) before sending
+    # Ensure new_videos is sorted ascending (oldest first)
     new_videos.sort(key=lambda x: x['published_at'], reverse=False)
 
-    # Save CSV
+    # Save CSV (duration_sec not saved, only original fields)
     with open("missioned_souls_reactions.csv", 'w', newline='', encoding='utf-8') as f:
         fieldnames = ['title', 'channel', 'published_at', 'view_count', 
                      'like_count', 'comment_count', 'video_id', 'url']
@@ -269,11 +267,13 @@ if __name__ == "__main__":
         f.write(html_content)
     print("🌐 Static website updated")
 
-    # --- Send to Discord: oldest first (ascending) ---
+    # --- CORRECT ORDER: send newest 10 in ascending order ---
     if new_videos:
-        # new_videos is now definitely sorted ascending (oldest first)
-        send_to_discord(new_videos, max_to_send=MAX_TO_SEND)
-        # Bookmark to the newest video (last in the sorted list)
+        # Get the most recent MAX_TO_SEND videos (from the end of the ascending list)
+        top_videos = new_videos[-MAX_TO_SEND:] if len(new_videos) >= MAX_TO_SEND else new_videos
+        # Send them as is (ascending, so oldest of this set first)
+        send_to_discord(top_videos, max_to_send=MAX_TO_SEND)
+        # Bookmark to the newest overall video (last element of ascending list)
         save_last_run(new_videos[-1]['published_at'])
     else:
         send_to_discord([], max_to_send=MAX_TO_SEND)
