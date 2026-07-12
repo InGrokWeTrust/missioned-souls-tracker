@@ -148,7 +148,7 @@ def get_reactions_with_stats():
             
         time.sleep(0.7)
 
-    all_videos.sort(key=lambda x: x['published_at'], reverse=True)
+    all_videos.sort(key=lambda x: x['published_at'], reverse=False)
     print(f"\n✅ Found {len(all_videos)} total reactions (after filtering).")
     return all_videos
 
@@ -170,6 +170,7 @@ def send_to_discord(videos, max_to_send=5):
                 {"name": "Channel", "value": video['channel'], "inline": True},
                 {"name": "Views", "value": f"{video.get('view_count', 0):,}", "inline": True},
                 {"name": "Likes", "value": f"{video.get('like_count', 0):,}", "inline": True},
+                {"name": "Comment", "value": f"{video.get('comment_count', 0):,}", "inline": True},
             ],
             "timestamp": video['published_at']
         }
