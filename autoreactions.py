@@ -278,7 +278,7 @@ if __name__ == "__main__":
 
     # --- Send to Discord: oldest first, newest last ---
     if new_videos:
-        to_send = new_videos[::1]   # reverse to oldest first
+        to_send = new_videos[::-1]   # reverse to oldest first
         send_to_discord(to_send, max_to_send=MAX_TO_SEND)
         # Update bookmark to the newest video (the one at the top of the original list)
         save_last_run(new_videos[0]['published_at'])
