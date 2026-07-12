@@ -200,6 +200,10 @@ if __name__ == "__main__":
         new_videos = [v for v in videos if v['published_at'] > last_published]
         print(f"🆕 Found {len(new_videos)} new reactions since last run")
 
+    # --- Ensure new_videos is sorted correctly ---
+    # Sort ascending (oldest first) before sending
+    new_videos.sort(key=lambda x: x['published_at'], reverse=False)
+
     # Save CSV
     with open("missioned_souls_reactions.csv", 'w', newline='', encoding='utf-8') as f:
         fieldnames = ['title', 'channel', 'published_at', 'view_count', 
@@ -265,10 +269,11 @@ if __name__ == "__main__":
         f.write(html_content)
     print("🌐 Static website updated")
 
-    # --- CORRECT ORDER: send oldest first (no reversal) ---
+    # --- Send to Discord: oldest first (ascending) ---
     if new_videos:
+        # new_videos is now definitely sorted ascending (oldest first)
         send_to_discord(new_videos, max_to_send=MAX_TO_SEND)
-        # Bookmark to the newest video (last in ascending list)
+        # Bookmark to the newest video (last in the sorted list)
         save_last_run(new_videos[-1]['published_at'])
     else:
         send_to_discord([], max_to_send=MAX_TO_SEND)
