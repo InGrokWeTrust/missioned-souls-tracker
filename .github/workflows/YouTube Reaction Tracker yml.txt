@@ -1,0 +1,60 @@
+name: YouTube Reaction Tracker
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'   # Every 20 minutes (for testing – revert to '0 * * * *' later)
+  workflow_dispatch:       # Allows manual trigger
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log run time
+        run: echo "Run at $(date) - triggered by ${{ github.event_name }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install google-api-python-client requests
+
+      # Download last_run.json from the most recent successful run (if any)
+      - name: Download previous last_run.json
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: youtube-tracker.yml
+          name: last-run-state
+          path: ./
+          if_no_artifact_found: warn   # Don't fail on first run
+
+      - name: Run YouTube reaction tracker
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          CHANNEL_NAME: ${{ vars.CHANNEL_NAME }}
+          MAX_TOTAL_RESULTS: ${{ vars.MAX_TOTAL_RESULTS }}
+          MAX_TO_SEND: ${{ vars.MAX_TO_SEND }}
+          FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
+          LAST_RUN_FILE: ${{ vars.LAST_RUN_FILE }}
+        run: python autoreactions.py
+
+      # Upload the updated last_run.json for the next run
+      - name: Upload last_run.json for next run
+        uses: actions/upload-artifact@v4
+        with:
+          name: last-run-state
+          path: last_run.json
+          retention-days: 1   # Keep only 1 day; reduces storage
+
+      - name: Upload CSV and HTML as artifacts (optional for viewing)
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube-reactions
+          path: |
+            missioned_souls_reactions.csv
+            missioned_souls_reactions.html
