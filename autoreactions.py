@@ -14,7 +14,7 @@ if not API_KEY:
 
 CHANNEL_NAME = os.environ.get("CHANNEL_NAME", "Missioned Souls")
 MAX_TOTAL_RESULTS = int(os.environ.get("MAX_TOTAL_RESULTS", "80"))
-MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND", "6"))
+MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND", "10"))
 FORCE_SEND_ALL = os.environ.get("FORCE_SEND_ALL", "false").lower() == "true"
 LAST_RUN_FILE = os.environ.get("LAST_RUN_FILE", "last_run.json")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
@@ -183,6 +183,7 @@ def send_to_discord(videos, max_to_send=5):
             print(f"❌ Failed to send: {e}")
         time.sleep(1.3)
 
+
 # ===================== MAIN =====================
 if __name__ == "__main__":
     print("🚀 Missioned Souls Reaction Tracker Started\n")
@@ -202,7 +203,7 @@ if __name__ == "__main__":
     # Ensure new_videos is sorted ascending (oldest first)
     new_videos.sort(key=lambda x: x['published_at'], reverse=False)
 
-    # Save CSV (duration_sec not saved, only original fields)
+    # Save CSV
     with open("missioned_souls_reactions.csv", 'w', newline='', encoding='utf-8') as f:
         fieldnames = ['title', 'channel', 'published_at', 'view_count', 
                      'like_count', 'comment_count', 'video_id', 'url']
@@ -267,15 +268,18 @@ if __name__ == "__main__":
         f.write(html_content)
     print("🌐 Static website updated")
 
-    # --- CORRECT ORDER: send newest 10 in ascending order ---
+    # --- CORRECT ORDER: newest videos in ascending order ---
     if new_videos:
-        # Get the most recent MAX_TO_SEND videos (from the end of the ascending list)
+        # Get the most recent MAX_TO_SEND videos (from the end of ascending list)
         top_videos = new_videos[-MAX_TO_SEND:] if len(new_videos) >= MAX_TO_SEND else new_videos
-        # Send them as is (ascending, so oldest of this set first)
         send_to_discord(top_videos, max_to_send=MAX_TO_SEND)
-        # Bookmark to the newest overall video (last element of ascending list)
-        save_last_run(new_videos[-1]['published_at'])
+        
+        # ALWAYS update bookmark to the NEWEST video (last in ascending list)
+        newest_timestamp = new_videos[-1]['published_at']
+        save_last_run(newest_timestamp)
+        print(f"📌 Bookmark updated to: {newest_timestamp}")
     else:
         send_to_discord([], max_to_send=MAX_TO_SEND)
+        print("ℹ️ No new videos – bookmark unchanged")
 
     print("\n🎉 All done!")
