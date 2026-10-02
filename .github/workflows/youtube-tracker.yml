@@ -2,7 +2,9 @@ name: YouTube Reaction Tracker
 
 on:
   schedule:
-    - cron: '*/20 * * * *'   # Every 20 minutes (for testing – revert to '0 * * * *' later)
+    - cron: '5 * * * *'   # Every 7 minutes past the hour (for testing – revert to '0 * * * *' later)
+    - cron: '25 * * * *'
+    - cron: '45 * * * *'
   workflow_dispatch:       # Allows manual trigger
 
 jobs:
