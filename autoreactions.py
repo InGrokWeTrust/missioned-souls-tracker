@@ -1,5 +1,4 @@
 import os
-import csv
 import time
 import json
 import re
@@ -187,7 +186,7 @@ def send_to_discord(videos, max_to_send=5):
 # ===================== MAIN =====================
 if __name__ == "__main__":
     print("🚀 Missioned Souls Reaction Tracker Started\n")
-    
+
     last_published = load_last_run()
     print(f"📅 Last run timestamp: {last_published[:10] if last_published else 'First run'}")
 
@@ -203,77 +202,12 @@ if __name__ == "__main__":
     # Ensure new_videos is sorted ascending (oldest first)
     new_videos.sort(key=lambda x: x['published_at'], reverse=False)
 
-    # Save CSV
-    with open("missioned_souls_reactions.csv", 'w', newline='', encoding='utf-8') as f:
-        fieldnames = ['title', 'channel', 'published_at', 'view_count', 
-                     'like_count', 'comment_count', 'video_id', 'url']
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        for video in videos:
-            video_copy = {k: v for k, v in video.items() if k in fieldnames}
-            writer.writerow(video_copy)
-    print(f"💾 Saved to missioned_souls_reactions.csv")
-
-    # Generate HTML
-    html_content = """<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Missioned Souls Reactions</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f4; }
-    h1 { color: #1e3a8a; text-align: center; }
-    table { width: 100%; border-collapse: collapse; background: white; }
-    th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
-    th { background: #1e3a8a; color: white; }
-    tr:hover { background: #e0f2fe; }
-    .stats { text-align: center; font-size: 18px; margin: 20px; font-weight: bold; }
-  </style>
-</head>
-<body>
-  <h1>🎥 Missioned Souls - Reaction Videos</h1>
-  <p class="stats">Total Reactions: """ + str(len(videos)) + """ | New: """ + str(len(new_videos)) + """</p>
-  <table>
-    <thead>
-      <tr>
-        <th>Date</th>
-        <th>Channel</th>
-        <th>Title</th>
-        <th>Views</th>
-        <th>Likes</th>
-        <th>Link</th>
-      </tr>
-    </thead>
-    <tbody>"""
-
-    for v in videos:
-        date = v['published_at'][:10] if v['published_at'] else ""
-        html_content += f"""
-      <tr>
-        <td>{date}</td>
-        <td>{v['channel']}</td>
-        <td>{v['title']}</td>
-        <td>{v.get('view_count', 0):,}</td>
-        <td>{v.get('like_count', 0):,}</td>
-        <td><a href="{v['url']}" target="_blank">Watch →</a></td>
-      </tr>"""
-    html_content += """
-    </tbody>
-  </table>
-</body>
-</html>"""
-
-    with open("missioned_souls_reactions.html", "w", encoding="utf-8") as f:
-        f.write(html_content)
-    print("🌐 Static website updated")
-
     # --- CORRECT ORDER: newest videos in ascending order ---
     if new_videos:
         # Get the most recent MAX_TO_SEND videos (from the end of ascending list)
         top_videos = new_videos[-MAX_TO_SEND:] if len(new_videos) >= MAX_TO_SEND else new_videos
         send_to_discord(top_videos, max_to_send=MAX_TO_SEND)
-        
+
         # ALWAYS update bookmark to the NEWEST video (last in ascending list)
         newest_timestamp = new_videos[-1]['published_at']
         save_last_run(newest_timestamp)
