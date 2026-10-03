@@ -35,7 +35,6 @@ jobs:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           CHANNEL_NAME: ${{ vars.CHANNEL_NAME }}
-          MAX_TOTAL_RESULTS: ${{ vars.MAX_TOTAL_RESULTS }}
           MAX_TO_SEND: ${{ vars.MAX_TO_SEND }}
           FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
           LAST_RUN_FILE: ${{ vars.LAST_RUN_FILE }}
