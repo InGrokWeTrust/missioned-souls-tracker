@@ -1,9 +1,7 @@
 name: YouTube Reaction Tracker
 
 on:
-  schedule:
-    - cron: '*/5 * * * *'   # Every 7 minutes past the hour (for testing – revert to '0 * * * *' later)
-  workflow_dispatch:       # Allows manual trigger
+  workflow_dispatch:       # Triggered externally via cron-job.org every 15 minutes
 
 jobs:
   track:
@@ -49,7 +47,7 @@ jobs:
         with:
           name: last-run-state
           path: last_run.json
-          retention-days: 1   # Keep only 1 day; reduces storage
+          retention-days: 1
 
       - name: Upload CSV and HTML as artifacts (optional for viewing)
         uses: actions/upload-artifact@v4
