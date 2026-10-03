@@ -52,9 +52,23 @@ def parse_duration(duration_str):
 
 def is_short_or_too_short(video):
     title_lower = video.get('title', '').lower()
+
+    # Always filter explicit #shorts
     if '#shorts' in title_lower:
         return True
-    return video.get('duration_sec', 0) < 120
+
+    # Never filter live or upcoming streams
+    if video.get('live_broadcast_content') in ('live', 'upcoming'):
+        return False
+
+    # Never filter videos with unknown duration (0s) — could be live VODs,
+    # premieres, or items YouTube hasn't populated duration for yet
+    duration = video.get('duration_sec', 0)
+    if duration == 0:
+        return False
+
+    # Only filter confirmed short videos
+    return duration < 120
 
 
 def get_reactions_with_stats():
@@ -85,7 +99,8 @@ def get_reactions_with_stats():
             'channel': item['snippet']['channelTitle'],
             'published_at': item['snippet']['publishedAt'],
             'url': f"https://youtu.be/{video_id}",
-            'thumbnail': item['snippet'].get('thumbnails', {}).get('medium', {}).get('url')
+            'thumbnail': item['snippet'].get('thumbnails', {}).get('medium', {}).get('url'),
+            'live_broadcast_content': item['snippet'].get('liveBroadcastContent', 'none')
         }
         temp_videos.append(video)
         video_ids.append(video_id)
@@ -128,7 +143,14 @@ def get_reactions_with_stats():
 
     for video in temp_videos:
         views = video.get('view_count', 0)
-        status = "⏭️ (filtered)" if is_short_or_too_short(video) else "✅"
+        if is_short_or_too_short(video):
+            status = "⏭️ (filtered)"
+        elif video.get('live_broadcast_content') == 'live':
+            status = "🔴 (live)"
+        elif video.get('live_broadcast_content') == 'upcoming':
+            status = "🕒 (upcoming)"
+        else:
+            status = "✅"
         print(f"{views:8,} views | {video['title'][:70]} {status}")
 
     print(f"\n✅ Found {len(all_videos)} reactions (after filtering).")
@@ -143,10 +165,17 @@ def send_to_discord(videos, max_to_send=5):
     print(f"\n📨 Sending {min(max_to_send, len(videos))} new reactions to Discord...\n")
 
     for video in videos[:max_to_send]:
+        # Add a live indicator to the title if applicable
+        title = video['title']
+        if video.get('live_broadcast_content') == 'live':
+            title = f"🔴 LIVE: {title}"
+        elif video.get('live_broadcast_content') == 'upcoming':
+            title = f"🕒 UPCOMING: {title}"
+
         embed = {
-            "title": video['title'],
+            "title": title,
             "url": video['url'],
-            "color": 0x1e88e5,
+            "color": 0xe53935 if video.get('live_broadcast_content') == 'live' else 0x1e88e5,
             "image": {"url": video.get('thumbnail')} if video.get('thumbnail') else None,
             "fields": [
                 {"name": "Channel", "value": video['channel'], "inline": True},
@@ -165,7 +194,7 @@ def send_to_discord(videos, max_to_send=5):
         try:
             response = requests.post(DISCORD_WEBHOOK_URL, json=data, timeout=10)
             if response.status_code == 204:
-                print(f"✅ Sent: {video['title'][:60]}...")
+                print(f"✅ Sent: {title[:60]}...")
             else:
                 print(f"❌ Discord error {response.status_code}")
         except Exception as e:
