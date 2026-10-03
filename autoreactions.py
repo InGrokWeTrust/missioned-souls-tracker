@@ -153,6 +153,22 @@ def get_reactions_with_stats():
             status = "✅"
         print(f"{views:8,} views | {video['title'][:70]} {status}")
 
+    # ===== DEBUG BLOCK — remove after diagnosing =====
+    print("\n" + "=" * 80)
+    print("🔎 DEBUG: All videos returned by search (before filtering):")
+    print("=" * 80)
+    for v in temp_videos:
+        print(f"  ID         : {v['video_id']}")
+        print(f"  Published  : {v['published_at']}")
+        print(f"  LiveStatus : {v['live_broadcast_content']}")
+        print(f"  Duration   : {v.get('duration_sec', '?')}s")
+        print(f"  Channel    : {v['channel']}")
+        print(f"  Title      : {v['title']}")
+        print(f"  Filtered?  : {is_short_or_too_short(v)}")
+        print("-" * 80)
+    print("=" * 80 + "\n")
+    # ===== END DEBUG BLOCK =====
+
     print(f"\n✅ Found {len(all_videos)} reactions (after filtering).")
     return all_videos
 
