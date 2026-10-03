@@ -48,11 +48,3 @@ jobs:
           name: last-run-state
           path: last_run.json
           retention-days: 1
-
-      - name: Upload CSV and HTML as artifacts (optional for viewing)
-        uses: actions/upload-artifact@v4
-        with:
-          name: youtube-reactions
-          path: |
-            missioned_souls_reactions.csv
-            missioned_souls_reactions.html
