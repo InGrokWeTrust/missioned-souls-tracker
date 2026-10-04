@@ -18,6 +18,9 @@ DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 if not DISCORD_WEBHOOK_URL:
     raise ValueError("Missing DISCORD_WEBHOOK_URL environment variable")
 
+# Channels containing any of these keywords (case-insensitive) are skipped
+EXCLUDED_CHANNEL_KEYWORDS = ["vlog"]
+
 # ===========================================
 
 youtube = build('youtube', 'v3', developerKey=API_KEY)
@@ -50,6 +53,12 @@ def parse_duration(duration_str):
     return hours * 3600 + minutes * 60 + seconds
 
 
+def is_excluded_channel(video):
+    """Return True if the channel name contains any excluded keyword."""
+    channel_lower = video.get('channel', '').lower()
+    return any(kw in channel_lower for kw in EXCLUDED_CHANNEL_KEYWORDS)
+
+
 def is_short_or_too_short(video):
     title_lower = video.get('title', '').lower()
 
@@ -74,7 +83,6 @@ def is_short_or_too_short(video):
 def get_reactions_with_stats():
     print(f"🔍 Searching latest reactions for {CHANNEL_NAME}...\n")
 
-    # Single search call — newest 50 results, one page only
     search_response = youtube.search().list(
         part="snippet",
         q=f'"{CHANNEL_NAME}" (reacts OR reaction OR "first time" OR "react to" OR reacting)',
@@ -135,6 +143,10 @@ def get_reactions_with_stats():
         video['comment_count'] = vid_stats.get('comment_count', 0)
         video['duration_sec'] = duration_dict.get(vid_id, 0)
 
+        # Skip excluded channels entirely
+        if is_excluded_channel(video):
+            continue
+
         if not is_short_or_too_short(video):
             all_videos.append(video)
 
@@ -143,7 +155,9 @@ def get_reactions_with_stats():
 
     for video in temp_videos:
         views = video.get('view_count', 0)
-        if is_short_or_too_short(video):
+        if is_excluded_channel(video):
+            status = "🚫 (vlog channel)"
+        elif is_short_or_too_short(video):
             status = "⏭️ (filtered)"
         elif video.get('live_broadcast_content') == 'live':
             status = "🔴 (live)"
@@ -151,7 +165,7 @@ def get_reactions_with_stats():
             status = "🕒 (upcoming)"
         else:
             status = "✅"
-        print(f"{views:8,} views | {video['title'][:70]} {status}")
+        print(f"{views:8,} views | {video['channel'][:20]:20} | {video['title'][:55]} {status}")
 
     print(f"\n✅ Found {len(all_videos)} reactions (after filtering).")
     return all_videos
@@ -165,7 +179,6 @@ def send_to_discord(videos, max_to_send=5):
     print(f"\n📨 Sending {min(max_to_send, len(videos))} new reactions to Discord...\n")
 
     for video in videos[:max_to_send]:
-        # Add a live indicator to the title if applicable
         title = video['title']
         if video.get('live_broadcast_content') == 'live':
             title = f"🔴 LIVE: {title}"
@@ -212,7 +225,6 @@ if __name__ == "__main__":
     videos = get_reactions_with_stats()
 
     if not last_published:
-        # No bookmark yet → establish it from newest video, send nothing
         if videos:
             newest_timestamp = videos[-1]['published_at']
             save_last_run(newest_timestamp)
