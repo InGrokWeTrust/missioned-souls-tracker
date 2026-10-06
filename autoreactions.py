@@ -3,6 +3,7 @@ import time
 import json
 import re
 import requests
+from datetime import datetime, timedelta, timezone
 from googleapiclient.discovery import build
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
@@ -21,6 +22,7 @@ if not DISCORD_WEBHOOK_URL:
 
 EXCLUDED_CHANNEL_KEYWORDS = ["vlog"]
 VIDEOS_PER_CHANNEL = 5
+SAFETY_WINDOW_DAYS = 7
 # ===========================================
 
 youtube = build('youtube', 'v3', developerKey=API_KEY)
@@ -73,7 +75,6 @@ def is_excluded_channel(channel_name):
 
 
 def is_missioned_souls_video(video):
-    """Check if the video title mentions Missioned Souls."""
     title_lower = video.get('title', '').lower()
     return 'missioned souls' in title_lower
 
@@ -183,11 +184,9 @@ def enrich_videos(video_ids, video_meta):
         meta['comment_count'] = stats_dict.get(vid, {}).get('comment_count', 0)
         meta['duration_sec'] = duration_dict.get(vid, 0)
 
-        # Silently skip anything that isn't a Missioned Souls video
         if not is_missioned_souls_video(meta):
             continue
 
-        # Silently skip shorts / too-short videos
         if is_short_or_too_short(meta):
             continue
 
@@ -268,8 +267,9 @@ if __name__ == "__main__":
     if FORCE_SEND_ALL:
         new_videos = videos
     else:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=SAFETY_WINDOW_DAYS)).isoformat()
         new_videos = [v for v in videos
-                      if v['published_at'] > last_published and v['video_id'] not in sent_ids]
+                      if v['video_id'] not in sent_ids and v['published_at'] > cutoff]
 
     print(f"🆕 Found {len(new_videos)} new reactions since last run")
 
