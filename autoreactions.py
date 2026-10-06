@@ -183,15 +183,15 @@ def enrich_videos(video_ids, video_meta):
         meta['comment_count'] = stats_dict.get(vid, {}).get('comment_count', 0)
         meta['duration_sec'] = duration_dict.get(vid, 0)
 
-        # NEW: skip videos that don't mention Missioned Souls
+        # Silently skip anything that isn't a Missioned Souls video
         if not is_missioned_souls_video(meta):
-            print(f"   ⏭️  Not MS-related: {meta['title'][:60]}")
             continue
 
-        if not is_short_or_too_short(meta):
-            results.append(meta)
-        else:
-            print(f"   ⏭️  Filtered (short): {meta['title'][:60]}")
+        # Silently skip shorts / too-short videos
+        if is_short_or_too_short(meta):
+            continue
+
+        results.append(meta)
 
     return results
 
@@ -255,7 +255,7 @@ if __name__ == "__main__":
     videos = enrich_videos(video_ids, video_meta)
 
     videos.sort(key=lambda x: x['published_at'], reverse=False)
-    print(f"\n✅ {len(videos)} reactions (after filtering).")
+    print(f"\n✅ {len(videos)} Missioned Souls reactions (after filtering).")
 
     if not last_published:
         if videos:
