@@ -72,6 +72,12 @@ def is_excluded_channel(channel_name):
     return any(kw in channel_lower for kw in EXCLUDED_CHANNEL_KEYWORDS)
 
 
+def is_missioned_souls_video(video):
+    """Check if the video title mentions Missioned Souls."""
+    title_lower = video.get('title', '').lower()
+    return 'missioned souls' in title_lower
+
+
 def is_short_or_too_short(video):
     title_lower = video.get('title', '').lower()
     if '#shorts' in title_lower:
@@ -171,15 +177,21 @@ def enrich_videos(video_ids, video_meta):
         meta = video_meta.get(vid)
         if not meta:
             continue
+
         meta['view_count'] = stats_dict.get(vid, {}).get('view_count', 0)
         meta['like_count'] = stats_dict.get(vid, {}).get('like_count', 0)
         meta['comment_count'] = stats_dict.get(vid, {}).get('comment_count', 0)
         meta['duration_sec'] = duration_dict.get(vid, 0)
 
+        # NEW: skip videos that don't mention Missioned Souls
+        if not is_missioned_souls_video(meta):
+            print(f"   ⏭️  Not MS-related: {meta['title'][:60]}")
+            continue
+
         if not is_short_or_too_short(meta):
             results.append(meta)
         else:
-            print(f"   ⏭️  Filtered: {meta['title'][:60]}")
+            print(f"   ⏭️  Filtered (short): {meta['title'][:60]}")
 
     return results
 
