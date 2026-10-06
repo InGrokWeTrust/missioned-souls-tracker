@@ -1,7 +1,10 @@
 name: YouTube Reaction Tracker
 
 on:
-  workflow_dispatch:       # Triggered externally via cron-job.org every 15 minutes
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   track:
@@ -21,14 +24,13 @@ jobs:
       - name: Install dependencies
         run: pip install google-api-python-client requests
 
-      # Download last_run.json from the most recent successful run (if any)
       - name: Download previous last_run.json
         uses: dawidd6/action-download-artifact@v3
         with:
           workflow: youtube-tracker.yml
           name: last-run-state
           path: ./
-          if_no_artifact_found: warn   # Don't fail on first run
+          if_no_artifact_found: warn
 
       - name: Run YouTube reaction tracker
         env:
@@ -38,9 +40,9 @@ jobs:
           MAX_TO_SEND: ${{ vars.MAX_TO_SEND }}
           FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
           LAST_RUN_FILE: ${{ vars.LAST_RUN_FILE }}
+          TRACKED_CHANNELS_FILE: tracked_channels.json
         run: python autoreactions.py
 
-      # Upload the updated last_run.json for the next run
       - name: Upload last_run.json for next run
         uses: actions/upload-artifact@v4
         with:
