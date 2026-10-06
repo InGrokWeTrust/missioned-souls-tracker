@@ -20,7 +20,11 @@ DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 if not DISCORD_WEBHOOK_URL:
     raise ValueError("Missing DISCORD_WEBHOOK_URL environment variable")
 
-EXCLUDED_CHANNEL_KEYWORDS = ["vlog"]
+# Channels to skip at collection time (explicit list, by channel ID)
+EXCLUDED_CHANNEL_IDS = {
+    "UC6y5D__fU6bvebrkV3W8Bmw",  # Christian Justo Vlogs
+    "UCRcnAgWCwVdeGaDxXOStLDA",  # KJ AVELINO VLOGS
+}
 VIDEOS_PER_CHANNEL = 5
 SAFETY_WINDOW_DAYS = 7
 # ===========================================
@@ -69,9 +73,9 @@ def parse_duration(duration_str):
     return hours * 3600 + minutes * 60 + seconds
 
 
-def is_excluded_channel(channel_name):
-    channel_lower = (channel_name or '').lower()
-    return any(kw in channel_lower for kw in EXCLUDED_CHANNEL_KEYWORDS)
+def is_excluded_channel(channel_id, channel_name=None):
+    """Skip channels by explicit ID."""
+    return channel_id in EXCLUDED_CHANNEL_IDS
 
 
 def is_missioned_souls_video(video):
@@ -110,8 +114,8 @@ def fetch_recent_videos_from_channels(tracked):
 
         channel_title = info.get("title", channel_id) if isinstance(info, dict) else info
 
-        if is_excluded_channel(channel_title):
-            print(f"  🚫 Skipping {channel_title} (excluded keyword)")
+        if is_excluded_channel(channel_id, channel_title):
+            print(f"  🚫 Skipping {channel_title} (excluded)")
             continue
 
         try:
