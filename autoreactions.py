@@ -27,6 +27,7 @@ EXCLUDED_CHANNEL_IDS = {
 }
 VIDEOS_PER_CHANNEL = 5
 SAFETY_WINDOW_DAYS = 7
+UPCOMING_NOTIFY_MINUTES = 60  # notify within 60 min of scheduled start
 # ===========================================
 
 youtube = build('youtube', 'v3', developerKey=API_KEY)
@@ -74,7 +75,6 @@ def parse_duration(duration_str):
 
 
 def is_excluded_channel(channel_id, channel_name=None):
-    """Skip channels by explicit ID."""
     return channel_id in EXCLUDED_CHANNEL_IDS
 
 
@@ -93,6 +93,30 @@ def is_short_or_too_short(video):
     if duration == 0:
         return False
     return duration < 120
+
+
+def is_upcoming_ready_to_post(video):
+    """Upcoming streams: only post within UPCOMING_NOTIFY_MINUTES of start.
+       Live/regular videos: always ready."""
+    if video.get('live_broadcast_content') != 'upcoming':
+        return True
+
+    scheduled_str = video.get('scheduled_start_time')
+    if not scheduled_str:
+        return True
+
+    try:
+        scheduled = datetime.fromisoformat(scheduled_str.replace('Z', '+00:00'))
+    except ValueError:
+        return True
+
+    now = datetime.now(timezone.utc)
+    delta = scheduled - now
+    minutes_until = delta.total_seconds() / 60
+
+    if 0 <= minutes_until <= UPCOMING_NOTIFY_MINUTES:
+        return True
+    return False
 
 
 def uploads_playlist_id(channel_id):
@@ -140,7 +164,8 @@ def fetch_recent_videos_from_channels(tracked):
                 'published_at': snippet['publishedAt'],
                 'url': f"https://youtu.be/{vid}",
                 'thumbnail': snippet.get('thumbnails', {}).get('medium', {}).get('url'),
-                'live_broadcast_content': 'none'
+                'live_broadcast_content': 'none',
+                'scheduled_start_time': None
             }
             video_ids.append(vid)
 
@@ -158,7 +183,7 @@ def enrich_videos(video_ids, video_meta):
     for i in range(0, len(video_ids), 50):
         chunk = video_ids[i:i+50]
         resp = youtube.videos().list(
-            part="statistics,contentDetails,snippet",
+            part="statistics,contentDetails,snippet,liveStreamingDetails",
             id=",".join(chunk)
         ).execute()
 
@@ -173,9 +198,15 @@ def enrich_videos(video_ids, video_meta):
             content = item.get('contentDetails', {})
             duration_dict[vid] = parse_duration(content.get('duration', 'PT0S'))
 
-            lbc = item.get('snippet', {}).get('liveBroadcastContent', 'none')
+            snippet = item.get('snippet', {})
+            lbc = snippet.get('liveBroadcastContent', 'none')
+
+            live_details = item.get('liveStreamingDetails', {})
+            scheduled = live_details.get('scheduledStartTime')
+
             if vid in video_meta:
                 video_meta[vid]['live_broadcast_content'] = lbc
+                video_meta[vid]['scheduled_start_time'] = scheduled
 
     results = []
     for vid in video_ids:
@@ -211,7 +242,19 @@ def send_to_discord(videos, max_to_send=5):
         if video.get('live_broadcast_content') == 'live':
             title = f"🔴 LIVE: {title}"
         elif video.get('live_broadcast_content') == 'upcoming':
-            title = f"🕒 UPCOMING: {title}"
+            sched = video.get('scheduled_start_time')
+            if sched:
+                try:
+                    sched_dt = datetime.fromisoformat(sched.replace('Z', '+00:00'))
+                    minutes = int((sched_dt - datetime.now(timezone.utc)).total_seconds() / 60)
+                    if minutes > 0:
+                        title = f"🕒 STARTING IN {minutes}m: {title}"
+                    else:
+                        title = f"🕒 STARTING NOW: {title}"
+                except ValueError:
+                    title = f"🕒 UPCOMING: {title}"
+            else:
+                title = f"🕒 UPCOMING: {title}"
 
         embed = {
             "title": title,
@@ -274,6 +317,12 @@ if __name__ == "__main__":
         cutoff = (datetime.now(timezone.utc) - timedelta(days=SAFETY_WINDOW_DAYS)).isoformat()
         new_videos = [v for v in videos
                       if v['video_id'] not in sent_ids and v['published_at'] > cutoff]
+
+    before_count = len(new_videos)
+    new_videos = [v for v in new_videos if is_upcoming_ready_to_post(v)]
+    deferred = before_count - len(new_videos)
+    if deferred > 0:
+        print(f"⏳ Deferred {deferred} upcoming stream(s) — will notify within {UPCOMING_NOTIFY_MINUTES} min of start")
 
     print(f"🆕 Found {len(new_videos)} new reactions since last run")
 
