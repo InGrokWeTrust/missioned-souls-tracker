@@ -144,6 +144,16 @@ def humanize_ago(published_at_iso, now=None):
     return f"{d}d {h}h ago" if h else f"{d}d ago"
 
 
+def format_published_time(published_at_iso):
+    """Return the absolute publish time in a compact format (e.g., '6:18 PM')."""
+    try:
+        ts = published_at_iso.replace('Z', '+00:00')
+        dt = datetime.fromisoformat(ts)
+        return dt.strftime('%I:%M %p').lstrip('0')
+    except Exception:
+        return ""
+
+
 def fetch_channel_videos(channel_id, channel_title):
     """Fetch the newest N videos from a channel's uploads playlist."""
     uploads_playlist_id = "UU" + channel_id[2:]
@@ -252,7 +262,6 @@ def get_reactions_with_stats():
             duration_str = content_details.get('duration', 'PT0S')
             duration_dict[vid_id] = parse_duration(duration_str)
 
-            # Capture liveStreamingDetails (present for active, upcoming, and archived streams)
             if 'liveStreamingDetails' in item:
                 live_details_dict[vid_id] = item['liveStreamingDetails']
 
@@ -308,6 +317,8 @@ def send_to_discord(videos, max_to_send=5, run_start=None):
             title = f"🕒 UPCOMING: {title}"
 
         age = video.get('age_at_run', humanize_ago(video['published_at'], run_start))
+        published_str = format_published_time(video['published_at'])
+        posted_value = f"{published_str} ({age})" if published_str else age
 
         embed = {
             "title": title,
@@ -317,7 +328,7 @@ def send_to_discord(videos, max_to_send=5, run_start=None):
             "fields": [
                 {"name": "Channel", "value": video['channel'], "inline": True},
                 {"name": "Views", "value": f"{video.get('view_count', 0):,}", "inline": True},
-                {"name": "Posted", "value": age, "inline": True},
+                {"name": "Posted", "value": posted_value, "inline": True},
                 {"name": "Likes", "value": f"{video.get('like_count', 0):,}", "inline": True},
                 {"name": "Comment", "value": f"{video.get('comment_count', 0):,}", "inline": True},
             ],
@@ -332,7 +343,7 @@ def send_to_discord(videos, max_to_send=5, run_start=None):
         try:
             response = requests.post(DISCORD_WEBHOOK_URL, json=data, timeout=10)
             if response.status_code == 204:
-                print(f"✅ Sent: [{age}] {title[:60]}...")
+                print(f"✅ Sent: [{posted_value}] {title[:60]}...")
             else:
                 print(f"❌ Discord error {response.status_code}")
         except Exception as e:
