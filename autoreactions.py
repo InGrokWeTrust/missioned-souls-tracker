@@ -91,6 +91,26 @@ def is_short_or_too_short(video):
     return duration < 120
 
 
+def classify_filter_reason(video):
+    """Return a short reason string for why a video was filtered."""
+    title_lower = video.get('title', '').lower()
+
+    if '#short' in title_lower:
+        return "has #short"
+    if 'shorts' in title_lower:
+        return "has 'shorts'"
+    if video.get('live_broadcast_content') in ('live', 'upcoming'):
+        return "live/upcoming (unexpected)"
+
+    duration = video.get('duration_sec', 0)
+    if duration == 0:
+        return "duration unknown"
+    if duration < 120:
+        return f"too short ({duration}s)"
+
+    return "unknown"
+
+
 def humanize_ago(published_at_iso, now=None):
     if now is None:
         now = datetime.now(timezone.utc)
@@ -170,28 +190,43 @@ def get_reactions_with_stats():
 
     print(f"📋 Tracking {len(tracked)} channels\n")
 
-    temp_videos = []
+    # Stage 1: fetch all candidate videos from every channel
+    candidates = []
+    no_ms_count = 0
+    silent_channels = []
 
     for channel_id, info in tracked.items():
         channel_title = info.get('title', channel_id) if isinstance(info, dict) else str(info)
 
         videos = fetch_channel_videos(channel_id, channel_title)
         reaction_videos = [v for v in videos if is_missioned_souls_reaction(v['title'])]
+        no_ms_count += len(videos) - len(reaction_videos)
 
         for v in reaction_videos:
-            temp_videos.append(v)
+            candidates.append(v)
 
-        if reaction_videos:
-            for v in reaction_videos:
-                print(f"  ✅ {channel_title[:25]:25} | {v['title'][:60]}")
-        else:
-            print(f"  ⏭️  {channel_title[:25]:25} | (no MS reactions in last {MAX_VIDEOS_PER_CHANNEL})")
+        if not reaction_videos:
+            silent_channels.append(channel_title)
 
-    if not temp_videos:
-        print("\n⚠️ No Missioned Souls reactions found in tracked channels.")
+    # Print channels with no MS reactions (compact)
+    if silent_channels:
+        print(f"⏭️  Channels with no MS reactions in last {MAX_VIDEOS_PER_CHANNEL}:")
+        for ch in silent_channels:
+            print(f"     • {ch}")
+        print()
+
+    print(f"📊 Stage 1 — Channel scan:")
+    print(f"   Channels checked         : {len(tracked)}")
+    print(f"   Videos scanned           : {len(candidates) + no_ms_count}")
+    print(f"   MS keyword matches       : {len(candidates)}")
+    print(f"   No MS mention (skipped)  : {no_ms_count}\n")
+
+    if not candidates:
+        print("⚠️ No Missioned Souls reactions found in tracked channels.")
         return [], run_start
 
-    video_ids = [v['video_id'] for v in temp_videos]
+    # Stage 2: batch fetch stats + duration
+    video_ids = [v['video_id'] for v in candidates]
     stats_dict = {}
     duration_dict = {}
 
@@ -214,8 +249,11 @@ def get_reactions_with_stats():
             duration_str = content_details.get('duration', 'PT0S')
             duration_dict[vid_id] = parse_duration(duration_str)
 
+    # Stage 3: apply filters and log per-video outcome
     all_videos = []
-    for video in temp_videos:
+    filtered_log = []
+
+    for video in candidates:
         vid_id = video['video_id']
         vid_stats = stats_dict.get(vid_id, {})
         video['view_count'] = vid_stats.get('view_count', 0)
@@ -224,12 +262,26 @@ def get_reactions_with_stats():
         video['duration_sec'] = duration_dict.get(vid_id, 0)
         video['age_at_run'] = humanize_ago(video['published_at'], run_start)
 
-        if not is_short_or_too_short(video):
+        if is_short_or_too_short(video):
+            reason = classify_filter_reason(video)
+            filtered_log.append((video, reason))
+        else:
             all_videos.append(video)
+
+    if filtered_log:
+        print(f"🚫 Stage 2 — Filtered out ({len(filtered_log)} videos):")
+        for v, reason in filtered_log:
+            ch = v['channel'][:24]
+            print(f"   ⏭️  [{reason}] {ch:24} | {v['title'][:55]}")
+        print()
 
     all_videos.sort(key=lambda x: x['published_at'], reverse=False)
 
-    print(f"\n✅ Found {len(all_videos)} Missioned Souls reactions (after filtering).")
+    print(f"📊 Stage 3 — Final:")
+    print(f"   Candidates               : {len(candidates)}")
+    print(f"   Filtered (shorts/other)  : {len(filtered_log)}")
+    print(f"   ✅ Kept for posting      : {len(all_videos)}\n")
+
     return all_videos, run_start
 
 
