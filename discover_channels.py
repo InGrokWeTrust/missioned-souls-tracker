@@ -1,6 +1,5 @@
 import os
 import json
-import requests
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
 
@@ -12,7 +11,27 @@ CHANNEL_NAME = os.environ.get("CHANNEL_NAME", "Missioned Souls")
 TRACKED_CHANNELS_FILE = os.environ.get("TRACKED_CHANNELS_FILE", "tracked_channels.json")
 CHANNEL_INACTIVITY_DAYS = int(os.environ.get("CHANNEL_INACTIVITY_DAYS", "60"))
 
+# Exclusion rule: any channel with these keywords is skipped,
+# unless it also matches an allowed exception.
+EXCLUDED_CHANNEL_KEYWORDS = ["vlog"]
+ALLOWED_CHANNEL_EXCEPTIONS = ["cherman"]
+
 youtube = build('youtube', 'v3', developerKey=API_KEY)
+
+
+def should_track_channel(channel_title):
+    """Return True if the channel should be tracked."""
+    title_lower = channel_title.lower()
+
+    # If it matches an allowed exception, always track
+    if any(kw in title_lower for kw in ALLOWED_CHANNEL_EXCEPTIONS):
+        return True
+
+    # Otherwise, exclude if it matches any exclusion keyword
+    if any(kw in title_lower for kw in EXCLUDED_CHANNEL_KEYWORDS):
+        return False
+
+    return True
 
 
 def load_tracked_channels():
@@ -69,7 +88,19 @@ if __name__ == "__main__":
     discovered = discover_channels()
 
     new_count = 0
+    skipped_count = 0
     for channel_id, channel_title in discovered.items():
+        # Apply exclusion rule first
+        if not should_track_channel(channel_title):
+            if channel_id in tracked:
+                print(f"  🗑️  Removing excluded channel: {channel_title} ({channel_id})")
+                del tracked[channel_id]
+                skipped_count += 1
+            else:
+                print(f"  🚫 Skipping excluded channel: {channel_title}")
+                skipped_count += 1
+            continue
+
         if channel_id not in tracked:
             tracked[channel_id] = {
                 "title": channel_title,
@@ -79,11 +110,24 @@ if __name__ == "__main__":
             new_count += 1
             print(f"  ➕ NEW: {channel_title} ({channel_id})")
         else:
-            # Update title in case it changed, and bump last_seen
             if isinstance(tracked[channel_id], str):
                 tracked[channel_id] = {"title": channel_title, "added_at": datetime.now(timezone.utc).isoformat()}
             tracked[channel_id]["title"] = channel_title
             tracked[channel_id]["last_seen_at"] = datetime.now(timezone.utc).isoformat()
+
+    # Also prune any already-tracked excluded channels (in case rule changed)
+    already_tracked_excluded = []
+    for cid, info in list(tracked.items()):
+        if not isinstance(info, dict):
+            continue
+        title = info.get("title", "")
+        if not should_track_channel(title):
+            already_tracked_excluded.append((cid, title))
+
+    for cid, title in already_tracked_excluded:
+        print(f"  🗑️  Pruning previously-tracked excluded channel: {title} ({cid})")
+        del tracked[cid]
+        skipped_count += 1
 
     # Prune stale channels
     now = datetime.now(timezone.utc)
@@ -108,6 +152,7 @@ if __name__ == "__main__":
 
     print(f"\n✅ Discovery complete")
     print(f"   New channels added: {new_count}")
+    print(f"   Excluded/skipped channels: {skipped_count}")
     print(f"   Stale channels pruned: {len(to_remove)}")
     print(f"   Total tracked: {len(tracked)}")
     print("\n🎉 All done!")
