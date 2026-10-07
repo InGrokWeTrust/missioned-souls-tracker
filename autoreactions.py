@@ -70,15 +70,23 @@ def is_missioned_souls_reaction(title):
 def is_short_or_too_short(video):
     title_lower = video.get('title', '').lower()
 
-    if '#shorts' in title_lower:
+    # Filter any #short or #shorts hashtag
+    if '#short' in title_lower:
         return True
 
+    # Filter explicit "shorts" in the title
+    if 'shorts' in title_lower:
+        return True
+
+    # Live and upcoming streams are always kept (they're not shorts)
     if video.get('live_broadcast_content') in ('live', 'upcoming'):
         return False
 
     duration = video.get('duration_sec', 0)
+
+    # Unknown duration on a non-live video — filter to be safe
     if duration == 0:
-        return False
+        return True
 
     return duration < 120
 
@@ -116,7 +124,6 @@ def humanize_ago(published_at_iso, now=None):
 
 def fetch_channel_videos(channel_id, channel_title):
     """Fetch the newest N videos from a channel's uploads playlist."""
-    # Uploads playlist ID = channel ID with "UC" → "UU"
     uploads_playlist_id = "UU" + channel_id[2:]
 
     try:
@@ -169,8 +176,6 @@ def get_reactions_with_stats():
         channel_title = info.get('title', channel_id) if isinstance(info, dict) else str(info)
 
         videos = fetch_channel_videos(channel_id, channel_title)
-
-        # Only keep videos that mention Missioned Souls in the title
         reaction_videos = [v for v in videos if is_missioned_souls_reaction(v['title'])]
 
         for v in reaction_videos:
@@ -186,12 +191,10 @@ def get_reactions_with_stats():
         print("\n⚠️ No Missioned Souls reactions found in tracked channels.")
         return [], run_start
 
-    # Batch fetch stats + duration for all candidate videos
     video_ids = [v['video_id'] for v in temp_videos]
     stats_dict = {}
     duration_dict = {}
 
-    # API allows up to 50 IDs per call
     for i in range(0, len(video_ids), 50):
         chunk = video_ids[i:i+50]
         stats_response = youtube.videos().list(
