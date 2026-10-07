@@ -13,14 +13,13 @@ if not API_KEY:
 
 CHANNEL_NAME = os.environ.get("CHANNEL_NAME", "Missioned Souls")
 MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND", "10"))
+MAX_VIDEOS_PER_CHANNEL = int(os.environ.get("MAX_VIDEOS_PER_CHANNEL", "5"))
 FORCE_SEND_ALL = os.environ.get("FORCE_SEND_ALL", "false").lower() == "true"
 LAST_RUN_FILE = os.environ.get("LAST_RUN_FILE", "last_run.json")
+TRACKED_CHANNELS_FILE = os.environ.get("TRACKED_CHANNELS_FILE", "tracked_channels.json")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 if not DISCORD_WEBHOOK_URL:
     raise ValueError("Missing DISCORD_WEBHOOK_URL environment variable")
-
-# Channels containing any of these keywords (case-insensitive) are skipped
-EXCLUDED_CHANNEL_KEYWORDS = ["vlog"]
 
 # ===========================================
 
@@ -41,6 +40,15 @@ def save_last_run(published_at):
     print(f"💾 Updated {LAST_RUN_FILE} → {published_at[:10]}")
 
 
+def load_tracked_channels():
+    try:
+        with open(TRACKED_CHANNELS_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data.get('channels', {})
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
 def parse_duration(duration_str):
     if not duration_str:
         return 0
@@ -54,10 +62,9 @@ def parse_duration(duration_str):
     return hours * 3600 + minutes * 60 + seconds
 
 
-def is_excluded_channel(video):
-    """Return True if the channel name contains any excluded keyword."""
-    channel_lower = video.get('channel', '').lower()
-    return any(kw in channel_lower for kw in EXCLUDED_CHANNEL_KEYWORDS)
+def is_missioned_souls_reaction(title):
+    """Return True if the title mentions Missioned Souls (case-insensitive)."""
+    return CHANNEL_NAME.lower() in title.lower()
 
 
 def is_short_or_too_short(video):
@@ -77,12 +84,10 @@ def is_short_or_too_short(video):
 
 
 def humanize_ago(published_at_iso, now=None):
-    """Return a human-readable 'X ago' string for a publishedAt timestamp."""
     if now is None:
         now = datetime.now(timezone.utc)
 
     try:
-        # Handle both 'Z' and '+00:00' suffixes
         ts = published_at_iso.replace('Z', '+00:00')
         published = datetime.fromisoformat(ts)
     except Exception:
@@ -109,47 +114,89 @@ def humanize_ago(published_at_iso, now=None):
     return f"{d}d {h}h ago" if h else f"{d}d ago"
 
 
-def get_reactions_with_stats():
-    run_start = datetime.now(timezone.utc)
-    print(f"🔍 Searching latest reactions for {CHANNEL_NAME}...")
-    print(f"⏰ Run started at: {run_start.strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
+def fetch_channel_videos(channel_id, channel_title):
+    """Fetch the newest N videos from a channel's uploads playlist."""
+    # Uploads playlist ID = channel ID with "UC" → "UU"
+    uploads_playlist_id = "UU" + channel_id[2:]
 
-    search_response = youtube.search().list(
-        part="snippet",
-        q=f'"{CHANNEL_NAME}" (reacts OR reaction OR "first time" OR "react to" OR reacting)',
-        type="video",
-        maxResults=50,
-        order="date"
-    ).execute()
-
-    items = search_response.get('items', [])
-    if not items:
-        print("⚠️ No search results returned.")
+    try:
+        response = youtube.playlistItems().list(
+            part="snippet,contentDetails",
+            playlistId=uploads_playlist_id,
+            maxResults=MAX_VIDEOS_PER_CHANNEL
+        ).execute()
+    except Exception as e:
+        print(f"  ❌ Error fetching {channel_title}: {e}")
         return []
 
-    video_ids = []
+    videos = []
+    for item in response.get('items', []):
+        snippet = item['snippet']
+        content = item.get('contentDetails', {})
+        video_id = content.get('videoId') or snippet.get('resourceId', {}).get('videoId')
+        if not video_id:
+            continue
+
+        videos.append({
+            'title': snippet['title'],
+            'video_id': video_id,
+            'channel': channel_title,
+            'channel_id': channel_id,
+            'published_at': content.get('videoPublishedAt') or snippet.get('publishedAt'),
+            'url': f"https://youtu.be/{video_id}",
+            'thumbnail': snippet.get('thumbnails', {}).get('medium', {}).get('url'),
+            'live_broadcast_content': snippet.get('liveBroadcastContent', 'none')
+        })
+
+    return videos
+
+
+def get_reactions_with_stats():
+    run_start = datetime.now(timezone.utc)
+    print(f"🔍 Checking {CHANNEL_NAME} reactions from tracked channels...")
+    print(f"⏰ Run started at: {run_start.strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
+
+    tracked = load_tracked_channels()
+    if not tracked:
+        print("⚠️ No tracked channels found. Run discover_channels.py first.")
+        return [], run_start
+
+    print(f"📋 Tracking {len(tracked)} channels\n")
+
     temp_videos = []
 
-    for item in items:
-        video_id = item['id']['videoId']
-        video = {
-            'title': item['snippet']['title'],
-            'video_id': video_id,
-            'channel': item['snippet']['channelTitle'],
-            'published_at': item['snippet']['publishedAt'],
-            'url': f"https://youtu.be/{video_id}",
-            'thumbnail': item['snippet'].get('thumbnails', {}).get('medium', {}).get('url'),
-            'live_broadcast_content': item['snippet'].get('liveBroadcastContent', 'none')
-        }
-        temp_videos.append(video)
-        video_ids.append(video_id)
+    for channel_id, info in tracked.items():
+        channel_title = info.get('title', channel_id) if isinstance(info, dict) else str(info)
 
+        videos = fetch_channel_videos(channel_id, channel_title)
+
+        # Only keep videos that mention Missioned Souls in the title
+        reaction_videos = [v for v in videos if is_missioned_souls_reaction(v['title'])]
+
+        for v in reaction_videos:
+            temp_videos.append(v)
+
+        if reaction_videos:
+            for v in reaction_videos:
+                print(f"  ✅ {channel_title[:25]:25} | {v['title'][:60]}")
+        else:
+            print(f"  ⏭️  {channel_title[:25]:25} | (no MS reactions in last {MAX_VIDEOS_PER_CHANNEL})")
+
+    if not temp_videos:
+        print("\n⚠️ No Missioned Souls reactions found in tracked channels.")
+        return [], run_start
+
+    # Batch fetch stats + duration for all candidate videos
+    video_ids = [v['video_id'] for v in temp_videos]
     stats_dict = {}
     duration_dict = {}
-    if video_ids:
+
+    # API allows up to 50 IDs per call
+    for i in range(0, len(video_ids), 50):
+        chunk = video_ids[i:i+50]
         stats_response = youtube.videos().list(
             part="statistics,contentDetails",
-            id=",".join(video_ids)
+            id=",".join(chunk)
         ).execute()
 
         for item in stats_response.get('items', []):
@@ -174,30 +221,12 @@ def get_reactions_with_stats():
         video['duration_sec'] = duration_dict.get(vid_id, 0)
         video['age_at_run'] = humanize_ago(video['published_at'], run_start)
 
-        if is_excluded_channel(video):
-            continue
-
         if not is_short_or_too_short(video):
             all_videos.append(video)
 
     all_videos.sort(key=lambda x: x['published_at'], reverse=False)
 
-    for video in temp_videos:
-        views = video.get('view_count', 0)
-        age = humanize_ago(video['published_at'], run_start)
-        if is_excluded_channel(video):
-            status = "🚫 (vlog channel)"
-        elif is_short_or_too_short(video):
-            status = "⏭️ (filtered)"
-        elif video.get('live_broadcast_content') == 'live':
-            status = "🔴 (live)"
-        elif video.get('live_broadcast_content') == 'upcoming':
-            status = "🕒 (upcoming)"
-        else:
-            status = "✅"
-        print(f"{views:8,} views | {age:>12} | {video['channel'][:18]:18} | {video['title'][:50]} {status}")
-
-    print(f"\n✅ Found {len(all_videos)} reactions (after filtering).")
+    print(f"\n✅ Found {len(all_videos)} Missioned Souls reactions (after filtering).")
     return all_videos, run_start
 
 
