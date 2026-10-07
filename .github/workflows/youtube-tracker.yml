@@ -38,6 +38,7 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           CHANNEL_NAME: ${{ vars.CHANNEL_NAME }}
           MAX_TO_SEND: ${{ vars.MAX_TO_SEND }}
+          MAX_VIDEOS_PER_CHANNEL: ${{ vars.MAX_VIDEOS_PER_CHANNEL }}
           FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
           LAST_RUN_FILE: ${{ vars.LAST_RUN_FILE }}
           TRACKED_CHANNELS_FILE: tracked_channels.json
