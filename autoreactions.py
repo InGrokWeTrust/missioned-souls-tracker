@@ -67,27 +67,33 @@ def is_missioned_souls_reaction(title):
     return CHANNEL_NAME.lower() in title.lower()
 
 
+def is_archived_livestream(video):
+    """Return True if the video has livestream details (active, upcoming, or archived)."""
+    return video.get('live_streaming_details') is not None
+
+
 def is_short_or_too_short(video):
     title_lower = video.get('title', '').lower()
 
-    # Filter any #short or #shorts hashtag
-    if '#short' in title_lower:
+    # 1. Filter explicit #short / #shorts hashtags (highest priority)
+    if '#short' in title_lower or 'shorts' in title_lower:
         return True
 
-    # Filter explicit "shorts" in the title
-    if 'shorts' in title_lower:
-        return True
+    # 2. Keep ALL livestreams — active, upcoming, or archived
+    if is_archived_livestream(video):
+        return False
 
-    # Live and upcoming streams are always kept (they're not shorts)
+    # 3. Keep live/upcoming detected via snippet liveBroadcastContent
     if video.get('live_broadcast_content') in ('live', 'upcoming'):
         return False
 
     duration = video.get('duration_sec', 0)
 
-    # Unknown duration on a non-live video — filter to be safe
+    # 4. Keep videos with unknown duration (safer than dropping them)
     if duration == 0:
-        return True
+        return False
 
+    # 5. Filter confirmed short videos
     return duration < 120
 
 
@@ -99,13 +105,9 @@ def classify_filter_reason(video):
         return "has #short"
     if 'shorts' in title_lower:
         return "has 'shorts'"
-    if video.get('live_broadcast_content') in ('live', 'upcoming'):
-        return "live/upcoming (unexpected)"
 
     duration = video.get('duration_sec', 0)
-    if duration == 0:
-        return "duration unknown"
-    if duration < 120:
+    if duration > 0 and duration < 120:
         return f"too short ({duration}s)"
 
     return "unknown"
@@ -172,7 +174,8 @@ def fetch_channel_videos(channel_id, channel_title):
             'published_at': content.get('videoPublishedAt') or snippet.get('publishedAt'),
             'url': f"https://youtu.be/{video_id}",
             'thumbnail': snippet.get('thumbnails', {}).get('medium', {}).get('url'),
-            'live_broadcast_content': snippet.get('liveBroadcastContent', 'none')
+            'live_broadcast_content': snippet.get('liveBroadcastContent', 'none'),
+            'live_streaming_details': None  # filled in later
         })
 
     return videos
@@ -190,7 +193,7 @@ def get_reactions_with_stats():
 
     print(f"📋 Tracking {len(tracked)} channels\n")
 
-    # Stage 1: fetch all candidate videos from every channel
+    # Stage 1: fetch all candidate videos
     candidates = []
     no_ms_count = 0
     silent_channels = []
@@ -208,7 +211,6 @@ def get_reactions_with_stats():
         if not reaction_videos:
             silent_channels.append(channel_title)
 
-    # Print channels with no MS reactions (compact)
     if silent_channels:
         print(f"⏭️  Channels with no MS reactions in last {MAX_VIDEOS_PER_CHANNEL}:")
         for ch in silent_channels:
@@ -225,15 +227,16 @@ def get_reactions_with_stats():
         print("⚠️ No Missioned Souls reactions found in tracked channels.")
         return [], run_start
 
-    # Stage 2: batch fetch stats + duration
+    # Stage 2: batch fetch stats + duration + liveStreamingDetails
     video_ids = [v['video_id'] for v in candidates]
     stats_dict = {}
     duration_dict = {}
+    live_details_dict = {}
 
     for i in range(0, len(video_ids), 50):
         chunk = video_ids[i:i+50]
         stats_response = youtube.videos().list(
-            part="statistics,contentDetails",
+            part="statistics,contentDetails,liveStreamingDetails",
             id=",".join(chunk)
         ).execute()
 
@@ -249,7 +252,11 @@ def get_reactions_with_stats():
             duration_str = content_details.get('duration', 'PT0S')
             duration_dict[vid_id] = parse_duration(duration_str)
 
-    # Stage 3: apply filters and log per-video outcome
+            # Capture liveStreamingDetails (present for active, upcoming, and archived streams)
+            if 'liveStreamingDetails' in item:
+                live_details_dict[vid_id] = item['liveStreamingDetails']
+
+    # Stage 3: apply filters, log per-video outcome
     all_videos = []
     filtered_log = []
 
@@ -260,6 +267,7 @@ def get_reactions_with_stats():
         video['like_count'] = vid_stats.get('like_count', 0)
         video['comment_count'] = vid_stats.get('comment_count', 0)
         video['duration_sec'] = duration_dict.get(vid_id, 0)
+        video['live_streaming_details'] = live_details_dict.get(vid_id)
         video['age_at_run'] = humanize_ago(video['published_at'], run_start)
 
         if is_short_or_too_short(video):
