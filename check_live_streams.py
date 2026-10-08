@@ -18,23 +18,40 @@ DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 if not DISCORD_WEBHOOK_URL:
     raise ValueError("Missing DISCORD_WEBHOOK_URL environment variable")
 
+# Cap on stored IDs to prevent unbounded growth
+MAX_STORED_IDS = 200
+
 # ===========================================
 
 youtube = build('youtube', 'v3', developerKey=API_KEY)
 
 
-def load_last_run():
+def load_state():
+    """Load the sent video IDs and last check time."""
     try:
         with open(LIVE_LAST_RUN_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f).get('last_published_at')
-    except:
-        return None
+            data = json.load(f)
+            sent_ids = data.get('sent_video_ids', [])
+            last_check = data.get('last_check')
+            # Backward compatibility: if old format, return empty list
+            if not isinstance(sent_ids, list):
+                sent_ids = []
+            return sent_ids, last_check
+    except (FileNotFoundError, json.JSONDecodeError):
+        return [], None
 
 
-def save_last_run(published_at):
+def save_state(sent_ids):
+    """Save the sent video IDs (capped) and current time."""
+    # Cap at MAX_STORED_IDS, keeping the most recent
+    sent_ids = sent_ids[-MAX_STORED_IDS:]
+    data = {
+        "sent_video_ids": sent_ids,
+        "last_check": datetime.now(timezone.utc).isoformat()
+    }
     with open(LIVE_LAST_RUN_FILE, 'w', encoding='utf-8') as f:
-        json.dump({"last_published_at": published_at}, f, indent=2)
-    print(f"💾 Updated {LIVE_LAST_RUN_FILE} → {published_at[:10]}")
+        json.dump(data, f, indent=2)
+    print(f"💾 Updated {LIVE_LAST_RUN_FILE} → {len(sent_ids)} IDs tracked")
 
 
 def humanize_ago(published_at_iso, now=None):
@@ -169,13 +186,16 @@ if __name__ == "__main__":
     run_start = datetime.now(timezone.utc)
     print(f"⏰ Run started at: {run_start.strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
 
-    last_published = load_last_run()
-    print(f"📅 Last live check bookmark: {last_published[:19] if last_published else 'None (first run)'}\n")
+    sent_ids, last_check = load_state()
+    print(f"📅 Last check: {last_check[:19] if last_check else 'None (first run)'}")
+    print(f"📋 Previously sent IDs: {len(sent_ids)}\n")
 
     streams = find_active_live_streams()
 
     if not streams:
         print("ℹ️ No active Missioned Souls live streams found.")
+        # Still save state to update last_check
+        save_state(sent_ids)
         print("\n🎉 All done!")
         raise SystemExit(0)
 
@@ -183,18 +203,25 @@ if __name__ == "__main__":
         new_streams = streams
         print(f"🔄 Force mode: Sending all {len(new_streams)} streams")
     else:
-        new_streams = [s for s in streams if not last_published or s['published_at'] > last_published]
-        print(f"🆕 {len(new_streams)} new live streams since last check")
+        # Filter by video ID, not timestamp
+        new_streams = [s for s in streams if s['video_id'] not in sent_ids]
+        print(f"🆕 {len(new_streams)} new live streams (not previously sent)")
 
     if new_streams:
         new_streams.sort(key=lambda x: x['published_at'], reverse=False)
         top_streams = new_streams[-MAX_TO_SEND:] if len(new_streams) >= MAX_TO_SEND else new_streams
         send_to_discord(top_streams, run_start=run_start)
 
-        newest_timestamp = new_streams[-1]['published_at']
-        save_last_run(newest_timestamp)
-        print(f"📌 Bookmark updated to: {newest_timestamp}")
+        # Record the IDs we just sent
+        for s in top_streams:
+            if s['video_id'] not in sent_ids:
+                sent_ids.append(s['video_id'])
+
+        save_state(sent_ids)
+        print(f"📌 {len(sent_ids)} total IDs tracked")
     else:
-        print("ℹ️ No new live streams – bookmark unchanged")
+        print("ℹ️ No new live streams – state unchanged")
+        # Still update last_check
+        save_state(sent_ids)
 
     print("\n🎉 All done!")
