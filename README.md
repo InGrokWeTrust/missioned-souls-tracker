@@ -76,10 +76,13 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 | Check Live Streams | `.../check_live_streams.yml/dispatches` | POST | `{"ref":"main"}` | Every 2 hours |
 
 **Headers (all three):**
+```
+
 Accept: application/vnd.github+json
 Authorization: Bearer github_pat_...
 Content-Type: application/json
 
+```
 ---
 
 ## 🧠 How It Works
