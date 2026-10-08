@@ -189,17 +189,17 @@ YouTube Data API v3 gives **10,000 units/day**.
 ## 🧪 Manual Testing
 
 ### Test discovery
-
+```
 Actions tab → Discover Reactor Channels → Run workflow
-
+```
 ### Test tracker
-
+```
 Actions tab → YouTube Reaction Tracker → Run workflow
-
+```
 ### Test live check
-
+```
 Actions tab → Check Live Streams → Run workflow
-
+```
 ### Force send latest reactions
 
 1. Set `FORCE_SEND_ALL` = `true` in GitHub Variables
