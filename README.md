@@ -78,3 +78,34 @@ Authorization: Bearer github_pat_...
 Content-Type: application/json
 
 ---
+
+## 🧠 How It Works
+
+### 1. Discovery (`discover_channels.py`)
+
+- Searches YouTube for recent videos mentioning **Missioned Souls**
+- Extracts unique channel IDs from results
+- Adds new channels to `tracked_channels.json`
+- Excludes vlog channels (except **Cherman Vlogs**)
+- Prunes channels inactive for 60+ days
+- Commits `tracked_channels.json` back to the repo
+
+### 2. Tracking (`autoreactions.py`)
+
+- Loads `tracked_channels.json`
+- For each channel, fetches the 5 newest videos via `playlistItems.list`
+- Filters titles to those containing **"Missioned Souls"**
+- Filters out shorts (`#short`, `#shorts`, `"shorts"`, duration < 120s)
+- Fetches stats + duration + `liveStreamingDetails` in one batch `videos.list` call
+- Keeps live/upcoming/archived streams (via `liveStreamingDetails`)
+- Compares against bookmark (`last_run.json`), sends new ones to Discord
+- Updates bookmark
+
+### 3. Live Streams (`check_live_streams.py`)
+
+- Searches YouTube for **currently live** videos mentioning **Missioned Souls**
+- Filters to titles containing "Missioned Souls"
+- Uses ID-based deduplication (stored in `live_last_run.json`, capped at 200 IDs)
+- Sends new live streams to Discord with `🔴 LIVE:` prefix
+
+---
