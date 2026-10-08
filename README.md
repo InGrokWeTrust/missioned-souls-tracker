@@ -109,3 +109,23 @@ Content-Type: application/json
 - Sends new live streams to Discord with `🔴 LIVE:` prefix
 
 ---
+
+## 📊 Quota Usage
+
+YouTube Data API v3 gives **10,000 units/day**.
+
+| Script | Runs/day | Units/run | Units/day |
+|---|---|---|---|
+| `autoreactions.py` | 48 | ~66 (channels) | ~3,200 |
+| `discover_channels.py` | 12 | ~100 | ~1,200 |
+| `check_live_streams.py` | 12 | ~100 | ~1,200 |
+| **Total** | | | **~5,600 (56%)** ✅ |
+
+**API unit costs:**
+- `search.list` = 100 units
+- `playlistItems.list` = 1 unit
+- `videos.list` = 1 unit (up to 50 IDs per call)
+
+**Capacity:** At 30-min tracker frequency + 2-hr discovery + 2-hr live checks, the system supports up to ~158 tracked channels.
+
+---
