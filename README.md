@@ -37,3 +37,44 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 └── README.md # This file
 
 ---
+
+## ⚙️ Configuration
+
+### GitHub Secrets
+
+| Secret | Purpose |
+|---|---|
+| `YOUTUBE_API_KEY` | YouTube Data API v3 key |
+| `DISCORD_WEBHOOK_URL` | Discord webhook URL |
+
+### GitHub Variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `CHANNEL_NAME` | `Missioned Souls` | Search keyword / channel to track |
+| `MAX_TO_SEND` | `6` | Max reactions sent to Discord per run |
+| `MAX_VIDEOS_PER_CHANNEL` | `5` | Videos scanned per channel |
+| `FORCE_SEND_ALL` | `false` | When `true`, sends latest N regardless of bookmark |
+| `LAST_RUN_FILE` | `last_run.json` | Bookmark filename |
+
+### GitHub Personal Access Token (PAT)
+
+- **Type:** Fine-grained
+- **Permissions:** `Actions: Read and write` (scoped to this repo)
+- **Expiry:** Set to 2027-01-01 (reminder: renew by mid-December 2026)
+- **Used by:** cron-job.org to trigger `workflow_dispatch`
+
+### cron-job.org Entries
+
+| Entry | URL | Method | Body | Schedule |
+|---|---|---|---|---|
+| YouTube Reaction Tracker | `https://api.github.com/repos/<user>/<repo>/actions/workflows/youtube-tracker.yml/dispatches` | POST | `{"ref":"main"}` | Every 30 min |
+| Discover Reactor Channels | `.../discover_channels.yml/dispatches` | POST | `{"ref":"main"}` | Every 2 hours |
+| Check Live Streams | `.../check_live_streams.yml/dispatches` | POST | `{"ref":"main"}` | Every 2 hours |
+
+**Headers (all three):**
+Accept: application/vnd.github+json
+Authorization: Bearer github_pat_...
+Content-Type: application/json
+
+---
