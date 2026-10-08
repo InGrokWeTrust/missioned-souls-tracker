@@ -144,3 +144,33 @@ YouTube Data API v3 gives **10,000 units/day**.
 | **No CSV/HTML output** | Unused; removed to reduce runtime and complexity |
 
 ---
+
+## 🛠️ Maintenance
+
+### Monthly
+- Check GitHub Actions logs for failures
+- Check cron-job.org history for non-204 status codes
+- Verify `tracked_channels.json` is growing sensibly
+
+### Every 3 Months
+- Check YouTube API quota usage in Google Cloud Console
+- Review `tracked_channels.json` for inactive channels to prune manually
+
+### Before 2027-01-01
+- **Renew the fine-grained PAT** (it expires!)
+- Update the `Authorization` header in all 3 cron-job.org entries
+
+### If Quota Errors Appear (403 `quotaExceeded`)
+- Wait until midnight PT for reset
+- Reduce tracker frequency to 45 min or 1 hour
+- Or increase discovery interval to 4-6 hours
+
+### If a Channel Is Missed
+- Manually add its channel ID to `tracked_channels.json`:
+
+```json
+"UCxxxxxxxxxxxxxxxxxxxxxx": {
+  "title": "Channel Name",
+  "added_at": "2026-10-08T00:00:00+00:00",
+  "last_seen_at": "2026-10-08T00:00:00+00:00"
+}
