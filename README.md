@@ -21,9 +21,10 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 
 ---
 
-**📁 Repository Structure**
+📁 Repository Structure
 ```
-.
+
+-.
 ├── .github/workflows/
 │   ├── youtube-tracker.yml          # Runs autoreactions.py
 │   ├── discover_channels.yml        # Runs discover_channels.py
@@ -36,6 +37,7 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 ├── live_last_run.json               # Live bookmark (artifact, not committed)
 ├── requirements.txt                 # Python dependencies
 └── README.md                        # This file
+
 ```
 ---
 
