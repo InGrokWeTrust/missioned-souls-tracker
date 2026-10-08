@@ -77,11 +77,9 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 
 **Headers (all three):**
 ```
-
 Accept: application/vnd.github+json
 Authorization: Bearer github_pat_...
 Content-Type: application/json
-
 ```
 ---
 
