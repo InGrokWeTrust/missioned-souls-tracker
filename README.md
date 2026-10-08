@@ -177,3 +177,67 @@ YouTube Data API v3 gives **10,000 units/day**.
   "last_seen_at": "2026-10-08T00:00:00+00:00"
 }
 ```
+---
+- Commit and push
+
+### If Discord Posts Are Missing
+- Check that the video's `published_at` is newer than the bookmark
+- Use `FORCE_SEND_ALL=true` for one run to resend the latest N
+
+---
+
+## 🧪 Manual Testing
+
+### Test discovery
+
+Actions tab → Discover Reactor Channels → Run workflow
+
+### Test tracker
+
+Actions tab → YouTube Reaction Tracker → Run workflow
+
+### Test live check
+
+Actions tab → Check Live Streams → Run workflow
+
+### Force send latest reactions
+
+1. Set `FORCE_SEND_ALL` = `true` in GitHub Variables
+2. Trigger `youtube-tracker.yml` manually
+3. Set `FORCE_SEND_ALL` = `false` back
+
+---
+
+## 📌 Known Limitations
+
+| Limitation | Impact |
+|---|---|
+| YouTube `search.list` returns only top 50 newest | Discovery may miss channels not in the top 50 |
+| RSS feeds blocked from cloud IPs | Cannot use RSS for zero-quota tracking |
+| Live stream detection latency | Up to 2 hours (based on cron schedule) |
+| Past videos from newly added channels | Not backfilled (by design) |
+| Vlog channels | Excluded except Cherman (hardcoded) |
+
+---
+
+## 🚀 Deployment Checklist
+
+- [ ] Fork or clone this repo
+- [ ] Set `YOUTUBE_API_KEY` secret
+- [ ] Set `DISCORD_WEBHOOK_URL` secret
+- [ ] Set all GitHub Variables listed above
+- [ ] Create fine-grained PAT with `Actions: Read and write`
+- [ ] Create 3 cron-job.org entries with the correct URLs, headers, and schedules
+- [ ] Run each workflow once manually to verify
+- [ ] Check Discord for test posts
+- [ ] Set calendar reminder for PAT renewal (mid-Dec 2026)
+
+---
+
+## 📜 License
+
+Personal project. Not licensed for redistribution.
+
+---
+
+*Last updated: 2026-10-08*
