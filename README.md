@@ -129,3 +129,18 @@ YouTube Data API v3 gives **10,000 units/day**.
 **Capacity:** At 30-min tracker frequency + 2-hr discovery + 2-hr live checks, the system supports up to ~158 tracked channels.
 
 ---
+
+## 🚦 Key Design Decisions
+
+| Decision | Rationale |
+|---|---|
+| **Playlist-based tracking** (not search-based) | 100% reliable for tracked channels; catches VODs of streams |
+| **No backfill for new channels** | Prevents Discord spam when many channels are added at once |
+| **Cherman Vlogs exception** | Only vlog channel to track; all other vlog channels excluded |
+| **Live streams via `liveStreamingDetails`** | Only way to reliably detect archived stream VODs |
+| **ID-based dedup for live streams** | Handles scheduled streams with old `published_at` timestamps |
+| **No RSS feed** | YouTube blocks RSS from datacenter IPs (GitHub Actions) |
+| **30-min tracker frequency** | Doubles channel capacity vs 15-min; negligible latency impact |
+| **No CSV/HTML output** | Unused; removed to reduce runtime and complexity |
+
+---
