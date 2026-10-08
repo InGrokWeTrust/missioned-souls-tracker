@@ -58,7 +58,7 @@ def discover_channels():
 
     search_response = youtube.search().list(
         part="snippet",
-        q=f'"{CHANNEL_NAME}" (reacts OR reaction OR "first time" OR "react to" OR reacting)',
+        q=f'"{CHANNEL_NAME}"',    # ← Broadened: any video mentioning Missioned Souls
         type="video",
         maxResults=50,
         order="date"
