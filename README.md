@@ -174,3 +174,10 @@ YouTube Data API v3 gives **10,000 units/day**.
   "added_at": "2026-10-08T00:00:00+00:00",
   "last_seen_at": "2026-10-08T00:00:00+00:00"
 }
+
+Commit and push
+
+If Discord Posts Are Missing
+Check that the video's published_at is newer than the bookmark
+
+Use FORCE_SEND_ALL=true for one run to resend the latest N
