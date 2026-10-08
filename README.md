@@ -21,7 +21,7 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 
 ---
 
-**##📁 Repository Structure**
+**📁 Repository Structure**
 ```
 .
 ├── .github/workflows/
