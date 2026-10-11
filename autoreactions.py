@@ -158,7 +158,7 @@ def format_published_time(published_at_iso):
 
         # Convert to Pacific/Auckland
         local_dt = dt.astimezone(AUCKLAND_TZ)
-        return local_dt.strftime('%I:%M %p').lstrip('0')
+        return local_dt.strftime('%I:%M %p %Z').lstrip('0')
     except Exception:
         return ""
 
