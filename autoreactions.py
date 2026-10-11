@@ -4,6 +4,7 @@ import json
 import re
 import requests
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
@@ -22,6 +23,8 @@ if not DISCORD_WEBHOOK_URL:
     raise ValueError("Missing DISCORD_WEBHOOK_URL environment variable")
 
 # ===========================================
+
+AUCKLAND_TZ = ZoneInfo("Pacific/Auckland")
 
 youtube = build('youtube', 'v3', developerKey=API_KEY)
 
@@ -145,11 +148,17 @@ def humanize_ago(published_at_iso, now=None):
 
 
 def format_published_time(published_at_iso):
-    """Return the absolute publish time in a compact format (e.g., '6:18 PM')."""
+    """Return the absolute publish time in Pacific/Auckland timezone (e.g. '6:18 PM')."""
     try:
         ts = published_at_iso.replace('Z', '+00:00')
         dt = datetime.fromisoformat(ts)
-        return dt.strftime('%I:%M %p').lstrip('0')
+
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        # Convert to Pacific/Auckland
+        local_dt = dt.astimezone(AUCKLAND_TZ)
+        return local_dt.strftime('%I:%M %p').lstrip('0')
     except Exception:
         return ""
 
