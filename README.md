@@ -605,3 +605,36 @@ autoreactions.py remains unchanged, including its old title-based behavior.
 **Therefore these stricter keyword rules are NOT YET enforced on existing
 production Discord alerts.** Implementation of production reaction-only
 filters requires a separate, explicitly approved deployment and safety test.
+
+
+## Final reaction-only follow-up: five user-reviewed videos (2026-10-22)
+
+The user classified the remaining five videos:
+
+| Video ID | Classification | Tracker decision |
+| --- | --- | --- |
+| VhwqMoL-t8A | repost | exclude |
+| cx1s0V_8Bu4 | discussion | exclude |
+| JjFzKrfhNgg | reaction | reaction candidate |
+| iVeWY7mTkrE | reaction | reaction candidate |
+| gXWQQNUpKcA | reaction | reaction candidate |
+
+The labels are stored separately in
+data/keyword_reactions_only_five_human_labels_20261022.csv.
+
+The final scorer scripts/score_keyword_reactions_only_final.py
+produces keyword-reactions-only-final-results.json. It keeps earlier
+human labels and tentative metadata assessments unchanged.
+The completed 30-video breakdown is 19 earlier metadata-supported
+reactions plus 3 newly user-confirmed reactions, against 6 earlier
+metadata-supported exclusions plus 2 newly user-confirmed exclusions:
+**22 reaction candidates, 8 exclusions, zero unresolved**.
+
+This sample was selected to include difficult cases and is not suitable
+for estimating real-world precision or recall. The 19 earlier candidates
+were not all separately rewatched under the new definition.
+The three newly confirmed reactions still fall into the detector's
+review tier based on title alone; they are not rejected merely because
+the titles resemble studio covers.
+
+No production changes or automatic experimental alerts were enabled.
