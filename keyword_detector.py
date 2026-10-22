@@ -39,7 +39,11 @@ GENERIC_EXCLUSIONS = re.compile(
     r"\b(?:ice[\s-]*cream|ice[\s-]*hockey|on[\s-]*ice|stacey[\s-]*solomon)\b", re.I
 )
 PAPER_DOVE = re.compile(r"\bpaper[\s_-]*dove\b", re.I)
-TRIBUTE = re.compile(r"\btribute\b|\ba[\s-]+song[\s-]+for[\s-]+the[\s-]+unsung\b", re.I)
+TRIBUTE = re.compile(
+    r"\btribute\b|\ba[\s-]+song[\s-]+for[\s-]+the[\s-]+unsung\b|"
+    r"\bdedicated[\s-]+song[\s-]+(?:for|to)\b|"
+    r"\bsong[\s-]+dedicated[\s-]+(?:for|to)\b", re.I
+)
 EVENT_NEWS = re.compile(
     r"\bfree\s+(?:worldwide\s+)?(?:live\s+)?concert\b|"
     r"\b(?:are\s+)?hosting\s+a\s+(?:free\s+)?live\s+concert\b|"
