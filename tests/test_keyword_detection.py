@@ -159,6 +159,12 @@ class KeywordClassifierTests(unittest.TestCase):
         self.tier("My reaction to Missioned Souls collab Paper Dove",
                   expected="none")
 
+    def test_distinctive_nitro_neisha_tribute_not_a_reaction(self):
+        self.tier("Tribute to Nitro Neisha on guitar",expected="none")
+
+    def test_reaction_archive_title_itself_never_auto_matches(self):
+        self.tier("Missioned Souls Reaction Archive - Volume 2",expected="none")
+
     def test_neisha_only_is_not_enough(self):
         self.tier("Neisha is amazing",expected="none")
 
