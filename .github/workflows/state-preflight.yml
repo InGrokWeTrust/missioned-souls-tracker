@@ -56,3 +56,11 @@ jobs:
           print("PASS: both production bookmark artifacts are present and readable")
           print("Reaction state format:", "v2" if reactions.get("version") == 2 else "legacy")
           print("Saved live video IDs:", len(live["sent_video_ids"]))
+
+      - name: Preserve an independent predeployment bookmark backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: predeployment-bookmarks-20261022
+          path: preflight/
+          retention-days: 30
+          if-no-files-found: error
