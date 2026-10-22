@@ -197,7 +197,7 @@ class OfflineTrackerTests(unittest.TestCase):
 
     def test_live_ack_callback_invoked_after_each_confirmed_post(self):
         recorded = []
-        with patch.object(live, "post_webhook", side_effect=[True, False]), \\
+        with patch.object(live, "post_webhook", side_effect=[True, False]), \
              patch.object(live.time, "sleep"):
             delivered = live.send_to_discord(
                 [video(1), video(2)], on_success=lambda stream: recorded.append(stream["video_id"])
