@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 concurrency:
@@ -55,6 +55,15 @@ jobs:
           check_artifacts: true
           search_artifacts: true
           if_no_artifact_found: warn
+
+      - name: Restore and persist durable reactions notification history before scanning
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HISTORY_ENABLED: "true"
+          DRY_RUN: ${{ vars.DRY_RUN }}
+          HISTORY_ENABLED: "true"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python notification_history.py hydrate reactions last_run.json
 
       - name: Run YouTube reaction tracker
         env:
