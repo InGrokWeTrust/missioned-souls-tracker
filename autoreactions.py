@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
 from channel_exclusions import is_excluded_channel
+from reaction_channel_policy import is_official_artist_channel
 from verified_nitro_reactions import is_verified_nitro_reaction
 from video_release_policy import is_published_vod
 from notification_history import save_ids as save_durable_ids
@@ -44,7 +45,7 @@ def load_tracked_channels():
             data = json.load(f)
             channels = data.get('channels', {})
             return {cid: info for cid, info in channels.items()
-                    if not is_excluded_channel(cid)}
+                    if not is_excluded_channel(cid) and not is_official_artist_channel(cid)}
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
@@ -68,6 +69,10 @@ def is_missioned_souls_reaction(title, *, video_id=None, channel_id=None):
     An unknown Nitro title is never promoted just because it uses that name.
     Exact video and uploading channel IDs must match the verified allowlist.
     """
+    if is_official_artist_channel(channel_id):
+        return False
+    if "paper dove" in title.lower() and "#missionedsouls" in title.lower():
+        return False
     if CHANNEL_NAME.lower() in title.lower():
         return True
     return is_verified_nitro_reaction({
@@ -222,7 +227,7 @@ def get_reactions_with_stats():
     silent_channels = []
 
     for channel_id, info in tracked.items():
-        if is_excluded_channel(channel_id):
+        if is_excluded_channel(channel_id) or is_official_artist_channel(channel_id):
             continue
         channel_title = info.get('title', channel_id) if isinstance(info, dict) else str(info)
 
@@ -267,6 +272,7 @@ def get_reactions_with_stats():
     stats_dict = {}
     duration_dict = {}
     live_details_dict = {}
+    descriptions_dict = {}
     broadcast_status_dict = {}
     confirmed_ids = set()
 
@@ -280,6 +286,7 @@ def get_reactions_with_stats():
         for item in stats_response.get('items', []):
             vid_id = item['id']
             confirmed_ids.add(vid_id)
+            descriptions_dict[vid_id] = item.get('snippet', {}).get('description', '')
             stats = item.get('statistics', {})
             broadcast_status_dict[vid_id] = item.get('snippet', {}).get('liveBroadcastContent', 'none')
             stats_dict[vid_id] = {
@@ -307,6 +314,7 @@ def get_reactions_with_stats():
         video['duration_sec'] = duration_dict.get(vid_id, 0)
         video['metadata_confirmed'] = vid_id in confirmed_ids
         video['live_streaming_details'] = live_details_dict.get(vid_id)
+        video['description'] = descriptions_dict.get(vid_id, '')
         video['live_broadcast_content'] = broadcast_status_dict.get(
             vid_id, video.get('live_broadcast_content', 'none'))
         video['age_at_run'] = humanize_ago(video['published_at'], run_start)
@@ -416,7 +424,8 @@ def send_to_discord(videos, max_to_send=5, run_start=None, on_success=None):
         print(f"🧪 DRY RUN: would deliver up to {min(max_to_send, len(videos))} videos; webhook disabled.")
         return []
     # Last line of defence, even for FORCE_SEND_ALL or direct callers.
-    videos = [v for v in videos if not is_excluded_channel(v.get("channel_id"))]
+    videos = [v for v in videos if not is_excluded_channel(v.get("channel_id"))
+              and not is_official_artist_channel(v.get("channel_id"))]
     if not videos:
         print("⚠️ No new videos to send.")
         return []
@@ -476,17 +485,22 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
     # A previously queued HCJB notification must never survive deployment
     # into a future delivery. Remove only blocked-channel pending entries;
     # preserve all other queue items and already-seen history intact.
-    blocked_pending = sum(is_excluded_channel(v.get("channel_id")) for v in state["pending"])
+    blocked_pending = sum(is_excluded_channel(v.get("channel_id")) or
+                          is_official_artist_channel(v.get("channel_id")) for v in state["pending"])
     if blocked_pending:
         state["pending"] = [v for v in state["pending"]
-                            if not is_excluded_channel(v.get("channel_id"))]
+                            if not is_excluded_channel(v.get("channel_id"))
+                            and not is_official_artist_channel(v.get("channel_id"))]
         print(f"🚫 Removed {blocked_pending} excluded-channel pending Discord alerts.")
-    videos = [v for v in videos if not is_excluded_channel(v.get("channel_id"))]
+    videos = [v for v in videos if not is_excluded_channel(v.get("channel_id"))
+              and not is_official_artist_channel(v.get("channel_id"))]
     tracked_channel_ids = {cid for cid in tracked_channel_ids
-                           if not is_excluded_channel(cid)}
+                           if not is_excluded_channel(cid)
+                           and not is_official_artist_channel(cid)}
     if channel_added_at is not None:
         channel_added_at = {cid: date for cid, date in channel_added_at.items()
-                            if not is_excluded_channel(cid)}
+                            if not is_excluded_channel(cid)
+                            and not is_official_artist_channel(cid)}
     bootstrap = state.get("_bootstrap", False)
     if bootstrap and not videos:
         raise StateError("Cannot bootstrap from an empty reaction scan.")

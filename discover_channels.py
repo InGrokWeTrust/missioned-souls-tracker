@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
 from channel_exclusions import is_excluded_channel
+from reaction_channel_policy import is_official_artist_channel
 
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
@@ -76,6 +77,7 @@ def discover_channels():
             channel_id = snippet.get("channelId")
             channel_title = snippet.get("channelTitle", "")
             if (channel_id and channel_title and not is_excluded_channel(channel_id)
+                    and not is_official_artist_channel(channel_id)
                     and CHANNEL_NAME.lower() in snippet.get("title", "").lower()):
                 discovered[channel_id] = channel_title
         page_token = response.get("nextPageToken")
@@ -99,7 +101,7 @@ if __name__ == "__main__":
     new_count = 0
     skipped_count = 0
     for channel_id, channel_title in discovered.items():
-        if is_excluded_channel(channel_id):
+        if is_excluded_channel(channel_id) or is_official_artist_channel(channel_id):
             if channel_id in tracked:
                 del tracked[channel_id]
             skipped_count += 1
@@ -136,7 +138,7 @@ if __name__ == "__main__":
     # Also prune any already-tracked excluded channels (in case rule changed)
     already_tracked_excluded = []
     for cid, info in list(tracked.items()):
-        if is_excluded_channel(cid):
+        if is_excluded_channel(cid) or is_official_artist_channel(cid):
             already_tracked_excluded.append((cid, info.get("title", cid) if isinstance(info,dict) else str(info)))
             continue
         if not isinstance(info, dict):
@@ -167,6 +169,9 @@ if __name__ == "__main__":
             dormant_count += 1
     print(f"🛡️ {dormant_count} channels marked dormant in search results (still tracked).")
 
+    if len(tracked) >= int(MAX_TRACKED_CHANNELS * 0.8):
+        print(f"::warning::Discovery capacity {len(tracked)}/{MAX_TRACKED_CHANNELS} "
+              "channels; monitor YouTube daily quota before increasing.")
     save_tracked_channels(tracked)
 
     print(f"\n✅ Discovery complete")

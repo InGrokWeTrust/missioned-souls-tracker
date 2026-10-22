@@ -8,11 +8,15 @@ import json
 import os
 import tempfile
 from datetime import datetime, timedelta, timezone
+from new_channel_reaction_evidence import clear_reaction_title
 
 STATE_VERSION = 2
 LOOKBACK_DAYS = 7
 MAX_SEEN_IDS = 20000
 MAX_PENDING = 2000
+NEW_CHANNEL_BACKFILL_HOURS = 2
+NEW_CHANNEL_FIRST_SCAN_HOURS = 3
+NEW_CHANNEL_BACKFILL_MAX_PER_CHANNEL = 2
 
 
 class StateError(RuntimeError):
@@ -117,7 +121,8 @@ def plan_notifications(state, videos, tracked_channel_ids, *, now=None, channel_
 
     An explicit bootstrap seeds current uploads with no Discord output.
     Migrated timestamp-only bookmarks seed videos at/before the old cutoff.
-    New channels are seeded on first sight (no backfill).
+    New channels seed old uploads, but may safely queue up to two clear
+    reaction-title VODs published within two hours before discovery.
     """
     now = now or datetime.now(timezone.utc)
     cutoff = now - timedelta(days=LOOKBACK_DAYS)
@@ -133,6 +138,7 @@ def plan_notifications(state, videos, tracked_channel_ids, *, now=None, channel_
     queued = {v["video_id"] for v in state["pending"]}
     seeded = 0
     enqueued = 0
+    first_scan_backfills = {}
     for video in sorted(videos, key=lambda v: (v["published_at"], v["video_id"])):
         vid = video["video_id"]
         if vid in seen or vid in queued:
@@ -142,11 +148,26 @@ def plan_notifications(state, videos, tracked_channel_ids, *, now=None, channel_
         published = _utc(video["published_at"])
         registered_at = channel_added_at.get(video["channel_id"])
         first_seen_channel = not migration and video["channel_id"] in new_channels
+        # Conservative first-discovery catch-up; never replay a past seeded ID.
+        # An old/missing registration timestamp is NOT permission to backfill.
+        backfill_eligible = False
+        if (first_seen_channel and not bootstrap and registered_at
+                and published >= cutoff):
+            discovered_at = _utc(registered_at)
+            channel = video["channel_id"]
+            seconds_before_discovery = (discovered_at - published).total_seconds()
+            seconds_since_discovery = (now - discovered_at).total_seconds()
+            backfill_eligible = (
+                0 <= seconds_before_discovery <= NEW_CHANNEL_BACKFILL_HOURS * 3600
+                and 0 <= seconds_since_discovery <= NEW_CHANNEL_FIRST_SCAN_HOURS * 3600
+                and first_scan_backfills.get(channel, 0) < NEW_CHANNEL_BACKFILL_MAX_PER_CHANNEL
+                and clear_reaction_title(video)
+            )
         should_seed = (
             bootstrap
             or (migration and published <= old_cutoff)
             or (first_seen_channel and (
-                not registered_at or published <= _utc(registered_at)
+                not registered_at or (published <= _utc(registered_at) and not backfill_eligible)
             ))
         )
         if should_seed:
@@ -159,6 +180,11 @@ def plan_notifications(state, videos, tracked_channel_ids, *, now=None, channel_
             state["pending"].append(video)
             queued.add(vid)
             enqueued += 1
+            if backfill_eligible:
+                first_scan_backfills[video["channel_id"]] = (
+                    first_scan_backfills.get(video["channel_id"], 0) + 1
+                )
+                print(f"🆕 Safe new-channel reaction backfill queued: {vid}")
         # Old unannounced videos outside the lookback are deliberately not backfilled.
     state["known_channel_ids"] = sorted(known | current)
     state["pending"].sort(key=lambda v: (v["published_at"], v["video_id"]))
