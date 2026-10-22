@@ -157,7 +157,7 @@ def find_active_live_streams():
     return streams
 
 
-def send_to_discord(streams, run_start=None):
+def send_to_discord(streams, run_start=None, on_success=None):
     if not streams:
         print("⚠️ No live streams to send.")
         return []
@@ -193,6 +193,8 @@ def send_to_discord(streams, run_start=None):
         if post_webhook(DISCORD_WEBHOOK_URL, data):
             print(f"✅ Sent: [{posted_value}] {stream['title'][:60]}...")
             delivered.append(stream)
+            if on_success is not None:
+                on_success(stream)
         else:
             print("::warning::Discord live alert delivery failed; unsent ID remains eligible for retry.")
             break
@@ -238,14 +240,16 @@ if __name__ == "__main__":
     if new_streams:
         new_streams.sort(key=lambda x: x['published_at'], reverse=False)
         top_streams = new_streams[:MAX_TO_SEND]  # Drain oldest eligible alerts first.
-        delivered = send_to_discord(top_streams, run_start=run_start)
 
-        # Only acknowledge successfully delivered IDs.
-        for s in delivered:
-            if s['video_id'] not in sent_ids:
-                sent_ids.append(s['video_id'])
+        def confirmed(stream):
+            if stream["video_id"] not in sent_ids:
+                sent_ids.append(stream["video_id"])
+            save_state(sent_ids)
 
-        save_state(sent_ids)
+        delivered = send_to_discord(top_streams, run_start=run_start, on_success=confirmed)
+        # Also update last_check if nothing was successfully delivered.
+        if not delivered:
+            save_state(sent_ids)
         if len(delivered) < len(top_streams):
             raise RuntimeError("Some live alerts failed. Sent IDs persisted for retry.")
         print(f"📌 {len(sent_ids)} total IDs tracked")
