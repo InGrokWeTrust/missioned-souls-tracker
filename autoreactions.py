@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
+from reaction_state import StateError, load_state, save_state, plan_notifications, acknowledge
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -28,20 +29,6 @@ if not DISCORD_WEBHOOK_URL:
 AUCKLAND_TZ = ZoneInfo("Pacific/Auckland")
 
 youtube = build('youtube', 'v3', developerKey=API_KEY)
-
-
-def load_last_run():
-    try:
-        with open(LAST_RUN_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f).get('last_published_at')
-    except:
-        return None
-
-
-def save_last_run(published_at):
-    with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
-        json.dump({"last_published_at": published_at}, f, indent=2)
-    print(f"💾 Updated {LAST_RUN_FILE} → {published_at[:10]}")
 
 
 def load_tracked_channels():
@@ -312,7 +299,7 @@ def get_reactions_with_stats():
     return all_videos, run_start
 
 
-def send_to_discord(videos, max_to_send=5, run_start=None):
+def send_to_discord(videos, max_to_send=5, run_start=None, on_success=None):
     if not videos:
         print("⚠️ No new videos to send.")
         return []
@@ -355,6 +342,8 @@ def send_to_discord(videos, max_to_send=5, run_start=None):
         if post_webhook(DISCORD_WEBHOOK_URL, data):
             print(f"✅ Sent: [{posted_value}] {title[:60]}...")
             delivered.append(video)
+            if on_success is not None:
+                on_success(video)
         else:
             print("::warning::Discord delivery failed; stopping to preserve the unsent bookmark.")
             break
@@ -363,60 +352,51 @@ def send_to_discord(videos, max_to_send=5, run_start=None):
     return delivered
 
 
-def deliver_reactions(new_videos, max_to_send, force_send_all=False, run_start=None):
-    """Send a bounded batch; persist only the contiguous, confirmed deliveries."""
-    ordered = sorted(new_videos, key=lambda v: v['published_at'])
-    # Normal runs drain oldest first; forced replays retain the original latest-N behaviour.
-    selected = ordered[-max_to_send:] if force_send_all else ordered[:max_to_send]
-    delivered = send_to_discord(selected, max_to_send=max_to_send, run_start=run_start)
+def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=None):
+    """Persist the queue BEFORE delivery and after each confirmed notification."""
+    allow_bootstrap = os.environ.get("BOOTSTRAP_STATE_IF_MISSING", "false").lower() == "true"
+    state = load_state(LAST_RUN_FILE, allow_bootstrap=allow_bootstrap)
+    bootstrap = state.get("_bootstrap", False)
 
-    if delivered and not force_send_all:
-        newest_delivered = delivered[-1]['published_at']
-        save_last_run(newest_delivered)
-        print(f"📌 Bookmark updated through confirmed delivery: {newest_delivered}")
-    elif force_send_all:
-        print("🔄 Force mode: bookmark left unchanged")
+    plan_notifications(state, videos, tracked_channel_ids, now=run_start)
+    save_state(LAST_RUN_FILE, state)
 
-    if len(delivered) < len(selected):
-        print(f"::warning::Only {len(delivered)} of {len(selected)} selected reactions were delivered.")
-    if len(ordered) > len(selected) and not force_send_all:
-        print(f"⏳ {len(ordered) - len(selected)} reactions remain for subsequent runs.")
+    # A one-time explicit bootstrap never sends existing videos, even in force mode.
+    if bootstrap:
+        print("📌 Bootstrap complete: current uploads were marked seen; no posts sent.")
+        return []
 
+    if force_send_all:
+        chosen = sorted(videos, key=lambda v: (v["published_at"], v["video_id"]))[-MAX_TO_SEND:]
+        print(f"🔄 Force replay: {len(chosen)} recent videos; state remains unchanged.")
+        return send_to_discord(chosen, max_to_send=MAX_TO_SEND, run_start=run_start)
+
+    chosen = state["pending"][:MAX_TO_SEND]
+    if not chosen:
+        print("ℹ️ No pending reactions to deliver.")
+        return []
+
+    def confirmed(video):
+        acknowledge(state, video)
+        save_state(LAST_RUN_FILE, state)
+
+    delivered = send_to_discord(
+        chosen, max_to_send=MAX_TO_SEND, run_start=run_start, on_success=confirmed
+    )
+    print(f"📨 Delivered {len(delivered)}; {len(state['pending'])} pending remain.")
+    if len(delivered) != len(chosen):
+        raise RuntimeError("Discord delivery failed. State saved; pending notifications remain queued.")
     return delivered
 
 
 # ===================== MAIN =====================
 if __name__ == "__main__":
     print("🚀 Missioned Souls Reaction Tracker Started\n")
-
-    last_published = load_last_run()
-    print(f"📅 Last run timestamp: {last_published[:10] if last_published else 'No bookmark — will be set this run'}")
+    # Fail before reaching YouTube or Discord if bookmark is missing or corrupt.
+    load_state(LAST_RUN_FILE, allow_bootstrap=os.environ.get(
+        "BOOTSTRAP_STATE_IF_MISSING", "false").lower() == "true")
 
     videos, run_start = get_reactions_with_stats()
-
-    if not last_published:
-        if videos:
-            newest_timestamp = videos[-1]['published_at']
-            save_last_run(newest_timestamp)
-            print(f"📌 Initial bookmark set to: {newest_timestamp}")
-        else:
-            print("ℹ️ No videos found — bookmark not set")
-        print("\n🎉 All done!")
-        raise SystemExit(0)
-
-    if FORCE_SEND_ALL:
-        new_videos = videos
-        print(f"🔄 Force mode: Sending latest {len(new_videos)} videos")
-    else:
-        new_videos = [v for v in videos if v['published_at'] > last_published]
-        print(f"🆕 Found {len(new_videos)} new reactions since last run")
-
-    new_videos.sort(key=lambda x: x['published_at'], reverse=False)
-
-    if new_videos:
-        deliver_reactions(new_videos, MAX_TO_SEND, FORCE_SEND_ALL, run_start)
-    else:
-        send_to_discord([], max_to_send=MAX_TO_SEND)
-        print("ℹ️ No new videos – bookmark unchanged")
-
+    tracked_ids = set(load_tracked_channels())
+    run_tracker(videos, tracked_ids, force_send_all=FORCE_SEND_ALL, run_start=run_start)
     print("\n🎉 All done!")
