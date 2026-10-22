@@ -731,3 +731,40 @@ Offline regression test report:
 https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/39736270940
 
 The draft branch remains unmerged. No paid API or new Discord delivery.
+
+
+### Next independent reactor-history review cohort (seven videos)
+
+The channel-history audit found only one verified reaction per identified
+reactor and cannot justify channel-level automatic approvals. A frozen
+follow-up review set is now recorded in
+data/reactor_history_next7_pending_review_20261022.json.
+
+These **seven genuinely unlabelled** band-related uploads were recovered
+from the already saved 22 October YouTube metadata snapshot (without
+performing another YouTube API request):
+
+- HCJB Music Reaction: bRpiOxl1sdE, pbgQdCCaPo8, 7iYFOFiu1KI
+- Reactions with Vinny: EN0kaZai6T4
+- Global take: ayffX_R86kw, XBYttS5x4i4, b6eDBjF6sko
+
+Several are explicitly labelled reactions by title, and one appears to be
+a song dedicated to Neisha. **No verdicts were assigned by the evaluator.**
+The case mix is deliberately chosen to test a trusted channel's
+potential positive *and* negative band-related content.
+
+The other three previously verified reactors (Taylor John Hardin,
+S.E.A.T., Cherman Vlogs) did not have further unreviewed band-related
+uploads in this particular last-five-per-channel snapshot. This is a
+sampling limitation, not a statement about their entire upload history.
+
+An offline HTML review sheet with YouTube links, thumbnails, saved public
+descriptions and CSV export was generated for user classification. The
+seven labels must be independently returned and verified before any
+history counters are incremented.
+
+Next test results: 
+https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/39736735115
+
+The report-only experiment remains draft and unmerged, with no new
+Discord posting or paid AI API use.
