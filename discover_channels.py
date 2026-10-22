@@ -7,9 +7,11 @@ API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
     raise ValueError("Missing YOUTUBE_API_KEY environment variable")
 
-CHANNEL_NAME = os.environ.get("CHANNEL_NAME", "Missioned Souls")
-TRACKED_CHANNELS_FILE = os.environ.get("TRACKED_CHANNELS_FILE", "tracked_channels.json")
+CHANNEL_NAME = (os.environ.get("CHANNEL_NAME") or "Missioned Souls")
+TRACKED_CHANNELS_FILE = (os.environ.get("TRACKED_CHANNELS_FILE") or "tracked_channels.json")
 CHANNEL_INACTIVITY_DAYS = int(os.environ.get("CHANNEL_INACTIVITY_DAYS", "60"))
+DISCOVERY_PAGES = max(1, min(5, int(os.environ.get("DISCOVERY_PAGES") or "2")))
+MAX_TRACKED_CHANNELS = int(os.environ.get("MAX_TRACKED_CHANNELS") or "155")
 
 # Exclusion rule: any channel with these keywords is skipped,
 # unless it also matches an allowed exception.
@@ -56,24 +58,29 @@ def save_tracked_channels(channels):
 def discover_channels():
     print(f"🔍 Discovering new reactor channels for {CHANNEL_NAME}...\n")
 
-    search_response = youtube.search().list(
-        part="snippet",
-        q=f'"{CHANNEL_NAME}"',    # ← Broadened: any video mentioning Missioned Souls
-        type="video",
-        maxResults=50,
-        order="date"
-    ).execute()
-
-    items = search_response.get('items', [])
-    print(f"Search returned {len(items)} videos\n")
-
     discovered = {}
-    for item in items:
-        snippet = item['snippet']
-        channel_id = snippet['channelId']
-        channel_title = snippet['channelTitle']
-        discovered[channel_id] = channel_title
+    page_token = None
+    for page in range(DISCOVERY_PAGES):
+        arguments = {
+            "part": "snippet", "q": f'"{CHANNEL_NAME}"',
+            "type": "video", "maxResults": 50, "order": "date"
+        }
+        if page_token:
+            arguments["pageToken"] = page_token
+        response = youtube.search().list(**arguments).execute()
+        items = response.get("items", [])
+        print(f"  Page {page + 1}: found {len(items)} candidate videos")
+        for item in items:
+            snippet = item.get("snippet", {})
+            channel_id = snippet.get("channelId")
+            channel_title = snippet.get("channelTitle", "")
+            if channel_id and channel_title and CHANNEL_NAME.lower() in snippet.get("title", "").lower():
+                discovered[channel_id] = channel_title
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            break
 
+    print(f"✅ Discovered {len(discovered)} unique channels from {page + 1} page(s)")
     return discovered
 
 
@@ -102,6 +109,9 @@ if __name__ == "__main__":
             continue
 
         if channel_id not in tracked:
+            if len(tracked) >= MAX_TRACKED_CHANNELS:
+                print(f"  ⚠️ Capacity limit {MAX_TRACKED_CHANNELS} reached, skipping {channel_title}")
+                continue
             tracked[channel_id] = {
                 "title": channel_title,
                 "added_at": datetime.now(timezone.utc).isoformat(),
@@ -129,30 +139,28 @@ if __name__ == "__main__":
         del tracked[cid]
         skipped_count += 1
 
-    # Prune stale channels
+    # Discovery results can omit channels that still upload regularly.
+    # Avoid deleting useful reactors because the search window is crowded.
     now = datetime.now(timezone.utc)
-    to_remove = []
+    dormant_count = 0
     for cid, info in tracked.items():
-        if isinstance(info, str):
+        if not isinstance(info, dict):
             continue
         last_seen_str = info.get("last_seen_at")
         if not last_seen_str:
             continue
         last_seen = datetime.fromisoformat(last_seen_str.replace('Z', '+00:00'))
-        days_idle = (now - last_seen).days
-        if days_idle > CHANNEL_INACTIVITY_DAYS:
-            to_remove.append(cid)
-
-    for cid in to_remove:
-        title = tracked[cid].get("title", cid) if isinstance(tracked[cid], dict) else tracked[cid]
-        print(f"  🗑️  Pruning stale channel: {title} ({cid})")
-        del tracked[cid]
+        days_missing_from_search = (now - last_seen).days
+        info["dormant"] = days_missing_from_search > CHANNEL_INACTIVITY_DAYS
+        if info["dormant"]:
+            dormant_count += 1
+    print(f"🛡️ {dormant_count} channels marked dormant in search results (still tracked).")
 
     save_tracked_channels(tracked)
 
     print(f"\n✅ Discovery complete")
     print(f"   New channels added: {new_count}")
     print(f"   Excluded/skipped channels: {skipped_count}")
-    print(f"   Stale channels pruned: {len(to_remove)}")
+    print(f"   Search-dormant channels retained: {dormant_count}")
     print(f"   Total tracked: {len(tracked)}")
     print("\n🎉 All done!")

@@ -6,18 +6,22 @@ import requests
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
+from webhook_delivery import post_webhook
+from reaction_state import (StateError, load_state, save_state, plan_notifications,
+                            acknowledge, read_live_sent_ids, reconcile_live_notifications)
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
     raise ValueError("Missing YOUTUBE_API_KEY environment variable")
 
-CHANNEL_NAME = os.environ.get("CHANNEL_NAME", "Missioned Souls")
-MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND", "10"))
-MAX_VIDEOS_PER_CHANNEL = int(os.environ.get("MAX_VIDEOS_PER_CHANNEL", "5"))
+CHANNEL_NAME = (os.environ.get("CHANNEL_NAME") or "Missioned Souls")
+MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND") or "10")
+MAX_VIDEOS_PER_CHANNEL = int(os.environ.get("MAX_VIDEOS_PER_CHANNEL") or "5")
 FORCE_SEND_ALL = os.environ.get("FORCE_SEND_ALL", "false").lower() == "true"
-LAST_RUN_FILE = os.environ.get("LAST_RUN_FILE", "last_run.json")
-TRACKED_CHANNELS_FILE = os.environ.get("TRACKED_CHANNELS_FILE", "tracked_channels.json")
+LAST_RUN_FILE = (os.environ.get("LAST_RUN_FILE") or "last_run.json")
+LIVE_LAST_RUN_FILE = (os.environ.get("LIVE_LAST_RUN_FILE") or "live_last_run.json")
+TRACKED_CHANNELS_FILE = (os.environ.get("TRACKED_CHANNELS_FILE") or "tracked_channels.json")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 if not DISCORD_WEBHOOK_URL:
     raise ValueError("Missing DISCORD_WEBHOOK_URL environment variable")
@@ -27,20 +31,6 @@ if not DISCORD_WEBHOOK_URL:
 AUCKLAND_TZ = ZoneInfo("Pacific/Auckland")
 
 youtube = build('youtube', 'v3', developerKey=API_KEY)
-
-
-def load_last_run():
-    try:
-        with open(LAST_RUN_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f).get('last_published_at')
-    except:
-        return None
-
-
-def save_last_run(published_at):
-    with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
-        json.dump({"last_published_at": published_at}, f, indent=2)
-    print(f"💾 Updated {LAST_RUN_FILE} → {published_at[:10]}")
 
 
 def load_tracked_channels():
@@ -78,8 +68,8 @@ def is_archived_livestream(video):
 def is_short_or_too_short(video):
     title_lower = video.get('title', '').lower()
 
-    # 1. Filter explicit #short / #shorts hashtags (highest priority)
-    if '#short' in title_lower or 'shorts' in title_lower:
+    # 1. Prefer explicit Shorts labels; generic words in unrelated titles should not match.
+    if re.search(r"#shorts?\b|\bshorts\b", title_lower):
         return True
 
     # 2. Keep ALL livestreams — active, upcoming, or archived
@@ -104,10 +94,8 @@ def classify_filter_reason(video):
     """Return a short reason string for why a video was filtered."""
     title_lower = video.get('title', '').lower()
 
-    if '#short' in title_lower:
-        return "has #short"
-    if 'shorts' in title_lower:
-        return "has 'shorts'"
+    if re.search(r"#shorts?\b|\bshorts\b", title_lower):
+        return "marked as Short"
 
     duration = video.get('duration_sec', 0)
     if duration > 0 and duration < 120:
@@ -175,7 +163,7 @@ def fetch_channel_videos(channel_id, channel_title):
         ).execute()
     except Exception as e:
         print(f"  ❌ Error fetching {channel_title}: {e}")
-        return []
+        return None
 
     videos = []
     for item in response.get('items', []):
@@ -207,13 +195,14 @@ def get_reactions_with_stats():
 
     tracked = load_tracked_channels()
     if not tracked:
-        print("⚠️ No tracked channels found. Run discover_channels.py first.")
-        return [], run_start
+        raise RuntimeError("No tracked channels available: refusing to seed an empty scan.")
 
     print(f"📋 Tracking {len(tracked)} channels\n")
 
     # Stage 1: fetch all candidate videos
     candidates = []
+    scanned_channel_ids = set()
+    failed_channels = []
     no_ms_count = 0
     silent_channels = []
 
@@ -221,6 +210,10 @@ def get_reactions_with_stats():
         channel_title = info.get('title', channel_id) if isinstance(info, dict) else str(info)
 
         videos = fetch_channel_videos(channel_id, channel_title)
+        if videos is None:
+            failed_channels.append(channel_title)
+            continue
+        scanned_channel_ids.add(channel_id)
         reaction_videos = [v for v in videos if is_missioned_souls_reaction(v['title'])]
         no_ms_count += len(videos) - len(reaction_videos)
 
@@ -230,6 +223,8 @@ def get_reactions_with_stats():
         if not reaction_videos:
             silent_channels.append(channel_title)
 
+    if failed_channels:
+        print(f"::warning::{len(failed_channels)} channels failed to scan and will be retried next run.")
     if silent_channels:
         print(f"⏭️  Channels with no MS reactions in last {MAX_VIDEOS_PER_CHANNEL}:")
         for ch in silent_channels:
@@ -242,26 +237,30 @@ def get_reactions_with_stats():
     print(f"   MS keyword matches       : {len(candidates)}")
     print(f"   No MS mention (skipped)  : {no_ms_count}\n")
 
+    if not scanned_channel_ids:
+        raise RuntimeError("All channel scans failed; state will remain untouched.")
     if not candidates:
         print("⚠️ No Missioned Souls reactions found in tracked channels.")
-        return [], run_start
+        return [], run_start, scanned_channel_ids
 
     # Stage 2: batch fetch stats + duration + liveStreamingDetails
     video_ids = [v['video_id'] for v in candidates]
     stats_dict = {}
     duration_dict = {}
     live_details_dict = {}
+    broadcast_status_dict = {}
 
     for i in range(0, len(video_ids), 50):
         chunk = video_ids[i:i+50]
         stats_response = youtube.videos().list(
-            part="statistics,contentDetails,liveStreamingDetails",
+            part="statistics,contentDetails,liveStreamingDetails,snippet",
             id=",".join(chunk)
         ).execute()
 
         for item in stats_response.get('items', []):
             vid_id = item['id']
             stats = item.get('statistics', {})
+            broadcast_status_dict[vid_id] = item.get('snippet', {}).get('liveBroadcastContent', 'none')
             stats_dict[vid_id] = {
                 'view_count': int(stats.get('viewCount', 0)),
                 'like_count': int(stats.get('likeCount', 0)),
@@ -286,9 +285,14 @@ def get_reactions_with_stats():
         video['comment_count'] = vid_stats.get('comment_count', 0)
         video['duration_sec'] = duration_dict.get(vid_id, 0)
         video['live_streaming_details'] = live_details_dict.get(vid_id)
+        video['live_broadcast_content'] = broadcast_status_dict.get(
+            vid_id, video.get('live_broadcast_content', 'none'))
         video['age_at_run'] = humanize_ago(video['published_at'], run_start)
 
-        if is_short_or_too_short(video):
+        if video['live_broadcast_content'] in ('live', 'upcoming'):
+            # The separate live checker handles live alerts. Never announce upcoming as LIVE.
+            filtered_log.append((video, "handled by live checker / upcoming"))
+        elif is_short_or_too_short(video):
             reason = classify_filter_reason(video)
             filtered_log.append((video, reason))
         else:
@@ -308,13 +312,24 @@ def get_reactions_with_stats():
     print(f"   Filtered (shorts/other)  : {len(filtered_log)}")
     print(f"   ✅ Kept for posting      : {len(all_videos)}\n")
 
-    return all_videos, run_start
+    return all_videos, run_start, scanned_channel_ids
 
 
-def send_to_discord(videos, max_to_send=5, run_start=None):
+def discord_timestamp(iso):
+    """Dynamic Discord local-time and relative timestamp for embeds."""
+    dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    stamp = int(dt.timestamp())
+    return f"<t:{stamp}:t> (<t:{stamp}:R>)"
+
+
+def send_to_discord(videos, max_to_send=5, run_start=None, on_success=None):
     if not videos:
         print("⚠️ No new videos to send.")
-        return
+        return []
+
+    delivered = []
 
     print(f"\n📨 Sending {min(max_to_send, len(videos))} new reactions to Discord...\n")
 
@@ -326,8 +341,7 @@ def send_to_discord(videos, max_to_send=5, run_start=None):
             title = f"🕒 UPCOMING: {title}"
 
         age = video.get('age_at_run', humanize_ago(video['published_at'], run_start))
-        published_str = format_published_time(video['published_at'])
-        posted_value = f"{published_str} ({age})" if published_str else age
+        posted_value = discord_timestamp(video['published_at'])
 
         embed = {
             "title": title,
@@ -349,54 +363,75 @@ def send_to_discord(videos, max_to_send=5, run_start=None):
             "embeds": [embed]
         }
 
-        try:
-            response = requests.post(DISCORD_WEBHOOK_URL, json=data, timeout=10)
-            if response.status_code == 204:
-                print(f"✅ Sent: [{posted_value}] {title[:60]}...")
-            else:
-                print(f"❌ Discord error {response.status_code}")
-        except Exception as e:
-            print(f"❌ Failed to send: {e}")
+        if post_webhook(DISCORD_WEBHOOK_URL, data):
+            print(f"✅ Sent: [{posted_value}] {title[:60]}...")
+            delivered.append(video)
+            if on_success is not None:
+                on_success(video)
+        else:
+            print("::warning::Discord delivery failed; stopping to preserve the unsent bookmark.")
+            break
         time.sleep(1.3)
+
+    return delivered
+
+
+def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=None,
+                channel_added_at=None):
+    """Persist the queue BEFORE delivery and after each confirmed notification."""
+    allow_bootstrap = os.environ.get("BOOTSTRAP_STATE_IF_MISSING", "false").lower() == "true"
+    state = load_state(LAST_RUN_FILE, allow_bootstrap=allow_bootstrap)
+    bootstrap = state.get("_bootstrap", False)
+    if bootstrap and not videos:
+        raise StateError("Cannot bootstrap from an empty reaction scan.")
+    live_ids = read_live_sent_ids(LIVE_LAST_RUN_FILE)
+    plan_notifications(state, videos, tracked_channel_ids, now=run_start,
+                       channel_added_at=channel_added_at)
+    # Only confirmed archived/livestream IDs are removed; ordinary reactions are unaffected.
+    reconcile_live_notifications(state, live_ids)
+    save_state(LAST_RUN_FILE, state)
+
+    # A one-time explicit bootstrap never sends existing videos, even in force mode.
+    if bootstrap:
+        print("📌 Bootstrap complete: current uploads were marked seen; no posts sent.")
+        return []
+
+    if force_send_all:
+        chosen = sorted(videos, key=lambda v: (v["published_at"], v["video_id"]))[-MAX_TO_SEND:]
+        print(f"🔄 Force replay: {len(chosen)} recent videos; state remains unchanged.")
+        return send_to_discord(chosen, max_to_send=MAX_TO_SEND, run_start=run_start)
+
+    chosen = state["pending"][:MAX_TO_SEND]
+    if not chosen:
+        print("ℹ️ No pending reactions to deliver.")
+        return []
+
+    def confirmed(video):
+        acknowledge(state, video)
+        save_state(LAST_RUN_FILE, state)
+
+    delivered = send_to_discord(
+        chosen, max_to_send=MAX_TO_SEND, run_start=run_start, on_success=confirmed
+    )
+    print(f"📨 Delivered {len(delivered)}; {len(state['pending'])} pending remain.")
+    if len(delivered) != len(chosen):
+        raise RuntimeError("Discord delivery failed. State saved; pending notifications remain queued.")
+    return delivered
 
 
 # ===================== MAIN =====================
 if __name__ == "__main__":
     print("🚀 Missioned Souls Reaction Tracker Started\n")
+    # Fail before reaching YouTube or Discord if bookmark is missing or corrupt.
+    load_state(LAST_RUN_FILE, allow_bootstrap=os.environ.get(
+        "BOOTSTRAP_STATE_IF_MISSING", "false").lower() == "true")
 
-    last_published = load_last_run()
-    print(f"📅 Last run timestamp: {last_published[:10] if last_published else 'No bookmark — will be set this run'}")
-
-    videos, run_start = get_reactions_with_stats()
-
-    if not last_published:
-        if videos:
-            newest_timestamp = videos[-1]['published_at']
-            save_last_run(newest_timestamp)
-            print(f"📌 Initial bookmark set to: {newest_timestamp}")
-        else:
-            print("ℹ️ No videos found — bookmark not set")
-        print("\n🎉 All done!")
-        raise SystemExit(0)
-
-    if FORCE_SEND_ALL:
-        new_videos = videos
-        print(f"🔄 Force mode: Sending latest {len(new_videos)} videos")
-    else:
-        new_videos = [v for v in videos if v['published_at'] > last_published]
-        print(f"🆕 Found {len(new_videos)} new reactions since last run")
-
-    new_videos.sort(key=lambda x: x['published_at'], reverse=False)
-
-    if new_videos:
-        top_videos = new_videos[-MAX_TO_SEND:] if len(new_videos) >= MAX_TO_SEND else new_videos
-        send_to_discord(top_videos, max_to_send=MAX_TO_SEND, run_start=run_start)
-
-        newest_timestamp = new_videos[-1]['published_at']
-        save_last_run(newest_timestamp)
-        print(f"📌 Bookmark updated to: {newest_timestamp}")
-    else:
-        send_to_discord([], max_to_send=MAX_TO_SEND)
-        print("ℹ️ No new videos – bookmark unchanged")
-
+    videos, run_start, scanned_ids = get_reactions_with_stats()
+    channels = load_tracked_channels()
+    channel_added_at = {
+        cid: info.get('added_at') for cid, info in channels.items()
+        if isinstance(info, dict) and info.get('added_at')
+    }
+    run_tracker(videos, scanned_ids, force_send_all=FORCE_SEND_ALL,
+                run_start=run_start, channel_added_at=channel_added_at)
     print("\n🎉 All done!")
