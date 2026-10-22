@@ -106,13 +106,21 @@ class DiscoveryAndLiveTests(unittest.TestCase):
         def fake_post(url, json, timeout):
             calls.append((url, json))
             return SimpleNamespace(status_code=204)
-        self.assertTrue(report_failure(
-            webhook_url="https://example.invalid/alert",
-            workflow="Offline tracker", run_url="https://example.invalid/run",
-            post=fake_post
-        ))
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "tracker-error.log"
+            path.write_text("googleapiclient.errors.HttpError: quotaExceeded", encoding="utf-8")
+            self.assertTrue(report_failure(
+                webhook_url="https://example.invalid/alert",
+                workflow="YouTube Reaction Tracker",
+                run_url="https://example.invalid/run",
+                log_path=str(path),
+                post=fake_post
+            ))
         self.assertEqual(len(calls), 1)
-        self.assertIn("Offline tracker", calls[0][1]["embeds"][0]["description"])
+        text = calls[0][1]["embeds"][0]["title"]
+        self.assertIn("YouTube API quota exceeded", text)
+        self.assertNotIn("example.invalid/run", str(calls[0][1]))
+        self.assertNotIn("Tracker workflow failed", str(calls[0][1]))
 
     def test_archive_duplicate_reconciled_from_live_ids(self):
         state = {"pending": [{"video_id": "id-1"}, {"video_id": "id-2"}],
