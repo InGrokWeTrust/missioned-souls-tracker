@@ -7,11 +7,11 @@ API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
     raise ValueError("Missing YOUTUBE_API_KEY environment variable")
 
-CHANNEL_NAME = os.environ.get("CHANNEL_NAME", "Missioned Souls")
-TRACKED_CHANNELS_FILE = os.environ.get("TRACKED_CHANNELS_FILE", "tracked_channels.json")
+CHANNEL_NAME = (os.environ.get("CHANNEL_NAME") or "Missioned Souls")
+TRACKED_CHANNELS_FILE = (os.environ.get("TRACKED_CHANNELS_FILE") or "tracked_channels.json")
 CHANNEL_INACTIVITY_DAYS = int(os.environ.get("CHANNEL_INACTIVITY_DAYS", "60"))
-DISCOVERY_PAGES = max(1, min(5, int(os.environ.get("DISCOVERY_PAGES", "2"))))
-MAX_TRACKED_CHANNELS = int(os.environ.get("MAX_TRACKED_CHANNELS", "155"))
+DISCOVERY_PAGES = max(1, min(5, int(os.environ.get("DISCOVERY_PAGES") or "2")))
+MAX_TRACKED_CHANNELS = int(os.environ.get("MAX_TRACKED_CHANNELS") or "155")
 
 # Exclusion rule: any channel with these keywords is skipped,
 # unless it also matches an allowed exception.
