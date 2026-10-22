@@ -110,13 +110,13 @@ def classify(title: str, description: str = "", tags=None, *, tracked_reactor=Tr
     if PAPER_DOVE.search(title):
         tier = "none"
         reasons.append("Paper Dove is a separate group, not a Missioned Souls performance")
-    elif title_band and TRIBUTE.search(title):
+    elif (title_band or title_nitro) and TRIBUTE.search(title):
         tier = "none"
         reasons.append("tribute or musical dedication is not a reaction to the band performing")
     elif EVENT_NEWS.search(title):
         tier = "none"
         reasons.append("concert promotion, website review, or popularity milestone is not a performance reaction")
-    elif ARCHIVE_CHANNEL.search(channel_name):
+    elif ARCHIVE_CHANNEL.search(channel_name) or ARCHIVE_CHANNEL.search(title):
         tier = "none"
         reasons.append("reaction archive is not a newly created third-party reaction")
     elif title_nitro:
