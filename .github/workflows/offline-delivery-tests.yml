@@ -7,6 +7,10 @@ on:
       - 'autoreactions.py'
       - 'keyword_detector.py'
       - 'scripts/run_keyword_trial.py'
+      - 'scripts/score_quality_reviewed37.py'
+      - 'data/keyword_strong30_reactions_only_adjudication_20261022.json'
+      - 'data/keyword_reactions_only_five_human_labels_20261022.csv'
+      - 'data/reactor_history_video_channels_20261022.json'
       - 'data/keyword_trial_cases.json'
       - 'data/reactor_history_next7_human_labels_20261022.csv'
       - 'check_live_streams.py'
@@ -36,3 +40,11 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Replay curated reaction-quality shadow fixtures offline
         run: python -m scripts.run_keyword_trial
+      - name: Score 37 reviewed cases by human versus metadata provenance
+        run: python -m scripts.score_quality_reviewed37
+      - name: Archive offline 37-video quality report
+        uses: actions/upload-artifact@v4
+        with:
+          name: reaction-quality-reviewed37
+          path: reaction-quality-reviewed37.json
+          retention-days: 7
