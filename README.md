@@ -294,9 +294,46 @@ If the saved live state has expired, the same emergency option seeds *currently 
 See [Google's current YouTube quota calculator](https://developers.google.com/youtube/data/determine_quota_cost). A search request consumes one of the separate daily search calls; the standard playlist and video fetches consume the general 10,000-unit pool.
 
 
-### Proposed exception for verified Nitro Neisha reaction (feature branch, NOT merged)
+### Read-only reaction-quality staging (draft; never posts Discord)
 
-A separate feature branch adds `verified_nitro_reactions.py`: the one
+The isolated quality staging branch contains `keyword_detector.py` from
+our prior research and its no-network replay harness. These rules are **not
+imported by `autoreactions.py`**, and `auto_candidate` is **only an
+evidence label**, not an instruction to the production sender.
+
+The detector distinguishes **strong evidence**, **manual review** and
+**excluded** titles. It includes `Nitro Neisha` as a possible
+strong-title signal, but this *does not authorize automatic posting*.
+The only delivery-eligible Nitro exception under development is the
+independently verified video-ID/channel-ID entry in separate draft PR #7.
+
+Quality exclusions include original band uploads, an expressly excluded
+reactor (HCJB, by exact channel ID), Paper Dove, repost archives,
+tributes/dedicated songs, concert announcements and popularity milestones.
+A band mention on an independent tracked reactor channel can raise
+**manual review priority**, never automatically prove reaction content.
+
+User-reviewed seven-video follow-up (frozen in
+`data/reactor_history_next7_human_labels_20261022.csv`) is used for
+regression without turning hand-picked video ratios into a global quality
+score. A dedicated song for Neisha is now explicitly recognised as
+a nonreaction tribute even on otherwise promising reactor channels.
+Band discussions that cannot be reliably distinguished from true reactions
+through metadata stay in **manual review**, not automatic delivery.
+
+`python -m scripts.run_keyword_trial` runs curated fixtures offline.
+It makes **zero YouTube calls** and **zero Discord posts**; results are
+not population precision or recall estimates. More representative
+human-reviewed data and a separately approved sender integration are
+needed before full reactions-only automatic notifications.
+
+The production HCJB blacklist and link-free error alerts remain unchanged;
+this branch does not change the active sender, YouTube polling cadence,
+state files or tracked-channel registry.
+
+### Verified Nitro Neisha production exception (deployed via PR #7)
+
+The deployed production branch includes `verified_nitro_reactions.py`: the one
 independently human-confirmed performance reaction by **Taylor John Hardin
 Reactions**, video `hf03Voz2QBM` and authenticated uploading channel ID
 `UC-lB_sG0uviaY9pD07kiwjg`. To qualify, **video ID, channel ID and a
@@ -330,3 +367,7 @@ nickname alone.
 The broader reactions-only detector in draft PR #4 is still report-only.
 It must be reconciled against recent production hotfixes and validated
 before any automatic delivery policy changes.
+
+### Staging branch reconciliation (22 October 2026)
+
+Draft PR #8 now includes the deployed Nitro exception from main as a separate, exact-video rule. It does not activate `keyword_detector.py` for Discord posting. Production title matching and every HCJB/live-health safeguard remain intact. Evaluation runs are offline-only until new live scans are explicitly approved.
