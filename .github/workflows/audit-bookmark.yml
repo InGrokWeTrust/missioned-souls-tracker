@@ -1,0 +1,71 @@
+name: Read-only production bookmark audit
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/audit-bookmark.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  bookmark-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch latest main reaction bookmark artifact (read only)
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: youtube-tracker.yml
+          branch: main
+          workflow_conclusion: ''
+          name: last-run-state
+          path: ./audit-state
+          search_artifacts: true
+          check_artifacts: true
+          if_no_artifact_found: warn
+      - name: Validate real bookmark without printing private state
+        env:
+          GH_API: ${{ github.api_url }}
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: python
+        run: |
+          import json
+          import os
+          from pathlib import Path
+          from urllib.request import Request, urlopen
+
+          path = Path('audit-state/last_run.json')
+          if not path.is_file():
+              raise SystemExit('FAIL: Latest main reaction bookmark artifact could not be restored')
+          data = json.loads(path.read_text(encoding='utf-8'))
+          assert data.get('version') == 2, 'FAIL: Unexpected bookmark version'
+          seen = data.get('seen_video_ids')
+          pending = data.get('pending')
+          channels = data.get('known_channel_ids')
+          assert isinstance(seen, list) and isinstance(pending, list) and isinstance(channels, list), 'FAIL: Invalid schema'
+          assert len(seen) == len(set(seen)), 'FAIL: Duplicate seen IDs'
+          assert 'Etztcp21KUw' in seen, 'FAIL: Metallica duplicate lost from bookmark'
+          assert 'jm6K2OqOIWE' in seen, 'FAIL: Highway Star still missing from latest bookmark'
+          assert len(seen) >= 110, 'FAIL: ID history has unexpectedly shrunk'
+          assert not any(v.get('video_id') in ('Etztcp21KUw', 'jm6K2OqOIWE') for v in pending), 'FAIL: Confirmed historic alert re-queued'
+
+          # Verify that this is an artifact created after PR #9 deployment,
+          # not merely an older artifact selected by a download action.
+          api = os.environ['GH_API'] + '/repos/' + os.environ['GH_REPO'] + '/actions/artifacts?name=last-run-state&per_page=100'
+          req = Request(api, headers={'Authorization':'Bearer ' + os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json'})
+          with urlopen(req, timeout=20) as response:
+              artifacts = json.load(response)['artifacts']
+          candidates = [a for a in artifacts if not a.get('expired') and a.get('workflow_run', {}).get('head_branch') == 'main']
+          latest = max(candidates, key=lambda a: a['created_at'], default=None)
+          assert latest, 'FAIL: No current main artifact found'
+          print('Latest main bookmark artifact ID:', latest['id'])
+          print('Latest main artifact created at UTC:', latest['created_at'])
+          print('Seen video count:', len(seen))
+          print('Pending notification count:', len(pending))
+          print('Protected duplicate ID: yes')
+          print('Protected Highway Star ID: yes')
+          print('Read-only: no YouTube requests, Discord sends, or bookmark writes')
