@@ -25,7 +25,7 @@ FLAG_RULES=[
     ("nitro_or_neisha",re.compile(r"\b(?:nitro|neisha|neesha|neeisha)\b",re.I)),
     ("naces_or_stacey_or_ice",re.compile(r"\b(?:naces?|stacey|stacy|isaiah|isiah)\b",re.I)),
     ("soulmates_or_family_band",re.compile(r"\b(?:soulmates|filipino family band|sibling band)\b",re.I)),
-    ("original_artist_reference",re.compile(r"youtube\.com/(?:@missionedsouls|channel/UCeTfwcnUVurw7Qrk_KF5Idw)|youtu\.be/",re.I)),
+    ("original_artist_reference",re.compile(r"youtube\.com/(?:@missionedsouls\b|channel/UCeTfwcnUVurw7Qrk_KF5Idw\b)",re.I)),
 ]
 
 
@@ -35,8 +35,8 @@ def independent_flags(row):
     tags=" ".join(x for x in (row.get("tags") or []) if isinstance(x,str))
     all_text=" ".join((title,desc,tags))
     flags=[name for name,p in FLAG_RULES if p.search(all_text)]
-    if row.get("description_length",0)>len(desc):
-        flags.append("description_truncated")
+    # Truncation alone is not artist evidence. Keep it as an audit limitation,
+    # but do not flood the possible-miss queue with long unrelated descriptions.
     return flags
 
 
@@ -174,6 +174,9 @@ def audit(data, *, random_limit=40, flagged_limit=40, seed=20261022):
         "total_for_human_review":len(selected),
         "flag_counts_all_unmatched":dict(Counter(
             flag for r in flagged for flag in r["audit_flags"])),
+        "truncated_description_count":sum(
+            x.get("description_length",0) > len(x.get("description_excerpt",""))
+            for x in nonmatches),
         "ground_truth":"UNKNOWN: do not infer precision/recall from these flags",
         "note":"Only public YouTube metadata from latest five uploads. "
                "A description mention can be unrelated boilerplate.",
@@ -192,6 +195,8 @@ def main():
                   "total_for_human_review"):
         print(f" {field}: {result[field]}")
     print("Audit flags across unmatched uploads:",result["flag_counts_all_unmatched"])
+    print("Long description diagnostics (NOT counted as suspects):",
+          result["truncated_description_count"])
     print("HIGH-PRIORITY UNMATCHED VIDEOS WITH BAND NAME IN METADATA")
     for row in result["samples"]:
         if (row["sample_type"] == "possible_miss" and
