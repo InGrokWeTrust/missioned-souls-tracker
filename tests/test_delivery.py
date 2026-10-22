@@ -24,6 +24,7 @@ def video(i, *, channel="UC1", published=None):
         "video_id": f"id-{i}", "channel_id": channel, "title": f"Missioned Souls reaction #{i}",
         "published_at": published or f"2026-10-22T{i:02}:00:00Z",
         "channel": "Demo", "url": f"https://youtu.be/id-{i}",
+        "thumbnail": f"https://i.ytimg.com/vi/id-{i}/mqdefault.jpg",
         "live_broadcast_content": "none", "live_streaming_details": None,
         "metadata_confirmed": True,
     }
