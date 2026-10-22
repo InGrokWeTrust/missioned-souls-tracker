@@ -104,7 +104,11 @@ def classify_actual(row, item):
         excluded_reason = "under two minutes"
     description = snippet.get("description") or ""
     tags = snippet.get("tags") or []
-    result = classify(title, description, tags, channel_name=row.get("channel", ""))
+    result = classify(
+        title, description, tags, channel_name=row.get("channel", ""),
+        channel_id=row.get("channel_id", ""),
+        verified_reactor_source=(row.get("source") == "tracked uploads playlist")
+    )
     return {
         **row,
         "title": title,
@@ -113,6 +117,7 @@ def classify_actual(row, item):
         "would_auto_post": False,
         "excluded_reason": excluded_reason,
         "evidence":result["evidence"],
+        "review_priority":result["review_priority"],
         "reasons":result["reasons"],
         "description_excerpt":description[:2200],
         "description_length":len(description),
@@ -212,7 +217,7 @@ def run(channels, *, key, fetcher=fetch_uploads, api=api_get, controls=CONTROL_I
         "hidden_keyword_candidates":len(hidden),
         "candidate_examples":[
             {k:r.get(k) for k in ("video_id","title","channel","url","tier",
-                                  "evidence","reasons","duration_sec")}
+                                  "evidence","reasons","duration_sec","review_priority")}
             for r in hidden[:60]
         ],
         "all_scanned":rows,
