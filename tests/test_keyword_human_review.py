@@ -39,7 +39,7 @@ class HumanReviewRegression(unittest.TestCase):
         self.assertEqual(metrics["strong_tier_human_reviewed"], 0)
         self.assertIsNone(metrics["sampling"]["population_precision"])
         self.assertIsNone(metrics["sampling"]["population_recall"])
-        self.assertIn("stratified", metrics["sampling"]["limitation"])
+        self.assertIn("stratified", metrics["sampling"]["kind"])
 
     def test_positive_ids_are_hcjb_and_vinny_only(self):
         labels, snapshot = self.load_case()
