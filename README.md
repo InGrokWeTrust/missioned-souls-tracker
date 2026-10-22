@@ -368,3 +368,50 @@ and does not prove the keyword report function will find every real reaction.
    matches to be enqueued through the existing video-ID deduplication state.
 
 No paid AI services or new secrets are needed.
+
+
+### Controlled missed-reaction audit — 22 October 2026
+
+A second **read-only live scan** of all 125 tracked channels found the same
+622 public uploads, 197 excluded, 425 eligible, 91 strong keyword signals,
+two review-tier matches and 332 unmatched. No Discord delivery or state writes.
+
+The separate scripts/keyword_miss_audit.py checked 332 unmatched uploads
+using independent *audit flags* that do not count as ground truth: artist
+references anywhere in description/tags, role names, video links and truncated
+descriptions. **112 videos had at least one flag; 220 had none.**
+Many of the 112 flags were generic YouTube links (not Missioned Souls links),
+or simply long descriptions (not reaction evidence).
+
+A channel-balanced review sample of **82** videos is saved as
+keyword-human-review.html and keyword-miss-audit.json in the workflow artifact:
+40 flagged possible misses, 40 random unmatched controls and 2 earlier review
+candidates. Open the HTML locally after downloading the artifact; open linked
+videos, mark actual reactions versus unrelated, then export CSV. These labels
+are not sent to a server.
+
+Exactly four unmatched videos contained a band-name reference in the selected
+description excerpt or tags. Three were Agnes is my Dog police/crime videos
+with an irrelevant copied Missioned Souls tag. The fourth was a Nickelback
+reaction with an incidental band reference farther into its description.
+None is a confirmed new Missioned Souls reaction on this evidence.
+
+The two review-tier videos:
+- E2tRH0B6Ow8 (Reactions with Vinny, Total Ecplipse): the actual video
+  description explicitly identifies Missioned Souls' Total Eclipse of the
+  Heart and refers to the upload as a reaction. Supported as genuine by its
+  published video-specific description.
+- jxoHvBlRABA (HCJB Music Reaction, Soulful Strings With Neisha Part 2):
+  the description discusses Neisha's guitar analysis and references
+  Missioned Souls, but requires independent video verification.
+
+**Do not claim precision, recall or zero false negatives based on this sample.**
+The 80 new review entries have not been manually labelled. The repeat snapshot
+had no new uploads versus the earlier scan; review and sample at a later date
+before considering auto-delivery. The user does not approve paid AI API billing.
+
+Last audited workflow:
+https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/39724013451
+
+Tests: https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/39724013470
+
