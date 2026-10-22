@@ -13,6 +13,7 @@ on:
       - 'scripts/run_vision_evaluation.py'
       - 'scripts/apply_human_labels.py'
       - 'scripts/create_review_page.py'
+      - 'scripts/enrich_youtube_metadata.py'
       - 'data/vision-labels.csv'
       - '.github/workflows/vision-paid-manual-eval.yml'
       - 'discover_channels.py'
