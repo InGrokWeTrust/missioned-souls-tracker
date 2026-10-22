@@ -70,7 +70,8 @@ def final_evaluation(prior, human_verdicts):
             )
             record["human_video_content_type"] = review["content_type"]
             record["human_verdict_notes"] = review["notes"]
-            record["verified_by_new_video_watch"] = True
+            record["verified_by_new_video_watch"] = False
+            record["human_followup_label_received"] = True
             record["assessment_basis"] = (
                 "Follow-up human judgement: "
                 + ("performance reaction" if yes else review["content_type"] + ", not a performance reaction")
@@ -80,6 +81,7 @@ def final_evaluation(prior, human_verdicts):
                 raise ValueError("An unresolved case was not verified by the human review")
             record["human_video_content_type"] = None
             record["verified_by_new_video_watch"] = False
+            record["human_followup_label_received"] = False
         record["would_auto_post"] = False
         updated.append(record)
     if len(seen) != 30:
