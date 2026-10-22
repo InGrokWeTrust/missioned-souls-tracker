@@ -56,6 +56,13 @@ jobs:
           search_artifacts: true
           if_no_artifact_found: warn
 
+      - name: Reconcile durable live history for VOD duplicate protection
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HISTORY_ENABLED: "true"
+          DRY_RUN: ${{ vars.DRY_RUN }}
+        run: python notification_history.py hydrate live live_last_run.json
+
       - name: Restore and persist durable reactions notification history before scanning
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
