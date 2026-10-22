@@ -8,6 +8,8 @@ on:
       - 'keyword_detector.py'
       - 'scripts/run_keyword_trial.py'
       - 'scripts/score_quality_reviewed37.py'
+      - 'scripts/score_quality_reviewed37_followup.py'
+      - 'data/reaction_quality_next8_human_labels_20261022.csv'
       - 'data/keyword_strong30_reactions_only_adjudication_20261022.json'
       - 'data/keyword_reactions_only_five_human_labels_20261022.csv'
       - 'data/reactor_history_video_channels_20261022.json'
@@ -42,9 +44,13 @@ jobs:
         run: python -m scripts.run_keyword_trial
       - name: Score 37 reviewed cases by human versus metadata provenance
         run: python -m scripts.score_quality_reviewed37
+      - name: Overlay eight new independent human judgments (offline)
+        run: python -m scripts.score_quality_reviewed37_followup
       - name: Archive offline 37-video quality report
         uses: actions/upload-artifact@v4
         with:
           name: reaction-quality-reviewed37
-          path: reaction-quality-reviewed37.json
+          path: |
+            reaction-quality-reviewed37.json
+            reaction-quality-reviewed37-with-next8.json
           retention-days: 7
