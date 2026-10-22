@@ -40,6 +40,15 @@ GENERIC_EXCLUSIONS = re.compile(
 )
 PAPER_DOVE = re.compile(r"\bpaper[\s_-]*dove\b", re.I)
 TRIBUTE = re.compile(r"\btribute\b|\ba[\s-]+song[\s-]+for[\s-]+the[\s-]+unsung\b", re.I)
+EVENT_NEWS = re.compile(
+    r"\bfree\s+(?:worldwide\s+)?(?:live\s+)?concert\b|"
+    r"\b(?:are\s+)?hosting\s+a\s+(?:free\s+)?live\s+concert\b|"
+    r"\bfree\s+live\s+stream\s+this\s+weekend\b|"
+    r"\breviewing\s+the\s+website\b|"
+    r"\b(?:one|1)\s+million\s+views\b|\b1,?000,?000\s+views\b",
+    re.I,
+)
+ARCHIVE_CHANNEL = re.compile(r"\breaction\s+archive\b", re.I)
 MAX_DESCRIPTION_PREFIX = 650
 
 
@@ -64,13 +73,15 @@ def _member_roles(text: str) -> dict[str, str]:
     return matches
 
 
-def classify(title: str, description: str = "", tags=None, *, tracked_reactor=True) -> dict:
+def classify(title: str, description: str = "", tags=None, *, tracked_reactor=True,
+             channel_name: str = "") -> dict:
     """Return tier, reasons and supporting matches without claiming truth.
 
     auto_candidate: only for strong title identity. Integration is report-only
     and never sends a notification from this classification.
     """
     title = clean(title)
+    channel_name = clean(channel_name)
     description = clean(description)[:MAX_DESCRIPTION_PREFIX]
     tags = tags if isinstance(tags, list) else []
     norm_tags = [clean(t).strip().lower().lstrip("#") for t in tags[:30]
@@ -94,22 +105,32 @@ def classify(title: str, description: str = "", tags=None, *, tracked_reactor=Tr
     title_members = _member_roles(title)
     desc_members = _member_roles(description)
 
-    if title_band and PAPER_DOVE.search(title):
-        tier = "review"
-        evidence.append("Missioned Souls appears in title referencing separate Paper Dove group")
-        reasons.append("Paper Dove is not automatically a Missioned Souls reaction; reviewer confirmed false match")
+    # A band name is artist ID, not proof of a reaction.
+    # Explicit non-reaction topics take precedence over generic #reaction tags.
+    if PAPER_DOVE.search(title):
+        tier = "none"
+        reasons.append("Paper Dove is a separate group, not a Missioned Souls performance")
     elif title_band and TRIBUTE.search(title):
-        tier = "review"
-        evidence.append("band name appears in tribute/song-dedication title")
-        reasons.append("tribute or musical dedication is not necessarily a reaction")
-    elif title_band:
-        tier = "strong"
-        auto_candidate = True
-        evidence.append("exact band name in title")
+        tier = "none"
+        reasons.append("tribute or musical dedication is not a reaction to the band performing")
+    elif EVENT_NEWS.search(title):
+        tier = "none"
+        reasons.append("concert promotion, website review, or popularity milestone is not a performance reaction")
+    elif ARCHIVE_CHANNEL.search(channel_name):
+        tier = "none"
+        reasons.append("reaction archive is not a newly created third-party reaction")
     elif title_nitro:
         tier = "strong"
-        auto_candidate = True
-        evidence.append("distinctive 'Nitro Neisha' phrase in title")
+        evidence.append("distinctive 'Nitro Neisha' title on tracked reactor")
+        auto_candidate = True  # Shadow evidence only. Never posts by itself.
+    elif title_band and REACTION.search(title):
+        tier = "strong"
+        evidence.append("exact band name and reaction-specific language in title")
+        auto_candidate = True  # Shadow evidence only.
+    elif title_band:
+        tier = "review"
+        evidence.append("exact band name in title WITHOUT explicit reaction evidence")
+        reasons.append("artist identity alone does not establish a reaction")
     else:
         if title_variant:
             evidence.append("unverified artist spelling variant in title")
@@ -186,7 +207,8 @@ def report_unmatched(videos, youtube, *, max_videos=150):
                 or 0 < seconds < 120):
             summary["excluded_shorts_or_live"] += 1
             continue
-        outcome = classify(title, snippet.get("description", ""), snippet.get("tags", []))
+        outcome = classify(title, snippet.get("description", ""), snippet.get("tags", []),
+                           channel_name=v.get("channel", ""))
         if outcome["tier"] in ("strong", "review"):
             summary[outcome["tier"]].append({
                 "video_id":v["video_id"],
