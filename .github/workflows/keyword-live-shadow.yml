@@ -27,11 +27,16 @@ jobs:
         run: python -m pip install requests
       - name: Read live uploads for tracked reactors (NO Discord, NO bookmark writes)
         run: python -m scripts.keyword_live_shadow
+      - name: Audit possible misses and generate human review page (no API calls)
+        run: python -m scripts.keyword_miss_audit
       - name: Save candidate report for manual review
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: keyword-live-shadow-review-only
-          path: keyword-live-shadow-report.json
+          path: |
+            keyword-live-shadow-report.json
+            keyword-miss-audit.json
+            keyword-human-review.html
           retention-days: 14
           if-no-files-found: warn
