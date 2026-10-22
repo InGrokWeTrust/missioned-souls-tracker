@@ -55,7 +55,7 @@ def _member_roles(text: str) -> dict[str, str]:
         for m in pattern.finditer(text):
             local = text[max(0, m.start() - 45):min(len(text), m.end() + 58)]
             if ROLE[name].search(local):
-                if name == "ice" and GENERIC_EXCLUSIONS.search(local):
+                if GENERIC_EXCLUSIONS.search(local):
                     continue
                 matches[name] = local.strip()
                 break
@@ -105,8 +105,10 @@ def classify(title: str, description: str = "", tags=None, *, tracked_reactor=Tr
             evidence.append("unverified artist spelling variant in title")
         if description_band:
             evidence.append("exact band name near start of description")
-        if tag_band:
-            evidence.append("exact band-name tag")
+        if tag_band and (title_context or description_band or title_members or desc_members):
+            evidence.append("exact band-name tag supported by other clues")
+        elif tag_band:
+            reasons.append("isolated band tag ignored: possible copy/paste metadata")
         if title_members:
             evidence.append("member + instrument/role in title: " + ", ".join(sorted(title_members)))
         if desc_members:
