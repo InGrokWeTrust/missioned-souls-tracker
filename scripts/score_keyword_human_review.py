@@ -100,7 +100,7 @@ def score(snapshot, labels):
         "positive_detection_in_sample_fraction": round(tp / (tp + fn), 4)
         if tp + fn else None,
         "sampling": {
-            "kind": "selected review cases, flagged nonmatches, and channel-balanced controls",
+            "kind": "stratified: selected review cases, flagged nonmatches, and channel-balanced controls",
             "full_live_eligible": snapshot.get("unreviewed_total_eligible"),
             "unreviewed_strong_tier": snapshot.get("snapshot_strong_count"),
             "population_precision": None,
