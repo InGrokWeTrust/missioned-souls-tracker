@@ -15,7 +15,7 @@ from typing import Any
 
 BAND = re.compile(r"(?<![a-z])missioned[\W_]*souls(?![a-z])|(?<![a-z])missionedsouls(?![a-z])", re.I)
 BAND_VARIANT = re.compile(r"(?<![a-z])mission[\W_]*souls(?![a-z])", re.I)
-NITRO = re.compile(r"\bnitro[\s\-_]*nee?isha\b", re.I)
+NITRO = re.compile(r"\bnitro[\s\-_]*n(?:ei|ee)i?sha\b", re.I)
 REACTION = re.compile(r"\breact(?:s|ed|ion|ions|ing|or)?\b|\breview(?:s|ed|ing)?\b|\bfirst[\s-]*time\b|\bmy[\s-]*thoughts\b", re.I)
 PERFORMANCE = re.compile(r"\bperformance\b|\bcover\b|\bfamily[\s-]*band\b", re.I)
 ROLE = {
@@ -27,7 +27,7 @@ ROLE = {
     "secan": re.compile(r"\bbass(?:ist)?\b|\bmix(?:er|ing)?\b|\bsound[\s-]*engineer\b", re.I),
 }
 PEOPLE = {
-    "neisha": re.compile(r"\bnee?isha\b", re.I),
+    "neisha": re.compile(r"\bn(?:ei|ee)i?sha\b", re.I),
     "stacey": re.compile(r"\bstace?y\b", re.I),
     "naces": re.compile(r"\bnace(?:s|['’]s)?\b", re.I),
     # Ice alone is not evidence of a band member.
