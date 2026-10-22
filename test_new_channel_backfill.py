@@ -33,6 +33,25 @@ class BackfillTests(unittest.TestCase):
         self.assertEqual(result["pending"], [])
         self.assertIn(linked["video_id"], result["seen_video_ids"])
 
+    def test_real_video_metadata_has_strong_reaction_tags(self):
+        linked = case(1, "TOTAL ECLIPSE OF THE HEART by Bonnie Tyler | Missioned Souls | Family Band Studio Cover")
+        linked["description"] = (
+            "The family! NEVER FEAR MR J IS HERE!!! "
+            "#missionedsouls #philippines #reaction #reactionvideo "
+            "#savagemoments #musicianreacts"
+        )
+        self.assertTrue(clear_reaction_title(linked))
+        result = blank_state()
+        state.plan_notifications(result, [linked], {"UC1", NEW_CHANNEL}, now=NOW,
+                                 channel_added_at={NEW_CHANNEL: ADDED})
+        self.assertEqual([v["video_id"] for v in result["pending"]], ["id-1"])
+        self.assertNotIn("id-1", result["seen_video_ids"])
+
+    def test_one_weak_reaction_tag_is_not_sufficient(self):
+        linked = case(1, "Missioned Souls | Family Band Studio Cover")
+        linked["description"] = "#reaction #missionedsouls"
+        self.assertFalse(clear_reaction_title(linked))
+
     def test_new_channel_recent_explicit_reaction_delivered_only_once(self):
         first = case(1, "First Time Hearing Missioned Souls - Total Eclipse Reaction")
         with tempfile.TemporaryDirectory() as directory:
