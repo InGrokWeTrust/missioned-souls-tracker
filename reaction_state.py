@@ -112,7 +112,7 @@ def _remember(state, video_id):
         del seen[:-MAX_SEEN_IDS]
 
 
-def plan_notifications(state, videos, tracked_channel_ids, *, now=None):
+def plan_notifications(state, videos, tracked_channel_ids, *, now=None, channel_added_at=None):
     """Queue recent unseen reactions, preserving pending items across scans.
 
     An explicit bootstrap seeds current uploads with no Discord output.
@@ -121,6 +121,7 @@ def plan_notifications(state, videos, tracked_channel_ids, *, now=None):
     """
     now = now or datetime.now(timezone.utc)
     cutoff = now - timedelta(days=LOOKBACK_DAYS)
+    channel_added_at = channel_added_at or {}
     known = set(state["known_channel_ids"])
     current = set(tracked_channel_ids)
     new_channels = current - known
@@ -139,10 +140,14 @@ def plan_notifications(state, videos, tracked_channel_ids, *, now=None):
         if not video.get("channel_id"):
             raise StateError("Reaction has no channel_id; cannot classify initial channel backfill.")
         published = _utc(video["published_at"])
+        registered_at = channel_added_at.get(video["channel_id"])
+        first_seen_channel = not migration and video["channel_id"] in new_channels
         should_seed = (
             bootstrap
             or (migration and published <= old_cutoff)
-            or (not migration and video["channel_id"] in new_channels)
+            or (first_seen_channel and (
+                not registered_at or published <= _utc(registered_at)
+            ))
         )
         if should_seed:
             _remember(state, vid)
