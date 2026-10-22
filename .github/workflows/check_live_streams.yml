@@ -5,6 +5,12 @@ on:
 
 permissions:
   contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   check:
@@ -30,6 +36,8 @@ jobs:
           workflow: check_live_streams.yml
           name: live-last-run-state
           path: ./
+          workflow_conclusion: ''
+          search_artifacts: true
           if_no_artifact_found: warn
 
       - name: Run live stream checker
@@ -40,11 +48,13 @@ jobs:
           MAX_TO_SEND: ${{ vars.MAX_TO_SEND }}
           FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
           LIVE_LAST_RUN_FILE: live_last_run.json
+          BOOTSTRAP_STATE_IF_MISSING: ${{ vars.BOOTSTRAP_STATE_IF_MISSING }}
         run: python check_live_streams.py
 
       - name: Upload live_last_run.json for next run
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: live-last-run-state
           path: live_last_run.json
-          retention-days: 1
+          retention-days: 7
