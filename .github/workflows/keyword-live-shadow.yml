@@ -1,0 +1,43 @@
+name: Live keyword shadow scan - NO Discord
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/keyword_live_shadow.py'
+      - 'keyword_detector.py'
+      - '.github/workflows/keyword-live-shadow.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-keyword-scan:
+    # Prevent repeated quota use on ordinary PR commits; explicit title opt-in required.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'experiment/keyword-rules-v1' && contains(github.event.pull_request.title, '[shadow-run]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install read-only YouTube HTTP client
+        run: python -m pip install requests
+      - name: Read live uploads for tracked reactors (NO Discord, NO bookmark writes)
+        run: python -m scripts.keyword_live_shadow
+      - name: Audit possible misses and generate human review page (no API calls)
+        run: python -m scripts.keyword_miss_audit
+      - name: Save candidate report for manual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyword-live-shadow-review-only
+          path: |
+            keyword-live-shadow-report.json
+            keyword-miss-audit.json
+            keyword-human-review.html
+          retention-days: 14
+          if-no-files-found: warn

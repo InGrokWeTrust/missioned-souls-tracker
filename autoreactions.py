@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
+from keyword_detector import report_unmatched
 from reaction_state import (StateError, load_state, save_state, plan_notifications,
                             acknowledge, read_live_sent_ids, reconcile_live_notifications)
 
@@ -18,6 +19,8 @@ if not API_KEY:
 CHANNEL_NAME = (os.environ.get("CHANNEL_NAME") or "Missioned Souls")
 MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND") or "10")
 MAX_VIDEOS_PER_CHANNEL = int(os.environ.get("MAX_VIDEOS_PER_CHANNEL") or "5")
+KEYWORD_REPORT_ONLY = os.environ.get("KEYWORD_REPORT_ONLY", "false").lower() == "true"
+MAX_KEYWORD_SCAN_VIDEOS = min(200, max(1, int(os.environ.get("MAX_KEYWORD_SCAN_VIDEOS") or "150")))
 FORCE_SEND_ALL = os.environ.get("FORCE_SEND_ALL", "false").lower() == "true"
 LAST_RUN_FILE = (os.environ.get("LAST_RUN_FILE") or "last_run.json")
 LIVE_LAST_RUN_FILE = (os.environ.get("LIVE_LAST_RUN_FILE") or "live_last_run.json")
@@ -205,6 +208,7 @@ def get_reactions_with_stats():
     failed_channels = []
     no_ms_count = 0
     silent_channels = []
+    keyword_unmatched = []
 
     for channel_id, info in tracked.items():
         channel_title = info.get('title', channel_id) if isinstance(info, dict) else str(info)
@@ -214,7 +218,9 @@ def get_reactions_with_stats():
             failed_channels.append(channel_title)
             continue
         scanned_channel_ids.add(channel_id)
-        reaction_videos = [v for v in videos if is_missioned_souls_reaction(v['title'])]
+        reaction_videos = [v for v in videos if is_missioned_souls_reaction(v["title"])]
+        if KEYWORD_REPORT_ONLY:
+            keyword_unmatched.extend(v for v in videos if not is_missioned_souls_reaction(v["title"]))
         no_ms_count += len(videos) - len(reaction_videos)
 
         for v in reaction_videos:
@@ -239,6 +245,24 @@ def get_reactions_with_stats():
 
     if not scanned_channel_ids:
         raise RuntimeError("All channel scans failed; state will remain untouched.")
+
+    if KEYWORD_REPORT_ONLY:
+        print("🧪 KEYWORD REPORT-ONLY EXPERIMENT — Discord queue unchanged")
+        try:
+            results = report_unmatched(
+                keyword_unmatched, youtube, max_videos=MAX_KEYWORD_SCAN_VIDEOS)
+            print(f"🧪 Analyzed {results['examined']} title-unmatched uploads; "
+                  f"strong={len(results['strong'])}, review={len(results['review'])}, "
+                  f"none={results['none']}, missing_metadata={results['metadata_missing']}")
+            for group in ("strong", "review"):
+                for row in results[group]:
+                    print(f"🧪 [{group.upper()}] {row['video_id']} | "
+                          f"{row['channel'][:32]} | {row['title'][:90]} | "
+                          f"evidence={'; '.join(row['evidence'])} | "
+                          f"notes={'; '.join(row['reasons'])}")
+        except Exception as exc:
+            print(f"::warning::Keyword report-only evaluation failed: {type(exc).__name__}; "
+                  "normal title-based delivery will continue.")
     if not candidates:
         print("⚠️ No Missioned Souls reactions found in tracked channels.")
         return [], run_start, scanned_channel_ids

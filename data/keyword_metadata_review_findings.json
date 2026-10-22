@@ -1,0 +1,73 @@
+{
+  "source": "Read-only live YouTube Data API snapshot from October 22 2026",
+  "verification_method": "Human reasoning from title, tags, and full video-specific description; no full video playback",
+  "labels_not_ground_truth_for_precision_recall": true,
+  "inspected": [
+    {
+      "video_id": "hf03Voz2QBM",
+      "assessment": "previously_user_confirmed_reaction",
+      "confidence": "high",
+      "basis": "Distinctive Nitro Neisha title; user provided screenshot identifying Missioned Souls"
+    },
+    {
+      "video_id": "E2tRH0B6Ow8",
+      "assessment": "description_confirms_missioned_souls_reaction",
+      "confidence": "high",
+      "basis": "Description names Missioned Souls Total Eclipse of the Heart, states a reaction, and links original video C1yfkA_0_Sg"
+    },
+    {
+      "video_id": "jxoHvBlRABA",
+      "assessment": "description_strongly_supports_missioned_souls_neisha_reaction",
+      "confidence": "high_for_published_metadata_not_video_content",
+      "basis": "Description identifies Neisha guitar analysis of Tunnel of Love and Rosanna, Missioned Souls family band, and reaction context; video playback not independently verified"
+    },
+    {
+      "video_id": "DL1NYFJg55M",
+      "assessment": "unrelated_published_video",
+      "confidence": "high_for_metadata",
+      "basis": "Police/crime bodycam title and description; generic copied Missioned Souls tag"
+    },
+    {
+      "video_id": "YHPhwE3H4Lw",
+      "assessment": "unrelated_published_video",
+      "confidence": "high_for_metadata",
+      "basis": "Crime Time Friday police stop; generic copied Missioned Souls tag"
+    },
+    {
+      "video_id": "6GnbjZtHX90",
+      "assessment": "unrelated_published_video",
+      "confidence": "high_for_metadata",
+      "basis": "Crime Time Friday police chase; generic copied Missioned Souls tag"
+    },
+    {
+      "video_id": "5ky7MaHwgJI",
+      "assessment": "unrelated_published_video",
+      "confidence": "high_for_metadata",
+      "basis": "Title and opening description explicitly discuss Nickelback's Rattle the Cage; stray Missioned Souls hashtag in end boilerplate"
+    },
+    {
+      "video_id": "w-Lu3DfSMFc",
+      "assessment": "unrelated_published_video",
+      "confidence": "high_for_metadata",
+      "basis": "Ambiguous Taylor John Hardin title, but description names Inpatient (Ren x Chris Webby) Down The Road and original link"
+    },
+    {
+      "video_id": "P6jrwuhFHlo",
+      "assessment": "unrelated_published_video",
+      "confidence": "high_for_metadata",
+      "basis": "Vinny's ambiguous Written in the Scars title, but description specifically identifies Erik Gronwall"
+    },
+    {
+      "video_id": "paU0F6MOIHo",
+      "assessment": "uncertain_multi_artist_compilation",
+      "confidence": "not_verifiable_from_metadata",
+      "basis": "Top 10 Most Viral Filipino Singers compilation; no band keywords, likely not a dedicated Missioned Souls reaction, but individual clips require playback to rule out completely"
+    }
+  ],
+  "recommendations": [
+    "Keep no-match and review candidates out of Discord pending human confirmation",
+    "For broad ambiguous multi-performer compilations, manual sample review rather than automatic matching",
+    "Validate 40 unrelated controls by actual video content before claiming a false-negative rate",
+    "Consider matching reaction descriptions to authenticated official Missioned Souls original-performance video IDs in a later separate controlled experiment"
+  ]
+}

@@ -8,6 +8,26 @@ on:
       - 'check_live_streams.py'
       - 'webhook_delivery.py'
       - 'reaction_state.py'
+      - 'keyword_detector.py'
+      - 'scripts/run_keyword_trial.py'
+      - 'scripts/keyword_live_shadow.py'
+      - 'scripts/keyword_miss_audit.py'
+      - 'scripts/score_keyword_human_review.py'
+      - 'data/keyword_manual_labels_20261022.csv'
+      - 'scripts/score_keyword_strong30.py'
+      - 'scripts/score_keyword_reactions_only.py'
+      - 'scripts/score_keyword_reactions_only_final.py'
+      - 'scripts/evaluate_reactor_history.py'
+      - 'scripts/evaluate_reactor_history_followup.py'
+      - 'data/reactor_history_next7_human_labels_20261022.csv'
+      - 'data/reactor_history_video_channels_20261022.json'
+      - 'data/keyword_reactions_only_five_human_labels_20261022.csv'
+      - 'data/keyword_strong30_reactions_only_adjudication_20261022.json'
+      - 'data/keyword_strong30_human_labels_20261022.csv'
+      - 'data/keyword_strong30_pending_review_20261022.json'
+      - 'data/keyword_audit_snapshot_20261022.json'
+      - '.github/workflows/keyword-live-shadow.yml'
+      - 'data/keyword_trial_cases.json'
       - 'discover_channels.py'
       - 'report_failure.py'
       - '.github/workflows/youtube-tracker.yml'
@@ -30,3 +50,32 @@ jobs:
         run: pip install -r requirements.txt
       - name: Test without production credentials
         run: python -m unittest discover -s tests -v
+      - name: Replay real-positive and synthetic keyword fixtures (no network)
+        run: python -m scripts.run_keyword_trial
+      - name: Score all 46 human-reviewed cases without extrapolation
+        run: python -m scripts.score_keyword_human_review
+      - name: Score strong-tier reviews; preserve conflicting tribute note
+        run: python -m scripts.score_keyword_strong30
+      - name: Apply frozen reactions-only scope without rewriting source labels
+        run: python -m scripts.score_keyword_reactions_only
+      - name: Evaluate reactions only verified followups
+        run: python -m scripts.score_keyword_reactions_only_final
+      - name: Evaluate verified reaction histories across tracked reactors (no API)
+        run: python -m scripts.evaluate_reactor_history
+      - name: Evaluate seven user-reviewed channel followups and HCJB opt-out
+        run: python -m scripts.evaluate_reactor_history_followup
+      - name: Upload reproducible keyword evaluation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyword-trial-report
+          path: |
+            keyword-trial-results.json
+            keyword-human-label-results.json
+            keyword-strong30-human-results.json
+            keyword-reactions-only-results.json
+            keyword-reactions-only-final-results.json
+            reactor-history-report.json
+            reactor-history-followup-report.json
+          retention-days: 14
+          if-no-files-found: warn

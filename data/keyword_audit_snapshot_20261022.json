@@ -1,0 +1,241 @@
+{
+  "source": "https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/39724894612/artifacts/12402901672",
+  "created_at_utc": "2026-10-22T04:53:45Z",
+  "comment": "Exact classifier tiers and sampling strata from the 46-video live audit snapshot; joined separately with human-labelled CSV. This was a stratified review sample, not a random representative corpus.",
+  "unreviewed_total_eligible": 425,
+  "snapshot_review_count": 2,
+  "snapshot_unmatched_count": 332,
+  "snapshot_strong_count": 91,
+  "rows": [
+    {
+      "video_id": "jxoHvBlRABA",
+      "tier": "review",
+      "sample_type": "needs_verification"
+    },
+    {
+      "video_id": "E2tRH0B6Ow8",
+      "tier": "review",
+      "sample_type": "needs_verification"
+    },
+    {
+      "video_id": "DL1NYFJg55M",
+      "tier": "none",
+      "sample_type": "possible_miss"
+    },
+    {
+      "video_id": "YHPhwE3H4Lw",
+      "tier": "none",
+      "sample_type": "possible_miss"
+    },
+    {
+      "video_id": "5ky7MaHwgJI",
+      "tier": "none",
+      "sample_type": "possible_miss"
+    },
+    {
+      "video_id": "6GnbjZtHX90",
+      "tier": "none",
+      "sample_type": "possible_miss"
+    },
+    {
+      "video_id": "KBZDmK3s4zw",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "7FQvuPe62so",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "AvL7BrRyXnE",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "hcftTpwQ1rY",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "XJaRnaSi340",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "Hh0EPc9I0U4",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "XNRJkq52liU",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "ebRcijI3G0c",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "XkPUZSaXve0",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "hk_-BuWg5m8",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "AB6mBKt_DZc",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "QFGFLf9XvQI",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "0ZpkfO-6SL4",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "j8oYvikCivc",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "QUciL4qL0Pk",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "yE9s455K18c",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "MTwIsqB-23A",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "PdDdcUhk2FU",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "6TwwtXxuv5A",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "O46nuvNKIK0",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "WlQ5rUjDq-I",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "1hoeDUyeRx4",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "jNXP1HHnwbo",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "mkGLnM8CUo0",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "WAIOdJg0za4",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "N-eoZJfPgBk",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "8dAa8gK_LHk",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "w-Lu3DfSMFc",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "DVBg85QlX1Y",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "Ks9JU5xgihg",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "nZa3uWt9DGI",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "pHOXZu_wmxo",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "6Ci-Y1Rf1gI",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "coVwHefi_Ns",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "rP1_MF9IyrY",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "O3oWBQ75_wo",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "9j-lPygKs34",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "enXV1A8MCX8",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "NW75Erqnoks",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    },
+    {
+      "video_id": "v3GKdappt1E",
+      "tier": "none",
+      "sample_type": "random_unmatched"
+    }
+  ]
+}

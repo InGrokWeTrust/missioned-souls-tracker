@@ -1,0 +1,65 @@
+{
+  "source": "Frozen read-only YouTube Data API snapshot 2026-10-22T05:10:45Z from GitHub Actions 39726503153, artifact 12403261462",
+  "purpose": "7 additional distinct unreviewed band-relevant videos from 3 channels with 1 existing user-confirmed Missioned Souls reaction",
+  "review_policy": "reaction: genuine newly presented third-party performance reaction; not_match: tribute/repost/promotion/discussion/original; unsure: content cannot be verified",
+  "selection_limits": "Other 3 previously confirmed channels (Taylor John Hardin, S.E.A.T., Cherman Vlogs) have no further unreviewed band-relevant videos in the frozen latest-five snapshot. Selection cannot establish global channel reliability.",
+  "no_labels_assigned": true,
+  "items": [
+    {
+      "video_id": "bRpiOxl1sdE",
+      "title": "Missioned Souls Just Made Taylor Swift's Last Christmas Feel Brand New!",
+      "channel": "HCJB Music Reaction",
+      "channel_id": "UCtEs-cB4K1XFnXgLrIWW1Zg",
+      "url": "https://www.youtube.com/watch?v=bRpiOxl1sdE",
+      "review_label": null
+    },
+    {
+      "video_id": "pbgQdCCaPo8",
+      "title": "🎸 SHY HEART, VETERAN FINGERS — A Dedicated Song for Neisha of Missioned Souls ❤️",
+      "channel": "HCJB Music Reaction",
+      "channel_id": "UCtEs-cB4K1XFnXgLrIWW1Zg",
+      "url": "https://www.youtube.com/watch?v=pbgQdCCaPo8",
+      "review_label": null
+    },
+    {
+      "video_id": "7iYFOFiu1KI",
+      "title": "I Didn't Expect This From Missioned Souls' 'Hopelessly Devoted to You'!",
+      "channel": "HCJB Music Reaction",
+      "channel_id": "UCtEs-cB4K1XFnXgLrIWW1Zg",
+      "url": "https://www.youtube.com/watch?v=7iYFOFiu1KI",
+      "review_label": null
+    },
+    {
+      "video_id": "EN0kaZai6T4",
+      "title": "MISSIONED SOULS Brought the ATTITUDE! 🤘 | Joan Jett Reaction",
+      "channel": "Reactions with Vinny",
+      "channel_id": "UCahJtq3gSn-QXXTGzTaj7Fg",
+      "url": "https://www.youtube.com/watch?v=EN0kaZai6T4",
+      "review_label": null
+    },
+    {
+      "video_id": "ayffX_R86kw",
+      "title": "Missioned Souls - Nothing's Gonna Stop Us Now(REACTION)",
+      "channel": "Global take",
+      "channel_id": "UC8ReQVU4PPfbxRy4B18jauw",
+      "url": "https://www.youtube.com/watch?v=ayffX_R86kw",
+      "review_label": null
+    },
+    {
+      "video_id": "XBYttS5x4i4",
+      "title": "Missioned Souls - CrushCrushCrush ( Reaction ) PARAMORE COVER",
+      "channel": "Global take",
+      "channel_id": "UC8ReQVU4PPfbxRy4B18jauw",
+      "url": "https://www.youtube.com/watch?v=XBYttS5x4i4",
+      "review_label": null
+    },
+    {
+      "video_id": "b6eDBjF6sko",
+      "title": "Missioned Souls – Tunnel of Love (Dire Straits Cover) || REACTION",
+      "channel": "Global take",
+      "channel_id": "UC8ReQVU4PPfbxRy4B18jauw",
+      "url": "https://www.youtube.com/watch?v=b6eDBjF6sko",
+      "review_label": null
+    }
+  ]
+}
