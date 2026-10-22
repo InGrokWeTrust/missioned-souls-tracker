@@ -18,6 +18,8 @@ on:
       - 'scripts/score_keyword_reactions_only.py'
       - 'scripts/score_keyword_reactions_only_final.py'
       - 'scripts/evaluate_reactor_history.py'
+      - 'scripts/evaluate_reactor_history_followup.py'
+      - 'data/reactor_history_next7_human_labels_20261022.csv'
       - 'data/reactor_history_video_channels_20261022.json'
       - 'data/keyword_reactions_only_five_human_labels_20261022.csv'
       - 'data/keyword_strong30_reactions_only_adjudication_20261022.json'
@@ -60,6 +62,8 @@ jobs:
         run: python -m scripts.score_keyword_reactions_only_final
       - name: Evaluate verified reaction histories across tracked reactors (no API)
         run: python -m scripts.evaluate_reactor_history
+      - name: Evaluate seven user-reviewed channel followups and HCJB opt-out
+        run: python -m scripts.evaluate_reactor_history_followup
       - name: Upload reproducible keyword evaluation report
         if: always()
         uses: actions/upload-artifact@v4
@@ -72,5 +76,6 @@ jobs:
             keyword-reactions-only-results.json
             keyword-reactions-only-final-results.json
             reactor-history-report.json
+            reactor-history-followup-report.json
           retention-days: 14
           if-no-files-found: warn
