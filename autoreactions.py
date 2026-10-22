@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
+from channel_exclusions import is_excluded_channel
 from reaction_state import (StateError, load_state, save_state, plan_notifications,
                             acknowledge, read_live_sent_ids, reconcile_live_notifications)
 
@@ -37,7 +38,9 @@ def load_tracked_channels():
     try:
         with open(TRACKED_CHANNELS_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            return data.get('channels', {})
+            channels = data.get('channels', {})
+            return {cid: info for cid, info in channels.items()
+                    if not is_excluded_channel(cid)}
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
@@ -207,6 +210,8 @@ def get_reactions_with_stats():
     silent_channels = []
 
     for channel_id, info in tracked.items():
+        if is_excluded_channel(channel_id):
+            continue
         channel_title = info.get('title', channel_id) if isinstance(info, dict) else str(info)
 
         videos = fetch_channel_videos(channel_id, channel_title)
@@ -325,6 +330,8 @@ def discord_timestamp(iso):
 
 
 def send_to_discord(videos, max_to_send=5, run_start=None, on_success=None):
+    # Last line of defence, even for FORCE_SEND_ALL or direct callers.
+    videos = [v for v in videos if not is_excluded_channel(v.get("channel_id"))]
     if not videos:
         print("⚠️ No new videos to send.")
         return []
@@ -381,6 +388,20 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
     """Persist the queue BEFORE delivery and after each confirmed notification."""
     allow_bootstrap = os.environ.get("BOOTSTRAP_STATE_IF_MISSING", "false").lower() == "true"
     state = load_state(LAST_RUN_FILE, allow_bootstrap=allow_bootstrap)
+    # A previously queued HCJB notification must never survive deployment
+    # into a future delivery. Remove only blocked-channel pending entries;
+    # preserve all other queue items and already-seen history intact.
+    blocked_pending = sum(is_excluded_channel(v.get("channel_id")) for v in state["pending"])
+    if blocked_pending:
+        state["pending"] = [v for v in state["pending"]
+                            if not is_excluded_channel(v.get("channel_id"))]
+        print(f"🚫 Removed {blocked_pending} excluded-channel pending Discord alerts.")
+    videos = [v for v in videos if not is_excluded_channel(v.get("channel_id"))]
+    tracked_channel_ids = {cid for cid in tracked_channel_ids
+                           if not is_excluded_channel(cid)}
+    if channel_added_at is not None:
+        channel_added_at = {cid: date for cid, date in channel_added_at.items()
+                            if not is_excluded_channel(cid)}
     bootstrap = state.get("_bootstrap", False)
     if bootstrap and not videos:
         raise StateError("Cannot bootstrap from an empty reaction scan.")
