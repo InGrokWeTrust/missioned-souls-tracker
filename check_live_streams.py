@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
+from channel_exclusions import is_excluded_channel
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -139,6 +140,8 @@ def find_active_live_streams():
         video_id = item.get("id", {}).get("videoId")
         if not video_id or CHANNEL_NAME.lower() not in title.lower():
             continue
+        if is_excluded_channel(snippet.get("channelId")):
+            continue
         if re.search(r"#shorts?\b|\bshorts\b", title.lower()):
             print(f"  ⏭️ Explicit Short filtered: {title[:50]}")
             continue
@@ -157,6 +160,8 @@ def find_active_live_streams():
     for detail in videos_response.get("items", []):
         video_id = detail["id"]
         snippet = detail.get("snippet", {})
+        if is_excluded_channel(snippet.get("channelId")):
+            continue
         broadcast = snippet.get("liveBroadcastContent", "none")
         live = detail.get("liveStreamingDetails", {})
         # The search request is for active broadcasts; reject videos that have ended
@@ -170,6 +175,7 @@ def find_active_live_streams():
         streams.append({
             "title": snippet.get("title", original.get("title", "")),
             "video_id": video_id,
+            "channel_id": snippet.get("channelId") or original.get("channelId"),
             "channel": snippet.get("channelTitle", original.get("channelTitle", "")),
             "published_at": live.get("actualStartTime") or original["publishedAt"],
             "url": f"https://youtu.be/{video_id}",
@@ -191,6 +197,8 @@ def discord_timestamp(iso):
 
 
 def send_to_discord(streams, run_start=None, on_success=None):
+    # Enforce the exclusion again for direct calls and FORCE_SEND_ALL.
+    streams = [s for s in streams if not is_excluded_channel(s.get("channel_id"))]
     if not streams:
         print("⚠️ No live streams to send.")
         return []
