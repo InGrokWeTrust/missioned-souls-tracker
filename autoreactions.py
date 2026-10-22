@@ -272,6 +272,7 @@ def get_reactions_with_stats():
     stats_dict = {}
     duration_dict = {}
     live_details_dict = {}
+    descriptions_dict = {}
     broadcast_status_dict = {}
     confirmed_ids = set()
 
@@ -285,6 +286,7 @@ def get_reactions_with_stats():
         for item in stats_response.get('items', []):
             vid_id = item['id']
             confirmed_ids.add(vid_id)
+            descriptions_dict[vid_id] = item.get('snippet', {}).get('description', '')
             stats = item.get('statistics', {})
             broadcast_status_dict[vid_id] = item.get('snippet', {}).get('liveBroadcastContent', 'none')
             stats_dict[vid_id] = {
@@ -312,6 +314,7 @@ def get_reactions_with_stats():
         video['duration_sec'] = duration_dict.get(vid_id, 0)
         video['metadata_confirmed'] = vid_id in confirmed_ids
         video['live_streaming_details'] = live_details_dict.get(vid_id)
+        video['description'] = descriptions_dict.get(vid_id, '')
         video['live_broadcast_content'] = broadcast_status_dict.get(
             vid_id, video.get('live_broadcast_content', 'none'))
         video['age_at_run'] = humanize_ago(video['published_at'], run_start)
