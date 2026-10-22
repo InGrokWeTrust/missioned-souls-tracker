@@ -165,6 +165,67 @@ class KeywordClassifierTests(unittest.TestCase):
     def test_reaction_archive_title_itself_never_auto_matches(self):
         self.tier("Missioned Souls Reaction Archive - Volume 2",expected="none")
 
+    def test_three_human_confirmed_band_cover_titles_prioritised_from_reactor_source(self):
+        cases = [
+            ("ROSANNA by Toto | Missioned Souls | Familly band studio cover",
+             "Global take", "UC8ReQVU4PPfbxRy4B18jauw"),
+            ('MISSIONED SOULS (MS4) "I HATE MYSELF FOR LOVING YOU" STUDIO COVER | THIS IS HOW YOU DO IT!!!',
+             "Cherman Vlogs", "UCvEgHm5bWB8Rvla_Bxl83WA"),
+            ("Missioned Souls Crazy Train",
+             "Independent tracked reactor", "UC-lB_sG0uviaY9pD07kiwjg"),
+        ]
+        for title, channel, cid in cases:
+            with self.subTest(title=title):
+                out=classify(title,channel_name=channel,channel_id=cid,
+                             verified_reactor_source=True)
+                self.assertEqual(out["tier"],"review")
+                self.assertEqual(out["review_priority"],"high")
+                self.assertFalse(out["auto_candidate"])
+                self.assertIn("verified tracked independent reactor"," ".join(out["evidence"]))
+
+    def test_unverified_external_uploader_never_gets_trusted_reactor_priority(self):
+        out=classify("Missioned Souls Crazy Train",
+                     channel_name="Some random uploader",
+                     channel_id="UC-lB_sG0uviaY9pD07kiwjg",
+                     verified_reactor_source=False)
+        self.assertEqual(out["tier"],"review")
+        self.assertEqual(out["review_priority"],"normal")
+
+    def test_band_official_channel_id_never_produces_reaction_match(self):
+        for title in [
+            "Missioned Souls Crazy Train",
+            "Reacting to Missioned Souls - Rosanna",
+            "Nitro Neisha TEARS It Up On This Classic!",
+        ]:
+            with self.subTest(title=title):
+                out=classify(title,channel_name="Missioned Souls",
+                             channel_id="UCeTfwcnUVurw7Qrk_KF5Idw",
+                             verified_reactor_source=True)
+                self.assertEqual(out["tier"],"none")
+                self.assertFalse(out["auto_candidate"])
+                self.assertEqual(out["review_priority"],"none")
+
+    def test_independent_reactor_not_proof_of_reaction_if_paper_dove_or_promo(self):
+        for title in [
+            "Paper Dove | #MissionedSouls I'm Not Okay cover",
+            "Missioned Souls Are Hosting a FREE LIVE CONCERT!",
+            "Tribute to Naces of Missioned Souls",
+        ]:
+            with self.subTest(title=title):
+                out=classify(title,channel_id="UC8ReQVU4PPfbxRy4B18jauw",
+                             channel_name="Global take",verified_reactor_source=True)
+                self.assertEqual(out["tier"],"none")
+                self.assertEqual(out["review_priority"],"none")
+
+    def test_review_priority_does_not_make_band_discussion_a_verified_reaction(self):
+        out=classify("Missioned Souls - What makes them different from other family bands?",
+                     channel_name="Tracked reactor",
+                     channel_id="UC8ReQVU4PPfbxRy4B18jauw",
+                     verified_reactor_source=True)
+        self.assertEqual(out["tier"],"review")
+        self.assertEqual(out["review_priority"],"high")
+        self.assertFalse(out["auto_candidate"])
+
     def test_neisha_only_is_not_enough(self):
         self.tier("Neisha is amazing",expected="none")
 
