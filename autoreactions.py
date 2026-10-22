@@ -560,8 +560,8 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
                       and v['video_id'] not in live_ids][:MAX_TO_SEND]
         else:
             current_videos = {v["video_id"]: v for v in videos}
-    chosen = [current_videos.get(v["video_id"], v) for v in state["pending"]
-              if v["video_id"] in ready_ids][:MAX_TO_SEND]
+            chosen = [current_videos.get(v["video_id"], v) for v in state["pending"]
+                      if v["video_id"] in ready_ids][:MAX_TO_SEND]
         print(f"🧪 DRY RUN: {len(chosen)} would be sent, {len(state['pending'])} pending in simulated state.")
         for v in chosen:
             print(f"  WOULD SEND: {v['video_id']} {v['title'][:70]}")
@@ -585,7 +585,9 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
         return send_to_discord(chosen, max_to_send=MAX_TO_SEND, run_start=run_start)
 
     # Recent uploads and older queued items were independently reconfirmed above.
-    chosen = [v for v in state['pending'] if v['video_id'] in ready_ids][:MAX_TO_SEND]
+    current_videos = {v["video_id"]: v for v in videos}
+    chosen = [current_videos.get(v["video_id"], v) for v in state["pending"]
+              if v["video_id"] in ready_ids][:MAX_TO_SEND]
     if not chosen:
         print("ℹ️ No pending reactions to deliver.")
         return []
