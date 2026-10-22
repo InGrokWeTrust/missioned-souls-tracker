@@ -184,6 +184,7 @@ def analyze(sample: dict[str, Any], *, api_key: str, model=DEFAULT_MODEL,
 def score_labelled(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Evaluate only human-verified labels; 'uncertain' is an abstention."""
     approved = [r for r in rows if r.get("ground_truth") in {"match", "not_match"}
+                and r.get("reviewed_by") in {"human", "user", "manual"}
                 and r.get("prediction") in {"match", "not_match", "uncertain"}]
     tp = sum(r["ground_truth"] == "match" and r["prediction"] == "match" for r in approved)
     tn = sum(r["ground_truth"] == "not_match" and r["prediction"] == "not_match" for r in approved)
