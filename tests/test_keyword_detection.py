@@ -32,9 +32,9 @@ class KeywordClassifierTests(unittest.TestCase):
                   "Naces (Bass), Neisha (Lead Guitar), Stacey (Vocals), Isaiah (Drums)",
                   expected="review")
 
-    def test_real_wilburn_explicit_title(self):
+    def test_real_wilburn_band_title_without_reaction_keyword_is_review(self):
         self.tier("THIS 11 YEAR OLD DRUMMER IS UNREAL - MISSIONED SOULS",
-                  expected="strong",strong=True)
+                  expected="review")
 
     def test_real_stacey_vocal_focus_explicit_title(self):
         self.tier("Musician Reacts to Missioned Souls – Sweet Child O' Mine | Stacey Vocal Focus",
@@ -55,10 +55,12 @@ class KeywordClassifierTests(unittest.TestCase):
                 self.tier(t,expected="strong",strong=True)
 
     def test_artist_spacing_and_case(self):
-        for t in ["Missioned Souls reacts", "#MissionedSouls epic cover",
-                  "MISSIONED-SOULS studio reaction", "missioned_souls"]:
+        for t in ["Missioned Souls reacts", "MISSIONED-SOULS studio reaction"]:
             with self.subTest(t=t):
-                self.tier(t,expected="strong",strong=True)
+                self.tier(t, expected="strong", strong=True)
+        for t in ["#MissionedSouls epic cover", "missioned_souls"]:
+            with self.subTest(t=t):
+                self.tier(t, expected="review")
 
     def test_unverified_mission_souls_spelling(self):
         self.tier("Mission Souls This Family Band Rocks", expected="review")
@@ -95,27 +97,67 @@ class KeywordClassifierTests(unittest.TestCase):
     def test_multiple_member_names_without_instruments_not_automatic(self):
         self.tier("Neisha Stacey Naces on this great song",expected="none")
 
-    def test_human_confirmed_paper_dove_false_match_is_review_not_strong(self):
+    def test_human_confirmed_paper_dove_is_excluded(self):
         title="Paper Dove “I’m Not Okay” MCR cover. FilAm dad reacts. #missionedsouls"
-        result=self.tier(title,expected="review",strong=False)
-        self.assertIn("Paper Dove", " ".join(result["evidence"]))
+        result=self.tier(title, expected="none", strong=False)
+        self.assertIn("separate group", " ".join(result["reasons"]))
         self.assertFalse(result["auto_candidate"])
 
     def test_paper_dove_with_explicit_reaction_context_still_not_strong(self):
         title="Reacting to Paper Dove #MissionedSouls - amazing cover"
-        self.tier(title,expected="review",strong=False)
+        self.tier(title,expected="none",strong=False)
 
-    def test_human_disputed_naces_tribute_is_review_not_strong(self):
+    def test_naces_tribute_not_a_performance_reaction(self):
         title="Naces of Missioned Souls ❤️ The Heartbeat Beneath the Song | A Song for the Unsung Bass Player"
-        result=self.tier(title,expected="review",strong=False)
+        result=self.tier(title,expected="none",strong=False)
         self.assertIn("tribute", " ".join(result["reasons"]))
 
-    def test_missioned_souls_tribute_review_only(self):
-        self.tier("Special Tribute to Naces of Missioned Souls",expected="review",strong=False)
+    def test_missioned_souls_tribute_excluded(self):
+        self.tier("Special Tribute to Naces of Missioned Souls", expected="none")
 
     def test_actual_band_reaction_without_paper_dove_stays_strong(self):
         self.tier("Reacting to Missioned Souls - The Final Countdown",
                   expected="strong",strong=True)
+
+    def test_explicit_user_confirmed_announcement_exclusions(self):
+        for title in [
+            "Missioned Souls LIVE From Cebu! 🌎 FREE Worldwide Concert | October 23, 2026",
+            "Missioned Souls Are Hosting a FREE LIVE CONCERT! 🎶 Don't Miss This!",
+            "Missioned Souls | FREE Live Stream This Weekend! | Reviewing the Website!!",
+            "Missioned Souls kid 1 MILLION VIEWS for this",
+        ]:
+            with self.subTest(title=title):
+                r=self.tier(title,expected="none")
+                self.assertFalse(r["auto_candidate"])
+
+    def test_reactor_bio_boilerplate_does_not_make_a_concert_a_reaction(self):
+        r=self.tier("Missioned Souls Are Hosting a FREE LIVE CONCERT!",
+                    "If you enjoyed this Reaction, subscribe for more. #reactionvideo",
+                    ["#reaction", "Missioned Souls"], expected="none")
+        self.assertIn("concert promotion", " ".join(r["reasons"]))
+
+    def test_band_cover_without_reactor_evidence_review_only(self):
+        r=self.tier("ROSANNA by Toto | Missioned Souls | Familly band studio cover",
+                    "SUBSCRIBE FOR MORE.. #missionedsoulsreaction", expected="review")
+        self.assertFalse(r["auto_candidate"])
+
+    def test_archive_channel_never_auto_suggests_reaction(self):
+        r=classify('MISSIONED SOULS COVERS "TAKE ON ME"',
+                   "An independent archive of performances that sparked reactions.",
+                   channel_name="MISSIONED SOULS REACTION ARCHIVE")
+        self.assertEqual(r["tier"],"none")
+        self.assertFalse(r["auto_candidate"])
+
+    def test_artist_in_title_without_reaction_token_requires_review(self):
+        self.tier("Missioned Souls Crazy Train",expected="review")
+
+    def test_explicit_reaction_in_title_keeps_strong_evidence(self):
+        self.tier("First Time Reaction - Missioned Souls - I Hate Myself for Loving You",
+                  expected="strong",strong=True)
+
+    def test_paper_dove_overrides_reaction_and_full_band(self):
+        self.tier("My reaction to Missioned Souls collab Paper Dove",
+                  expected="none")
 
     def test_neisha_only_is_not_enough(self):
         self.tier("Neisha is amazing",expected="none")
@@ -187,7 +229,7 @@ class KeywordClassifierTests(unittest.TestCase):
         self.tier("",expected="none")
         self.tier("missionedsoulsfake",expected="none")
         self.tier("Nacesss bass",expected="none")
-        self.tier("Ｍｉｓｓｉｏｎｅｄ Ｓｏｕｌｓ",expected="strong",strong=True)
+        self.tier("Ｍｉｓｓｉｏｎｅｄ Ｓｏｕｌｓ",expected="review")
 
     def test_description_match_outside_650_chars_ignored(self):
         self.tier("A random upload","."*700 + " Missioned Souls reaction",
@@ -221,7 +263,8 @@ class KeywordClassifierTests(unittest.TestCase):
         yt=FakeClient()
         result=report_unmatched(vids,yt)
         self.assertEqual(result["examined"],3)
-        self.assertEqual(len(result["strong"]),2)
+        self.assertEqual(len(result["strong"]),1)
+        self.assertEqual(len(result["review"]),1)
         self.assertEqual(result["none"],1)
         self.assertEqual(yt.v.request[0],"snippet,contentDetails,liveStreamingDetails")
 
