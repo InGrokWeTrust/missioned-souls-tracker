@@ -13,7 +13,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from vision_evaluator import analyze, score_labelled, DEFAULT_MODEL
+from vision_evaluator import analyze, score_labelled, metadata_evidence, DEFAULT_MODEL
 
 PRICES_PER_MILLION = {
     "gpt-6-luna": (0.10, 0.50),
@@ -43,10 +43,28 @@ def evaluate(dataset, *, api_key, model, max_calls, budget_usd, classifier=analy
     rows = list(dataset.get("samples", []))
     spent = 0.0
     results = []
+    paid_calls = 0
+    metadata_only = 0
     for sample in rows:
-        if len(results) >= max_calls or spent >= budget_usd:
-            break
+        hints = metadata_evidence(sample)
+        # Cheap first-stage confirmation only when the title itself identifies
+        # the band and the video is explicitly a reaction/review.
+        if hints["title_band"] and hints["title_reaction"]:
+            metadata_only += 1
+            results.append({
+                "video_id": sample["video_id"], "title": sample.get("title", ""),
+                "channel": sample.get("channel", ""), "prediction": "match",
+                "reason": "Artist and reaction both explicitly named in the title",
+                "visible_evidence": "", "metadata": hints, "estimated_usd": 0,
+                "classification_source": "metadata",
+                "ground_truth": sample.get("ground_truth"),
+                "reviewed_by": sample.get("reviewed_by"),
+            })
+            continue
+        if paid_calls >= max_calls or spent >= budget_usd:
+            continue
         try:
+            paid_calls += 1
             classified = classifier(sample, api_key=api_key, model=model)
             usage = classified.get("usage") or {}
             charge = cost_from_usage(usage, model)
@@ -59,6 +77,7 @@ def evaluate(dataset, *, api_key, model, max_calls, budget_usd, classifier=analy
                 "reason": classified["vision"]["reason"],
                 "visible_evidence": classified["vision"]["evidence"],
                 "metadata": classified["metadata"],
+                "classification_source": "vision",
                 "estimated_usd": round(charge, 8),
                 "ground_truth": sample.get("ground_truth"),
                 "reviewed_by": sample.get("reviewed_by"),
@@ -76,6 +95,8 @@ def evaluate(dataset, *, api_key, model, max_calls, budget_usd, classifier=analy
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "model": model,
         "executed": len(results),
+        "paid_vision_calls": paid_calls,
+        "metadata_only_results": metadata_only,
         "total_unlabelled_candidates": len(rows),
         "estimated_api_cost_usd": round(spent, 6),
         "budget_usd": budget_usd,
