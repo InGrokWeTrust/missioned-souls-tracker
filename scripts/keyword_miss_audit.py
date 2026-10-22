@@ -129,6 +129,18 @@ def audit(data, *, random_limit=40, flagged_limit=40, seed=20261022):
     # Prefer flagged videos with actual artist mentions, but keep channel diversity.
     rng=random.Random(seed)
     rng.shuffle(flagged);rng.shuffle(ordinary)
+    # Most useful to inspect actual band mentions the primary classifier
+    # rejected, before generic links to completely unrelated videos.
+    priority = {
+        "band_mentioned_anywhere": 0,
+        "nitro_or_neisha": 1,
+        "naces_or_stacey_or_ice": 2,
+        "soulmates_or_family_band": 3,
+        "description_truncated": 4,
+        "original_artist_reference": 5,
+    }
+    flagged.sort(key=lambda r: min(priority.get(flag, 9)
+                                  for flag in r["audit_flags"]))
     def balanced(rows,limit,cap=3):
         chosen=[];seen=Counter()
         for row in rows:
@@ -180,6 +192,13 @@ def main():
                   "total_for_human_review"):
         print(f" {field}: {result[field]}")
     print("Audit flags across unmatched uploads:",result["flag_counts_all_unmatched"])
+    print("HIGH-PRIORITY UNMATCHED VIDEOS WITH BAND NAME IN METADATA")
+    for row in result["samples"]:
+        if (row["sample_type"] == "possible_miss" and
+                "band_mentioned_anywhere" in row["audit_flags"]):
+            print(f" potential_miss {row['video_id']} | {row['title'][:100]}")
+            print(f"  description: {' '.join(row.get('description_excerpt','').split())[:950]}")
+            print(f"  tags: {row.get('tags',[])[:15]}")
     print("REVIEW ENTRIES")
     for row in result["samples"]:
         if row["sample_type"]!="random_unmatched":
