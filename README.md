@@ -465,3 +465,41 @@ https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/3972489461
 
 All this remains on the unmerged draft experiment branch; production
 notification code, Discord and bookmarks are unchanged. No paid API calls.
+
+
+### User-completed 46-video human review (22 October 2026)
+
+All 46 human classifications exported from the standalone HTML review page
+have been preserved unchanged in data/keyword_manual_labels_20261022.csv.
+They were matched one-to-one against the original live-shadow artifact
+(https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/39724894612)
+and its classifier-tier snapshot in
+data/keyword_audit_snapshot_20261022.json.
+
+- **2 confirmed actual reactions:** jxoHvBlRABA (HCJB) and E2tRH0B6Ow8
+  (Reactions with Vinny). Both had been placed in the **review** tier.
+- **44 confirmed non-reactions:** all 4 keyword-mention suspect cases
+  and 40 channel-balanced unmatched controls. All were in the **none** tier.
+- The resulting stratified review dataset has **2/2 review positives**
+  and **44/44 correct no-match controls**. No positive was missed
+  in these 46 user-reviewed entries.
+- **ZERO of the 91 strong-tier matches** from the entire live snapshot were
+  independently reviewed as part of this 46-video set. No population-wide
+  precision/recall or automatic-posting safety can be inferred from it.
+
+To reproduce scoring, run:
+
+    python -m scripts.score_keyword_human_review
+
+The script refuses duplicate IDs, unverified AI labels, missing video IDs
+or a mismatch between the frozen classifier snapshot and human review.
+It writes keyword-human-label-results.json and deliberately sets
+population_precision/population_recall to null.
+
+**Next experimental gate:** Select a fresh, independently verified
+sample of strong-tier and recent new-upload matches, including challenging
+member-name collisions and true misses, before proposing automatic
+Discord delivery. The free metadata + official-video-link strategy is
+still a candidate for a separate, explicitly report-only test.
+
+No paid AI/API billing, and this branch remains unmerged.
