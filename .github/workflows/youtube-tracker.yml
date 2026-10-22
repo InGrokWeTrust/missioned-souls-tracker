@@ -8,7 +8,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: missioned-souls-notifications-${{ github.ref }}
   cancel-in-progress: false
   queue: max
 
@@ -33,11 +33,26 @@ jobs:
       - name: Download previous last_run.json
         uses: dawidd6/action-download-artifact@v3
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: youtube-tracker.yml
           name: last-run-state
           path: ./
           branch: ${{ github.ref_name }}
           workflow_conclusion: ''
+          search_artifacts: true
+          check_artifacts: true
+          if_no_artifact_found: warn
+
+      - name: Download live-stream announcement history for VOD dedup
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: check_live_streams.yml
+          branch: ${{ github.ref_name }}
+          workflow_conclusion: ''
+          name: live-last-run-state
+          path: ./
+          check_artifacts: true
           search_artifacts: true
           if_no_artifact_found: warn
 
@@ -50,6 +65,7 @@ jobs:
           MAX_VIDEOS_PER_CHANNEL: ${{ vars.MAX_VIDEOS_PER_CHANNEL }}
           FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
           LAST_RUN_FILE: ${{ vars.LAST_RUN_FILE }}
+          LIVE_LAST_RUN_FILE: live_last_run.json
           BOOTSTRAP_STATE_IF_MISSING: ${{ vars.BOOTSTRAP_STATE_IF_MISSING }}
           TRACKED_CHANNELS_FILE: tracked_channels.json
         run: python autoreactions.py
@@ -61,3 +77,12 @@ jobs:
           name: last-run-state
           path: last_run.json
           retention-days: 7
+          if-no-files-found: error
+
+      - name: Alert on production failure
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL || secrets.DISCORD_WEBHOOK_URL }}
+          GITHUB_WORKFLOW: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python report_failure.py
