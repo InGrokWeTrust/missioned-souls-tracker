@@ -181,6 +181,15 @@ def find_active_live_streams():
     print(f"✅ {len(streams)} genuinely active streams confirmed")
     return streams
 
+def discord_timestamp(iso):
+    """Dynamic Discord local-time and relative timestamp for embeds."""
+    dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    stamp = int(dt.timestamp())
+    return f"<t:{stamp}:t> (<t:{stamp}:R>)"
+
+
 def send_to_discord(streams, run_start=None, on_success=None):
     if not streams:
         print("⚠️ No live streams to send.")
@@ -192,8 +201,7 @@ def send_to_discord(streams, run_start=None, on_success=None):
 
     for stream in streams:
         age = humanize_ago(stream['published_at'], run_start)
-        published_str = format_published_time(stream['published_at'])
-        posted_value = f"{published_str} ({age})" if published_str else age
+        posted_value = discord_timestamp(stream['published_at'])
 
         title = f"🔴 LIVE: {stream['title']}"
 
