@@ -9,6 +9,8 @@ on:
       - 'scripts/run_keyword_trial.py'
       - 'scripts/score_quality_reviewed37.py'
       - 'scripts/score_quality_reviewed37_followup.py'
+      - 'scripts/score_quality_reviewed37_final14.py'
+      - 'data/reaction_quality_remaining14_human_labels_20261022.csv'
       - 'data/reaction_quality_next8_human_labels_20261022.csv'
       - 'data/keyword_strong30_reactions_only_adjudication_20261022.json'
       - 'data/keyword_reactions_only_five_human_labels_20261022.csv'
@@ -46,6 +48,8 @@ jobs:
         run: python -m scripts.score_quality_reviewed37
       - name: Overlay eight new independent human judgments (offline)
         run: python -m scripts.score_quality_reviewed37_followup
+      - name: Audit final 14 human verdicts without external calls
+        run: python -m scripts.score_quality_reviewed37_final14
       - name: Archive offline 37-video quality report
         uses: actions/upload-artifact@v4
         with:
@@ -53,4 +57,5 @@ jobs:
           path: |
             reaction-quality-reviewed37.json
             reaction-quality-reviewed37-with-next8.json
+            reaction-quality-reviewed37-with-final14.json
           retention-days: 7
