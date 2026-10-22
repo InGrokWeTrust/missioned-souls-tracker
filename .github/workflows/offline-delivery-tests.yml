@@ -5,6 +5,10 @@ on:
   pull_request:
     paths:
       - 'autoreactions.py'
+      - 'keyword_detector.py'
+      - 'scripts/run_keyword_trial.py'
+      - 'data/keyword_trial_cases.json'
+      - 'data/reactor_history_next7_human_labels_20261022.csv'
       - 'check_live_streams.py'
       - 'webhook_delivery.py'
       - 'reaction_state.py'
@@ -30,3 +34,5 @@ jobs:
         run: pip install -r requirements.txt
       - name: Test without production credentials
         run: python -m unittest discover -s tests -v
+      - name: Replay curated reaction-quality shadow fixtures offline
+        run: python -m scripts.run_keyword_trial
