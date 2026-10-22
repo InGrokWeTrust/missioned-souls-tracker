@@ -1,0 +1,44 @@
+name: Read-only evidence audit for TZ7 video
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/diagnose-tz7-description.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check public YouTube metadata without sending alerts
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: |
+          python - <<'PY'
+          import json, os, re
+          from urllib.parse import urlencode
+          from urllib.request import urlopen
+          key = os.environ.get('YOUTUBE_API_KEY')
+          assert key, 'Missing read-only YouTube API key'
+          params = urlencode({'part':'snippet,contentDetails,status',
+                              'id':'TZ7z0pZvn8w','key':key})
+          with urlopen('https://www.googleapis.com/youtube/v3/videos?' + params, timeout=20) as resp:
+              result=json.load(resp)
+          item=(result.get('items') or [None])[0]
+          assert item and item.get('id')=='TZ7z0pZvn8w', 'Video not available'
+          snippet=item.get('snippet') or {}
+          title=snippet.get('title','')
+          description=snippet.get('description','')
+          tags=snippet.get('tags') or []
+          print('VIDEO:',item['id'])
+          print('CHANNEL:',snippet.get('channelTitle',''))
+          print('TITLE:',title)
+          print('DESCRIPTION FIRST 750 CHARACTERS:',description[:750].replace('\n',' | '))
+          print('TAGS FIRST 20:',', '.join(tags[:20]))
+          print('REACTION TERMS IN DESCRIPTION:',
+                bool(re.search(r'\\b(?:react(?:ion|ing|s|ed)?|first.time.hearing)\\b',description,re.I)))
+          print('ONE PUBLIC METADATA REQUEST; NO DISCORD OR STATE WRITES')
+          PY
