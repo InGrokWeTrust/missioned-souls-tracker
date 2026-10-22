@@ -195,6 +195,16 @@ class OfflineTrackerTests(unittest.TestCase):
         self.assertEqual([v["video_id"] for v in sent], ["id-1"])
         self.assertEqual(post.call_count, 2)
 
+    def test_live_ack_callback_invoked_after_each_confirmed_post(self):
+        recorded = []
+        with patch.object(live, "post_webhook", side_effect=[True, False]), \\
+             patch.object(live.time, "sleep"):
+            delivered = live.send_to_discord(
+                [video(1), video(2)], on_success=lambda stream: recorded.append(stream["video_id"])
+            )
+        self.assertEqual(recorded, ["id-1"])
+        self.assertEqual([v["video_id"] for v in delivered], ["id-1"])
+
     def test_live_missing_bookmark_fails_closed(self):
         with self.assertRaisesRegex(RuntimeError, "Live bookmark missing"):
             live.load_state()
