@@ -1,0 +1,37 @@
+name: Read-only real thumbnail OCR trial
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/thumbnail-ocr-live-trial.yml'
+      - 'scripts/thumbnail_live_trial.py'
+      - 'thumbnail_detector.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-thumbnail-trial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install local OCR tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y tesseract-ocr
+          pip install requests Pillow
+      - name: Read real public YouTube thumbnails (no API key or webhook)
+        run: python -m scripts.thumbnail_live_trial
+      - name: Save inspectable OCR report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: thumbnail-ocr-real-world-report
+          path: thumbnail-live-trial-results.json
+          retention-days: 7
+          if-no-files-found: warn

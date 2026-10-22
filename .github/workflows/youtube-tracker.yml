@@ -30,6 +30,13 @@ jobs:
       - name: Install dependencies
         run: pip install google-api-python-client requests
 
+      - name: Install opt-in local thumbnail OCR
+        if: ${{ vars.ENABLE_THUMBNAIL_OCR == 'true' }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y tesseract-ocr
+          pip install Pillow
+
       - name: Download previous last_run.json
         uses: dawidd6/action-download-artifact@v3
         with:
@@ -67,6 +74,9 @@ jobs:
           LAST_RUN_FILE: ${{ vars.LAST_RUN_FILE }}
           LIVE_LAST_RUN_FILE: live_last_run.json
           BOOTSTRAP_STATE_IF_MISSING: ${{ vars.BOOTSTRAP_STATE_IF_MISSING }}
+          ENABLE_THUMBNAIL_OCR: ${{ vars.ENABLE_THUMBNAIL_OCR }}
+          OCR_NOTIFY: ${{ vars.OCR_NOTIFY }}
+          MAX_OCR_PER_RUN: ${{ vars.MAX_OCR_PER_RUN }}
           TRACKED_CHANNELS_FILE: tracked_channels.json
         run: python autoreactions.py
 

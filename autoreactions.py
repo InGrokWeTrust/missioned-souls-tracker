@@ -3,10 +3,11 @@ import time
 import json
 import re
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
+from thumbnail_detector import metadata_match, inspect_thumbnail
 from reaction_state import (StateError, load_state, save_state, plan_notifications,
                             acknowledge, read_live_sent_ids, reconcile_live_notifications)
 
@@ -18,6 +19,10 @@ if not API_KEY:
 CHANNEL_NAME = (os.environ.get("CHANNEL_NAME") or "Missioned Souls")
 MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND") or "10")
 MAX_VIDEOS_PER_CHANNEL = int(os.environ.get("MAX_VIDEOS_PER_CHANNEL") or "5")
+ENABLE_THUMBNAIL_OCR = os.environ.get("ENABLE_THUMBNAIL_OCR", "false").lower() == "true"
+OCR_NOTIFY = os.environ.get("OCR_NOTIFY", "false").lower() == "true"
+MAX_OCR_PER_RUN = min(20, max(0, int(os.environ.get("MAX_OCR_PER_RUN") or "10")))
+OCR_LOOKBACK_HOURS = 96
 FORCE_SEND_ALL = os.environ.get("FORCE_SEND_ALL", "false").lower() == "true"
 LAST_RUN_FILE = (os.environ.get("LAST_RUN_FILE") or "last_run.json")
 LIVE_LAST_RUN_FILE = (os.environ.get("LIVE_LAST_RUN_FILE") or "live_last_run.json")
@@ -180,7 +185,9 @@ def fetch_channel_videos(channel_id, channel_title):
             'channel_id': channel_id,
             'published_at': content.get('videoPublishedAt') or snippet.get('publishedAt'),
             'url': f"https://youtu.be/{video_id}",
-            'thumbnail': snippet.get('thumbnails', {}).get('medium', {}).get('url'),
+            'thumbnail': next((snippet.get('thumbnails', {}).get(k, {}).get('url')
+                               for k in ('maxres', 'standard', 'high', 'medium')
+                               if snippet.get('thumbnails', {}).get(k, {}).get('url')), None),
             'live_broadcast_content': snippet.get('liveBroadcastContent', 'none'),
             'live_streaming_details': None  # filled in later
         })
@@ -188,7 +195,123 @@ def fetch_channel_videos(channel_id, channel_title):
     return videos
 
 
-def get_reactions_with_stats():
+def find_hidden_reactions(unmatched, state, run_start):
+    """Metadata then thumbnail OCR on recent non-title uploads.
+
+    OCR is opt-in and 'report only' by default. The ID-based cache prevents
+    downloading the same thumbnail on every 30-minute run. Errors are retried.
+    """
+    if not ENABLE_THUMBNAIL_OCR or not unmatched:
+        return []
+
+    now = run_start or datetime.now(timezone.utc)
+    start = now - timedelta(hours=OCR_LOOKBACK_HOURS)
+    recent = []
+    already_handled = set(state.get("seen_video_ids", [])) | {
+        item["video_id"] for item in state.get("pending", [])
+    }
+    for video in unmatched:
+        if video.get("video_id") in already_handled:
+            continue
+        try:
+            published = datetime.fromisoformat(video["published_at"].replace("Z", "+00:00"))
+            if published.tzinfo is None:
+                published = published.replace(tzinfo=timezone.utc)
+            if start <= published <= now + timedelta(minutes=10):
+                recent.append(video)
+        except (KeyError, ValueError, AttributeError):
+            continue
+
+    if not recent:
+        return []
+
+    # Limit the persisted cache to one week and 1200 entries.
+    cache = state.setdefault("ocr_results", {})
+    for vid, value in list(cache.items()):
+        try:
+            when = datetime.fromisoformat(value["at"])
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=timezone.utc)
+            if when < now - timedelta(days=7):
+                del cache[vid]
+        except (TypeError, KeyError, ValueError, AttributeError):
+            del cache[vid]
+    if len(cache) > 1200:
+        sorted_ids = sorted(cache, key=lambda vid: cache[vid]["at"])
+        for vid in sorted_ids[:len(cache) - 1200]:
+            del cache[vid]
+
+    # Batch metadata efficiently, including duration and up-to-date live status.
+    candidates = {}
+    recent.sort(key=lambda v: (v["published_at"], v["video_id"]))
+    for video in recent:
+        candidates.setdefault(video["video_id"], video)
+    details = {}
+    for ids_start in range(0, len(candidates), 50):
+        chunk = list(candidates)[ids_start:ids_start + 50]
+        response = youtube.videos().list(
+            part="snippet,statistics,contentDetails,liveStreamingDetails",
+            id=",".join(chunk)
+        ).execute()
+        for item in response.get("items", []):
+            details[item["id"]] = item
+
+    found = []
+    ocr_calls = 0
+    for video_id, video in candidates.items():
+        item = details.get(video_id)
+        if not item:
+            continue
+        snippet = item.get("snippet", {})
+        metadata_hit, metadata_reason = metadata_match(video["title"], snippet)
+        stored = cache.get(video_id, {})
+        # Never OCR ongoing streams, upcoming broadcasts, or Shorts.
+        video["live_broadcast_content"] = snippet.get("liveBroadcastContent", "none")
+        video["live_streaming_details"] = item.get("liveStreamingDetails")
+        video["duration_sec"] = parse_duration(item.get("contentDetails", {}).get("duration", "PT0S"))
+        if video["live_broadcast_content"] in ("live", "upcoming") or is_short_or_too_short(video):
+            continue
+        via = ""
+        if metadata_hit:
+            via = metadata_reason
+        elif stored.get("hit") is True:
+            via = stored.get("reason", "thumbnail OCR")
+        elif stored.get("hit") is False and stored.get("at"):
+            last = datetime.fromisoformat(stored["at"])
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=timezone.utc)
+            if last >= now - timedelta(hours=24):
+                continue
+
+        if not via:
+            if ocr_calls >= MAX_OCR_PER_RUN:
+                continue  # Leave unclassified so the next run can examine it.
+            ocr_calls += 1
+            try:
+                hit, via = inspect_thumbnail(video)
+            except Exception as exc:
+                print(f"::warning::Thumbnail OCR for {video_id} failed; will retry: {exc}")
+                continue
+            cache[video_id] = {"hit": hit, "reason": via, "at": now.isoformat()}
+            if not hit:
+                continue
+
+        stats = item.get("statistics", {})
+        video["view_count"] = int(stats.get("viewCount", 0))
+        video["like_count"] = int(stats.get("likeCount", 0))
+        video["comment_count"] = int(stats.get("commentCount", 0))
+        video["age_at_run"] = humanize_ago(video["published_at"], now)
+        print(f"🔎 Hidden reaction candidate: {video_id} ({via}); "
+              f"mode={'NOTIFY' if OCR_NOTIFY else 'REPORT ONLY'}")
+        if OCR_NOTIFY:
+            found.append(video)
+
+    print(f"🖼️ OCR checked {ocr_calls} thumbnails; confirmed {len(found)} for queueing "
+          f"(notify={'ON' if OCR_NOTIFY else 'OFF'}).")
+    return found
+
+
+def get_reactions_with_stats(state=None):
     run_start = datetime.now(timezone.utc)
     print(f"🔍 Checking {CHANNEL_NAME} reactions from tracked channels...")
     print(f"⏰ Run started at: {run_start.strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
@@ -205,6 +328,7 @@ def get_reactions_with_stats():
     failed_channels = []
     no_ms_count = 0
     silent_channels = []
+    unmatched = []
 
     for channel_id, info in tracked.items():
         channel_title = info.get('title', channel_id) if isinstance(info, dict) else str(info)
@@ -215,6 +339,7 @@ def get_reactions_with_stats():
             continue
         scanned_channel_ids.add(channel_id)
         reaction_videos = [v for v in videos if is_missioned_souls_reaction(v['title'])]
+        unmatched.extend(v for v in videos if not is_missioned_souls_reaction(v['title']))
         no_ms_count += len(videos) - len(reaction_videos)
 
         for v in reaction_videos:
@@ -241,7 +366,7 @@ def get_reactions_with_stats():
         raise RuntimeError("All channel scans failed; state will remain untouched.")
     if not candidates:
         print("⚠️ No Missioned Souls reactions found in tracked channels.")
-        return [], run_start, scanned_channel_ids
+        return find_hidden_reactions(unmatched, state if state is not None else {}, run_start), run_start, scanned_channel_ids
 
     # Stage 2: batch fetch stats + duration + liveStreamingDetails
     video_ids = [v['video_id'] for v in candidates]
@@ -305,6 +430,8 @@ def get_reactions_with_stats():
             print(f"   ⏭️  [{reason}] {ch:24} | {v['title'][:55]}")
         print()
 
+    all_videos.extend(find_hidden_reactions(
+        unmatched, state if state is not None else {}, run_start))
     all_videos.sort(key=lambda x: x['published_at'], reverse=False)
 
     print(f"📊 Stage 3 — Final:")
@@ -377,10 +504,11 @@ def send_to_discord(videos, max_to_send=5, run_start=None, on_success=None):
 
 
 def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=None,
-                channel_added_at=None):
+                channel_added_at=None, state=None):
     """Persist the queue BEFORE delivery and after each confirmed notification."""
     allow_bootstrap = os.environ.get("BOOTSTRAP_STATE_IF_MISSING", "false").lower() == "true"
-    state = load_state(LAST_RUN_FILE, allow_bootstrap=allow_bootstrap)
+    if state is None:
+        state = load_state(LAST_RUN_FILE, allow_bootstrap=allow_bootstrap)
     bootstrap = state.get("_bootstrap", False)
     if bootstrap and not videos:
         raise StateError("Cannot bootstrap from an empty reaction scan.")
@@ -423,15 +551,15 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
 if __name__ == "__main__":
     print("🚀 Missioned Souls Reaction Tracker Started\n")
     # Fail before reaching YouTube or Discord if bookmark is missing or corrupt.
-    load_state(LAST_RUN_FILE, allow_bootstrap=os.environ.get(
+    state = load_state(LAST_RUN_FILE, allow_bootstrap=os.environ.get(
         "BOOTSTRAP_STATE_IF_MISSING", "false").lower() == "true")
 
-    videos, run_start, scanned_ids = get_reactions_with_stats()
+    videos, run_start, scanned_ids = get_reactions_with_stats(state=state)
     channels = load_tracked_channels()
     channel_added_at = {
         cid: info.get('added_at') for cid, info in channels.items()
         if isinstance(info, dict) and info.get('added_at')
     }
     run_tracker(videos, scanned_ids, force_send_all=FORCE_SEND_ALL,
-                run_start=run_start, channel_added_at=channel_added_at)
+                run_start=run_start, channel_added_at=channel_added_at, state=state)
     print("\n🎉 All done!")
