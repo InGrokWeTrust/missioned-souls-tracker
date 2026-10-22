@@ -7,6 +7,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 import json
+import csv
 from pathlib import Path
 import random
 import re
@@ -17,6 +18,8 @@ import requests
 ROOT = Path(__file__).resolve().parents[1]
 TRACKED = ROOT / "tracked_channels.json"
 OUT = ROOT / "vision-unlabelled-candidates.json"
+REVIEW_CSV = ROOT / "vision-review-sheet.csv"
+STATE = ROOT / "last_run.json"
 ATOM = "{http://www.w3.org/2005/Atom}"
 YT = "{http://www.youtube.com/xml/schemas/2015}"
 MAX_CHANNELS = 65
@@ -106,10 +109,58 @@ def collect(channels: dict, *, getter=fetch_feed, target=TARGET, max_channels=MA
     return all_rows, len(selected), failures
 
 
+def saved_state_candidates(path=STATE, *, limit=200):
+    """Harvest *unlabelled* IDs from the latest production bookmark artifact.
+
+    This is a read-only fallback if YouTube blocks public RSS feeds on CI.
+    An ID recorded in seen_video_ids is NOT ground truth and may include
+    videos that are not reactions; every row still needs independent review.
+    """
+    if not path.exists():
+        return []
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    ids = payload.get("seen_video_ids", [])
+    if not isinstance(ids, list):
+        return []
+    results = []
+    for vid in reversed(ids):
+        if isinstance(vid, str) and re.fullmatch(r"[A-Za-z0-9_-]{11}", vid):
+            results.append({
+                "video_id": vid, "channel": "", "channel_id": "",
+                "title": "", "published_at": "",
+                "thumbnail_url": f"https://i.ytimg.com/vi/{vid}/hqdefault.jpg",
+                "description": "", "tags": [], "ground_truth": None,
+                "reviewed_by": None, "source": "read-only production video-ID history",
+            })
+        if len(results) >= limit:
+            break
+    return results
+
+
+def create_review_csv(rows, path=REVIEW_CSV):
+    with path.open("w", encoding="utf-8", newline="") as out:
+        writer = csv.writer(out)
+        writer.writerow(["video_id", "YouTube video URL", "thumbnail URL", "channel",
+                         "title", "source", "ground_truth", "reviewed_by", "review_notes"])
+        for row in rows:
+            vid = row["video_id"]
+            writer.writerow([vid, f"https://www.youtube.com/watch?v={vid}",
+                             row["thumbnail_url"], row.get("channel", ""),
+                             row.get("title", ""), row.get("source", ""),
+                             "", "", ""])
+
+
 def main():
     channels = json.loads(TRACKED.read_text(encoding="utf-8"))["channels"]
     rows, attempted, failures = collect(channels)
     known = {item["video_id"] for item in rows}
+    fallback = saved_state_candidates()
+    for video in fallback:
+        if len(rows) >= TARGET:
+            break
+        if video["video_id"] not in known:
+            rows.append(video)
+            known.add(video["video_id"])
     for video_id, channel, title in SEED_EXAMPLES:
         if video_id not in known:
             rows.insert(0, {
@@ -126,14 +177,17 @@ def main():
         "feed_channels_attempted": attempted,
         "feed_failures": len(failures),
         "sample_count": len(rows),
+        "state_history_candidates": len(fallback),
         "samples": rows,
         "failures_sample": failures[:15],
     }
     OUT.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    create_review_csv(rows)
     print(f"Collected {len(rows)} UNLABELLED candidates from "
           f"{attempted} attempted feeds; {len(failures)} failed.")
     print("IMPORTANT: No recall/precision can be calculated before human review.")
-    print(f"Report: {OUT.name}")
+    print(f"Report: {OUT.name}; review CSV: {REVIEW_CSV.name}")
+    print(f"Fallback state IDs available: {len(fallback)} (not labelled)")
 
 
 if __name__ == "__main__":
