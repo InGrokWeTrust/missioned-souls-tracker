@@ -16,6 +16,7 @@ from vision_evaluator import (analyze, build_request, download_thumbnail,
 from scripts.collect_vision_candidates import parse_feed, collect, saved_state_candidates, create_review_csv
 from scripts.run_vision_evaluation import evaluate, cost_from_usage
 from scripts.apply_human_labels import add_labels
+from scripts.enrich_youtube_metadata import enrich
 
 
 def example():
@@ -174,6 +175,33 @@ class VisionOfflineTests(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertIn("ground_truth,reviewed_by,review_notes", text)
             self.assertIn("youtube.com/watch?v=hf03Voz2QBM", text)
+
+    def test_youtube_metadata_enrichment_read_only_batched(self):
+        samples = [{"video_id": "hf03Voz2QBM", "title": "Unclear", "description": "",
+                    "ground_truth": None}]
+        calls = []
+        def getter(url, params, timeout):
+            calls.append((url, params, timeout))
+            return SimpleNamespace(
+                raise_for_status=lambda: None,
+                json=lambda: {"items": [{"id": "hf03Voz2QBM", "snippet": {
+                    "title": "Neisha tears it up",
+                    "description": "Reacting to Missioned Souls",
+                    "tags": ["Missioned Souls"],
+                    "channelTitle": "Taylor John Hardin Reactions",
+                    "channelId": "UC-lB_sG0uviaY9pD07kiwjg",
+                    "publishedAt": "2026-10-22T03:00:00Z"
+                }}]})
+        result, found = enrich(samples, api_key="fictional-key", getter=getter)
+        self.assertEqual(found, 1)
+        self.assertEqual(result[0]["tags"], ["Missioned Souls"])
+        self.assertIsNone(result[0]["ground_truth"])
+        self.assertEqual(calls[0][1]["part"], "snippet")
+        self.assertNotIn("DISCORD", str(calls))
+
+    def test_metadata_enrichment_requires_key(self):
+        with self.assertRaises(ValueError):
+            enrich([example()], api_key="")
 
     def test_cost_guard_and_usage_math(self):
         self.assertAlmostEqual(cost_from_usage(
