@@ -26,7 +26,7 @@ jobs:
           sudo apt-get install -y tesseract-ocr
           pip install requests Pillow
       - name: Read real public YouTube thumbnails (no API key or webhook)
-        run: python scripts/thumbnail_live_trial.py
+        run: python -m scripts.thumbnail_live_trial
       - name: Save inspectable OCR report
         if: always()
         uses: actions/upload-artifact@v4
