@@ -187,7 +187,33 @@ class KeywordClassifierTests(unittest.TestCase):
         self.assertEqual(result["examined"],3)
         self.assertEqual(len(result["strong"]),2)
         self.assertEqual(result["none"],1)
-        self.assertEqual(yt.v.request[0],"snippet")
+        self.assertEqual(yt.v.request[0],"snippet,contentDetails,liveStreamingDetails")
+
+    def test_report_skips_shorts_and_upcoming_and_archived_lives(self):
+        items=[
+            {"video_id":"abcdefgh001","title":"Nitro Neisha #shorts",
+             "channel":"Tracked reactor","published_at":"2026-10-22T03:00:00Z"},
+            {"video_id":"abcdefgh002","title":"Nitro Neisha",
+             "channel":"Tracked reactor","published_at":"2026-10-22T03:00:00Z"},
+            {"video_id":"abcdefgh003","title":"Nitro Neisha",
+             "channel":"Tracked reactor","published_at":"2026-10-22T03:00:00Z"},
+            {"video_id":"abcdefgh004","title":"Nitro Neisha",
+             "channel":"Tracked reactor","published_at":"2026-10-22T03:00:00Z"},
+        ]
+        class FakeRequest:
+            def execute(self):
+                return {"items":[
+                    {"id":"abcdefgh001","snippet":{},"contentDetails":{"duration":"PT20S"}},
+                    {"id":"abcdefgh002","snippet":{"liveBroadcastContent":"upcoming"}},
+                    {"id":"abcdefgh003","snippet":{},"liveStreamingDetails":{"actualStartTime":"2026-10-22T01:00:00Z"}},
+                    {"id":"abcdefgh004","snippet":{},"contentDetails":{"duration":"PT10M"}},
+                ]}
+        class FakeClient:
+            def videos(self):return self
+            def list(self,**kwargs):return FakeRequest()
+        result=report_unmatched(items,FakeClient())
+        self.assertEqual(result["excluded_shorts_or_live"],3)
+        self.assertEqual(len(result["strong"]),1)
 
     def test_report_only_does_not_add_candidate_to_discord_queue(self):
         """Simulate one channel with a Nitro title, ensure returned video list remains empty."""
