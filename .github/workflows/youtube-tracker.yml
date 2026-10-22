@@ -64,6 +64,7 @@ jobs:
           MAX_TO_SEND: ${{ vars.MAX_TO_SEND }}
           MAX_VIDEOS_PER_CHANNEL: ${{ vars.MAX_VIDEOS_PER_CHANNEL }}
           FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
+          DRY_RUN: ${{ vars.DRY_RUN }}
           LAST_RUN_FILE: ${{ vars.LAST_RUN_FILE }}
           LIVE_LAST_RUN_FILE: live_last_run.json
           BOOTSTRAP_STATE_IF_MISSING: ${{ vars.BOOTSTRAP_STATE_IF_MISSING }}

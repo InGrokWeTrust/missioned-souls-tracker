@@ -50,6 +50,7 @@ jobs:
           CHANNEL_NAME: ${{ vars.CHANNEL_NAME }}
           MAX_TO_SEND: ${{ vars.MAX_TO_SEND }}
           FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
+          DRY_RUN: ${{ vars.DRY_RUN }}
           LIVE_LAST_RUN_FILE: live_last_run.json
           BOOTSTRAP_STATE_IF_MISSING: ${{ vars.BOOTSTRAP_STATE_IF_MISSING }}
         shell: bash
