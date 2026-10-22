@@ -21,7 +21,7 @@ PERFORMANCE = re.compile(r"\bperformance\b|\bcover\b|\bfamily[\s-]*band\b", re.I
 ROLE = {
     "neisha": re.compile(r"\blead[\s-]*guitar\b|\bguitar(?:ist)?\b|\bsolo\b|\bshred(?:s|ding|der)?\b|\briff\b", re.I),
     "stacey": re.compile(r"\bvocal(?:s|ist)?\b|\bsing(?:er|ing|s)?\b|\brhythm[\s-]*guitar\b", re.I),
-    "naces": re.compile(r"\bbass(?:ist)?\b|\bbase[\s-]*guitar\b|\bkeyboard(?:s|ist)?\b|\bkeys\b", re.I),
+    "naces": re.compile(r"\bbass(?:ist)?\b|\bbase(?:[\s-]*guitar)?\b|\bkeyboard(?:s|ist)?\b|\bkeys\b", re.I),
     "ice": re.compile(r"\bdrum(?:s|mer|ming)?\b|\bpercussion\b|\bbare[\s-]*foot\b", re.I),
     "sheena": re.compile(r"\bvocal(?:s|ist)?\b|\bsing(?:er|ing|s)?\b", re.I),
     "secan": re.compile(r"\bbass(?:ist)?\b|\bmix(?:er|ing)?\b|\bsound[\s-]*engineer\b", re.I),
@@ -151,20 +151,30 @@ def report_unmatched(videos, youtube, *, max_videos=150):
     meta = {}
     for start in range(0, len(shortlist), 50):
         ids = [v["video_id"] for v in shortlist[start:start + 50]]
-        result = youtube.videos().list(part="snippet", id=",".join(ids)).execute()
+        result = youtube.videos().list(part="snippet,contentDetails,liveStreamingDetails", id=",".join(ids)).execute()
         for item in result.get("items", []):
             if item.get("id") in ids:
-                meta[item["id"]] = item.get("snippet", {})
+                meta[item["id"]] = item
     summary = {"examined":len(shortlist), "strong":[], "review":[], "none":0,
-               "metadata_missing":0}
+               "metadata_missing":0, "excluded_shorts_or_live":0}
     for v in shortlist:
-        snippet = meta.get(v["video_id"])
-        if snippet is None:
+        item = meta.get(v["video_id"])
+        if item is None:
             summary["metadata_missing"] += 1
             continue
-        outcome = classify(v.get("title", ""),
-                           snippet.get("description", ""),
-                           snippet.get("tags", []))
+        snippet = item.get("snippet", {})
+        title = v.get("title", "")
+        broadcast = snippet.get("liveBroadcastContent", v.get("live_broadcast_content", "none"))
+        duration = item.get("contentDetails", {}).get("duration", "PT0S")
+        match = re.fullmatch(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", duration)
+        seconds = (int(match.group(1) or 0) * 3600 + int(match.group(2) or 0) * 60 +
+                   int(match.group(3) or 0)) if match else 0
+        if (broadcast in ("live", "upcoming") or item.get("liveStreamingDetails")
+                or re.search(r"#shorts?\b|\bshorts\b", title, re.I)
+                or 0 < seconds < 120):
+            summary["excluded_shorts_or_live"] += 1
+            continue
+        outcome = classify(title, snippet.get("description", ""), snippet.get("tags", []))
         if outcome["tier"] in ("strong", "review"):
             summary[outcome["tier"]].append({
                 "video_id":v["video_id"],
