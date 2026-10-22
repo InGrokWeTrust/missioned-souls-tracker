@@ -42,6 +42,18 @@ jobs:
           if not path.is_file():
               raise SystemExit('FAIL: Latest main reaction bookmark artifact could not be restored')
           data = json.loads(path.read_text(encoding='utf-8'))
+          # This check only verifies deployment after an artifact from a post-merge scan.
+          api = os.environ['GH_API'] + '/repos/' + os.environ['GH_REPO'] + '/actions/artifacts?name=last-run-state&per_page=100'
+          req = Request(api, headers={'Authorization':'Bearer ' + os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json'})
+          with urlopen(req, timeout=20) as response:
+              artifacts = json.load(response)['artifacts']
+          candidates = [a for a in artifacts if not a.get('expired') and a.get('workflow_run', {}).get('head_branch') == 'main']
+          latest = max(candidates, key=lambda a: a['created_at'], default=None)
+          assert latest, 'FAIL: No current main artifact found'
+          print('Latest main bookmark artifact ID:', latest['id'])
+          print('Latest main artifact created UTC:', latest['created_at'])
+          assert latest['created_at'] > '2026-10-22T10:19:59Z', (
+              'NOT VERIFIED: Latest bookmark predates PR #9 merge at 2026-10-22T10:19:59Z')
           assert data.get('version') == 2, 'FAIL: Unexpected bookmark version'
           seen = data.get('seen_video_ids')
           pending = data.get('pending')
@@ -53,17 +65,6 @@ jobs:
           assert len(seen) >= 110, 'FAIL: ID history has unexpectedly shrunk'
           assert not any(v.get('video_id') in ('Etztcp21KUw', 'jm6K2OqOIWE') for v in pending), 'FAIL: Confirmed historic alert re-queued'
 
-          # Verify that this is an artifact created after PR #9 deployment,
-          # not merely an older artifact selected by a download action.
-          api = os.environ['GH_API'] + '/repos/' + os.environ['GH_REPO'] + '/actions/artifacts?name=last-run-state&per_page=100'
-          req = Request(api, headers={'Authorization':'Bearer ' + os.environ['GH_TOKEN'], 'Accept':'application/vnd.github+json'})
-          with urlopen(req, timeout=20) as response:
-              artifacts = json.load(response)['artifacts']
-          candidates = [a for a in artifacts if not a.get('expired') and a.get('workflow_run', {}).get('head_branch') == 'main']
-          latest = max(candidates, key=lambda a: a['created_at'], default=None)
-          assert latest, 'FAIL: No current main artifact found'
-          print('Latest main bookmark artifact ID:', latest['id'])
-          print('Latest main artifact created at UTC:', latest['created_at'])
           print('Seen video count:', len(seen))
           print('Pending notification count:', len(pending))
           print('Protected duplicate ID: yes')
