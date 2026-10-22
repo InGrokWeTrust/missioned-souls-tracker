@@ -61,8 +61,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HISTORY_ENABLED: "true"
           DRY_RUN: ${{ vars.DRY_RUN }}
-          HISTORY_ENABLED: "true"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python notification_history.py hydrate reactions last_run.json
 
       - name: Run YouTube reaction tracker
@@ -74,6 +72,8 @@ jobs:
           MAX_VIDEOS_PER_CHANNEL: ${{ vars.MAX_VIDEOS_PER_CHANNEL }}
           FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
           DRY_RUN: ${{ vars.DRY_RUN }}
+          HISTORY_ENABLED: "true"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LAST_RUN_FILE: ${{ vars.LAST_RUN_FILE }}
           LIVE_LAST_RUN_FILE: live_last_run.json
           BOOTSTRAP_STATE_IF_MISSING: ${{ vars.BOOTSTRAP_STATE_IF_MISSING }}
