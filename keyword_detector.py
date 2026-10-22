@@ -38,6 +38,8 @@ PEOPLE = {
 GENERIC_EXCLUSIONS = re.compile(
     r"\b(?:ice[\s-]*cream|ice[\s-]*hockey|on[\s-]*ice|stacey[\s-]*solomon)\b", re.I
 )
+PAPER_DOVE = re.compile(r"\bpaper[\s_-]*dove\b", re.I)
+TRIBUTE = re.compile(r"\btribute\b|\ba[\s-]+song[\s-]+for[\s-]+the[\s-]+unsung\b", re.I)
 MAX_DESCRIPTION_PREFIX = 650
 
 
@@ -92,7 +94,15 @@ def classify(title: str, description: str = "", tags=None, *, tracked_reactor=Tr
     title_members = _member_roles(title)
     desc_members = _member_roles(description)
 
-    if title_band:
+    if title_band and PAPER_DOVE.search(title):
+        tier = "review"
+        evidence.append("Missioned Souls appears in title referencing separate Paper Dove group")
+        reasons.append("Paper Dove is not automatically a Missioned Souls reaction; reviewer confirmed false match")
+    elif title_band and TRIBUTE.search(title):
+        tier = "review"
+        evidence.append("band name appears in tribute/song-dedication title")
+        reasons.append("tribute or musical dedication is not necessarily a reaction")
+    elif title_band:
         tier = "strong"
         auto_candidate = True
         evidence.append("exact band name in title")
