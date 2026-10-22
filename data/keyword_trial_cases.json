@@ -1,0 +1,126 @@
+{
+  "note": "Seven identified real positive videos + constructed edge/negative controls. Synthetic cases are not real-world ground truth; no statistical precision/recall is inferred.",
+  "cases": [
+    {
+      "kind": "publicly identified real positive",
+      "video_id": "hf03Voz2QBM",
+      "source": "User-provided thumbnail/video",
+      "title": "Nitro Neisha TEARS It Up On This Classic!",
+      "description": "",
+      "expect": "strong"
+    },
+    {
+      "kind": "publicly identified real positive",
+      "video_id": "4J6dullEftA",
+      "source": "Public reaction metadata: HCJB Music",
+      "title": "🎸 They Made \"Crazy Train\" Sound Incredible! | Naces, Neisha, Stacey & Isaiah | Faceless Reaction",
+      "description": "Naces (Bass), Neisha (Lead Guitar), Stacey (Vocals), and Isaiah (Drums) deliver the cover.",
+      "expect": "review"
+    },
+    {
+      "kind": "publicly identified real positive",
+      "video_id": "kH6vzMgvfS0",
+      "source": "Public previously inspected WILBURN video",
+      "title": "THIS 11 YEAR OLD DRUMMER IS UNREAL - MISSIONED SOULS",
+      "description": "",
+      "expect": "strong"
+    },
+    {
+      "kind": "publicly identified real positive",
+      "video_id": "VyigOuszjVs",
+      "source": "Public metadata: HCJB Music",
+      "title": "Musician Reacts to Missioned Souls – “Sweet Child O’ Mine” | Stacey Vocal Focus",
+      "description": "",
+      "expect": "strong"
+    },
+    {
+      "kind": "publicly identified real positive",
+      "video_id": "PlZpaSpK6MQ",
+      "source": "Public metadata: Touchy Reactions",
+      "title": "Pro Guitarist Reacts to Missioned Souls Covering Boston’s “Long Time”",
+      "description": "",
+      "expect": "strong"
+    },
+    {
+      "kind": "publicly identified real positive",
+      "video_id": "vmU_TRxtyVg",
+      "source": "Public metadata: HEY KANO!",
+      "title": "MISSIONED SOULS Just Dropped “Rolling in the Deep”! | Adele Cover Reaction",
+      "description": "",
+      "expect": "strong"
+    },
+    {
+      "kind": "publicly identified real positive",
+      "video_id": "ZhbZ8PY_bsM",
+      "source": "Public metadata: reaction video",
+      "title": "Missioned Souls THE FINAL COUNTDOWN REACTION | A 12-Year-Old On Drums Should Not Sound Like This!",
+      "description": "",
+      "expect": "strong"
+    },
+    {
+      "kind": "synthetic negative control",
+      "title": "Ice is a pro at ice hockey, best drummer of the season",
+      "expect": "none"
+    },
+    {
+      "kind": "synthetic negative control",
+      "title": "Neisha only",
+      "expect": "none"
+    },
+    {
+      "kind": "synthetic negative control",
+      "title": "Stacey Solomon vocal lessons",
+      "expect": "review"
+    },
+    {
+      "kind": "synthetic negative control",
+      "title": "Another Crazy Train Reaction",
+      "expect": "none"
+    },
+    {
+      "kind": "synthetic negative control",
+      "title": "Nene Royal set fire to the rain reaction",
+      "expect": "none"
+    },
+    {
+      "kind": "synthetic positive-ish review control",
+      "title": "Naces on base",
+      "expect": "review"
+    },
+    {
+      "kind": "synthetic positive-ish review control",
+      "title": "Stacey's lead vocals",
+      "expect": "review"
+    },
+    {
+      "kind": "synthetic positive-ish review control",
+      "title": "Ice barefoot drummer",
+      "expect": "review"
+    },
+    {
+      "kind": "synthetic positive-ish review control",
+      "title": "Neesha guitar solo",
+      "expect": "review"
+    },
+    {
+      "kind": "synthetic positive-ish review control",
+      "title": "Mission Souls family band reaction",
+      "expect": "review"
+    },
+    {
+      "kind": "synthetic negative control",
+      "title": "The barefoot drummer is crazy",
+      "expect": "none"
+    },
+    {
+      "kind": "synthetic negative control",
+      "title": "Stacey is an actress",
+      "expect": "none"
+    },
+    {
+      "kind": "synthetic negative control",
+      "title": "ICE cream maker and drums",
+      "expect": "none"
+    }
+  ]
+}
