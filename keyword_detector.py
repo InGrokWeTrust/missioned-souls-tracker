@@ -49,6 +49,7 @@ EVENT_NEWS = re.compile(
     re.I,
 )
 ARCHIVE_CHANNEL = re.compile(r"\breaction\s+archive\b", re.I)
+OFFICIAL_BAND_CHANNEL_ID = "UCeTfwcnUVurw7Qrk_KF5Idw"
 MAX_DESCRIPTION_PREFIX = 650
 
 
@@ -74,7 +75,8 @@ def _member_roles(text: str) -> dict[str, str]:
 
 
 def classify(title: str, description: str = "", tags=None, *, tracked_reactor=True,
-             channel_name: str = "") -> dict:
+             channel_name: str = "", channel_id: str = "",
+             verified_reactor_source: bool = False) -> dict:
     """Return tier, reasons and supporting matches without claiming truth.
 
     auto_candidate: only for strong title identity. Integration is report-only
@@ -82,6 +84,7 @@ def classify(title: str, description: str = "", tags=None, *, tracked_reactor=Tr
     """
     title = clean(title)
     channel_name = clean(channel_name)
+    channel_id = clean(channel_id)
     description = clean(description)[:MAX_DESCRIPTION_PREFIX]
     tags = tags if isinstance(tags, list) else []
     norm_tags = [clean(t).strip().lower().lstrip("#") for t in tags[:30]
@@ -90,8 +93,12 @@ def classify(title: str, description: str = "", tags=None, *, tracked_reactor=Tr
     reasons = []
     tier = "none"
     auto_candidate = False
+    review_priority = "none"
+    if channel_id == OFFICIAL_BAND_CHANNEL_ID:
+        return {"tier":"none", "auto_candidate":False, "review_priority":"none",
+                "evidence":[], "reasons":["original band channel, not independent reaction"]}
     if not tracked_reactor:
-        return {"tier":"none", "auto_candidate": False,
+        return {"tier":"none", "auto_candidate": False, "review_priority":"none",
                 "evidence":[], "reasons":["channel is not a tracked reactor"]}
 
     title_band = bool(BAND.search(title))
@@ -158,9 +165,20 @@ def classify(title: str, description: str = "", tags=None, *, tracked_reactor=Tr
             reasons.append("spelling variant is not unambiguous")
         if description_band or tag_band:
             reasons.append("description/tag reference could be boilerplate")
+    if tier == "review":
+        review_priority = "normal"
+        # The uploader's identity is a meaningful *prior*, not proof of
+        # video content. This flag is only trusted when the caller has
+        # authenticated the uploads playlist against the tracked registry.
+        if title_band and verified_reactor_source and channel_id and (
+                channel_id != OFFICIAL_BAND_CHANNEL_ID):
+            review_priority = "high"
+            evidence.append("band-title upload from verified tracked independent reactor")
+            reasons.append("higher review priority due to source, but source alone does not prove reaction")
     if not evidence:
         reasons.append("no sufficiently distinctive band evidence")
     return {"tier":tier, "auto_candidate":auto_candidate,
+            "review_priority":review_priority,
             "evidence":evidence, "reasons":reasons}
 
 
@@ -208,13 +226,16 @@ def report_unmatched(videos, youtube, *, max_videos=150):
             summary["excluded_shorts_or_live"] += 1
             continue
         outcome = classify(title, snippet.get("description", ""), snippet.get("tags", []),
-                           channel_name=v.get("channel", ""))
+                           channel_name=v.get("channel", ""),
+                           channel_id=v.get("channel_id",""),
+                           verified_reactor_source=bool(v.get("channel_id")))
         if outcome["tier"] in ("strong", "review"):
             summary[outcome["tier"]].append({
                 "video_id":v["video_id"],
                 "title":v.get("title", ""),
                 "channel":v.get("channel", ""),
-                "evidence":outcome["evidence"], "reasons":outcome["reasons"]
+                "evidence":outcome["evidence"], "reasons":outcome["reasons"],
+                "review_priority":outcome["review_priority"]
             })
         else:
             summary["none"] += 1
