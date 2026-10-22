@@ -111,5 +111,35 @@ class QualityReviewNextEightTests(unittest.TestCase):
         self.assertIn("did not independently watch",result["reviewer"])
         self.assertNotIn("precision",result)
 
+
+    def test_remaining_fourteen_provisional_cases_are_review_ready_and_unlabelled(self):
+        from pathlib import Path
+        path=Path(__file__).resolve().parents[1]/"data"/"reaction_quality_remaining14_pending_review_20261022.json"
+        selection=json.loads(path.read_text(encoding="utf-8"))
+        rows=selection["items"]
+        self.assertEqual(len(rows),14)
+        self.assertEqual(len({r["video_id"] for r in rows}),14)
+        self.assertTrue(all(r["review_label"] is None and r["reviewer"] is None for r in rows))
+        self.assertTrue(selection["originals_unchanged"])
+        self.assertEqual(selection["youtube_api_calls"],0)
+        self.assertEqual(selection["discord_posts"],0)
+        self.assertEqual(sum(r["prior_metadata_status"]=="supported_reaction" for r in rows),12)
+        self.assertEqual(sum(r["prior_metadata_status"]=="exclude_by_reactions_only_policy" for r in rows),2)
+
+    def test_remaining_fourteen_are_exactly_only_still_metadata_cases(self):
+        from pathlib import Path
+        path=Path(__file__).resolve().parents[1]/"data"/"reaction_quality_remaining14_pending_review_20261022.json"
+        rows=json.loads(path.read_text(encoding="utf-8"))["items"]
+        scored=evaluate_followup()["cases"]
+        provisional={r["video_id"] for r in scored if r["truth_provenance"] in (
+            "metadata_supported_reaction", "metadata_assessed_nonreaction")}
+        self.assertEqual({r["video_id"] for r in rows},provisional)
+        self.assertEqual(len(provisional),14)
+        lookup={r["video_id"]:r for r in scored}
+        for row in rows:
+            with self.subTest(video=row["video_id"]):
+                self.assertEqual(row["channel_id"],lookup[row["video_id"]]["channel_id"])
+                self.assertEqual(row["url"],"https://www.youtube.com/watch?v="+row["video_id"])
+
 if __name__=="__main__":
     unittest.main()
