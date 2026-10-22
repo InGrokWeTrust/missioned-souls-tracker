@@ -26,6 +26,7 @@ def _empty_state(*, bootstrap=False, legacy_cutoff=None):
         "seen_video_ids": [],
         "known_channel_ids": [],
         "pending": [],
+        "ocr_results": {},
         "_bootstrap": bootstrap,
         "_migrate_legacy": legacy_cutoff is not None,
     }
@@ -64,6 +65,9 @@ def load_state(path, *, allow_bootstrap=False):
                 ("video_id", "channel_id", "published_at", "title", "url")
             ):
                 raise StateError("Bookmark contains an invalid pending video.")
+        if not isinstance(payload.get("ocr_results", {}), dict):
+            raise StateError("Bookmark OCR cache has invalid schema.")
+        payload.setdefault("ocr_results", {})
         payload["_bootstrap"] = False
         payload["_migrate_legacy"] = False
         return payload
@@ -80,7 +84,7 @@ def save_state(path, state):
     """Atomically persist only public state fields (never internal migration flags)."""
     persistent = {key: state.get(key) for key in (
         "version", "last_published_at", "seen_video_ids",
-        "known_channel_ids", "pending"
+        "known_channel_ids", "pending", "ocr_results"
     )}
     directory = os.path.dirname(os.path.abspath(path))
     temp_path = None
