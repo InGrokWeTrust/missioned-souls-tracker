@@ -23,7 +23,8 @@ def clear_reaction_title(video, *, subject="Missioned Souls"):
     """True only with explicit title evidence that the VOD is a reaction.
 
     A title saying only 'Missioned Souls Family Band Studio Cover' does NOT
-    establish that the uploader is reacting to the cover.
+    establish a reaction, unless description metadata also carries multiple
+    explicit reaction hashtags. Neither source is visual content proof.
     """
     title = video.get("title", "")
     if not isinstance(title, str) or subject.lower() not in title.lower():
@@ -32,4 +33,16 @@ def clear_reaction_title(video, *, subject="Missioned Souls"):
         return False
     if "paper dove" in title.lower() and "#missionedsouls" in title.lower():
         return False
-    return bool(_REACTION.search(title))
+    if _REACTION.search(title):
+        return True
+    # Many reactors copy the original song title verbatim and identify their
+    # reaction using hashtags in the video description. Require MULTIPLE
+    # explicit reaction tags; one loose hashtag is insufficient.
+    description = video.get("description", "")
+    if not isinstance(description, str):
+        return False
+    tags = set(re.findall(r"(?<![a-z0-9])#[a-z0-9]+", description.lower()))
+    return len(tags & {
+        "#reaction", "#reactionvideo", "#musicianreacts", "#musicreaction",
+        "#firsttimehearing", "#reactingtomusic", "#firsttimereaction",
+    }) >= 2
