@@ -6,6 +6,7 @@ import requests
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
+from webhook_delivery import post_webhook
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -314,7 +315,9 @@ def get_reactions_with_stats():
 def send_to_discord(videos, max_to_send=5, run_start=None):
     if not videos:
         print("⚠️ No new videos to send.")
-        return
+        return []
+
+    delivered = []
 
     print(f"\n📨 Sending {min(max_to_send, len(videos))} new reactions to Discord...\n")
 
@@ -349,15 +352,37 @@ def send_to_discord(videos, max_to_send=5, run_start=None):
             "embeds": [embed]
         }
 
-        try:
-            response = requests.post(DISCORD_WEBHOOK_URL, json=data, timeout=10)
-            if response.status_code == 204:
-                print(f"✅ Sent: [{posted_value}] {title[:60]}...")
-            else:
-                print(f"❌ Discord error {response.status_code}")
-        except Exception as e:
-            print(f"❌ Failed to send: {e}")
+        if post_webhook(DISCORD_WEBHOOK_URL, data):
+            print(f"✅ Sent: [{posted_value}] {title[:60]}...")
+            delivered.append(video)
+        else:
+            print("::warning::Discord delivery failed; stopping to preserve the unsent bookmark.")
+            break
         time.sleep(1.3)
+
+    return delivered
+
+
+def deliver_reactions(new_videos, max_to_send, force_send_all=False, run_start=None):
+    """Send a bounded batch; persist only the contiguous, confirmed deliveries."""
+    ordered = sorted(new_videos, key=lambda v: v['published_at'])
+    # Normal runs drain oldest first; forced replays retain the original latest-N behaviour.
+    selected = ordered[-max_to_send:] if force_send_all else ordered[:max_to_send]
+    delivered = send_to_discord(selected, max_to_send=max_to_send, run_start=run_start)
+
+    if delivered and not force_send_all:
+        newest_delivered = delivered[-1]['published_at']
+        save_last_run(newest_delivered)
+        print(f"📌 Bookmark updated through confirmed delivery: {newest_delivered}")
+    elif force_send_all:
+        print("🔄 Force mode: bookmark left unchanged")
+
+    if len(delivered) < len(selected):
+        print(f"::warning::Only {len(delivered)} of {len(selected)} selected reactions were delivered.")
+    if len(ordered) > len(selected) and not force_send_all:
+        print(f"⏳ {len(ordered) - len(selected)} reactions remain for subsequent runs.")
+
+    return delivered
 
 
 # ===================== MAIN =====================
@@ -389,12 +414,7 @@ if __name__ == "__main__":
     new_videos.sort(key=lambda x: x['published_at'], reverse=False)
 
     if new_videos:
-        top_videos = new_videos[-MAX_TO_SEND:] if len(new_videos) >= MAX_TO_SEND else new_videos
-        send_to_discord(top_videos, max_to_send=MAX_TO_SEND, run_start=run_start)
-
-        newest_timestamp = new_videos[-1]['published_at']
-        save_last_run(newest_timestamp)
-        print(f"📌 Bookmark updated to: {newest_timestamp}")
+        deliver_reactions(new_videos, MAX_TO_SEND, FORCE_SEND_ALL, run_start)
     else:
         send_to_discord([], max_to_send=MAX_TO_SEND)
         print("ℹ️ No new videos – bookmark unchanged")
