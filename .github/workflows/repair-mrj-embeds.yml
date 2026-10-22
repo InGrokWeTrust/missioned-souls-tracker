@@ -1,0 +1,43 @@
+name: Repair existing Mr J Discord thumbnails (edit only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      message_links:
+        description: 'Five lines: YOUTUBE_VIDEO_ID SPACE DISCORD_COPY_MESSAGE_LINK'
+        required: true
+        type: string
+      mode:
+        description: 'dry-run validates only; apply edits the existing posts'
+        required: true
+        type: choice
+        default: dry-run
+        options:
+          - dry-run
+          - apply
+
+permissions:
+  contents: read
+
+concurrency:
+  group: missioned-souls-notifications-${{ github.ref }}
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  edit-only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install required HTTP client
+        run: python -m pip install requests
+      - name: Validate exact existing messages and repair only their embeds
+        env:
+          MRJ_DISCORD_MESSAGE_LINKS: ${{ inputs.message_links }}
+          MRJ_EMBED_REPAIR_MODE: ${{ inputs.mode }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python repair_mrj_embeds.py
