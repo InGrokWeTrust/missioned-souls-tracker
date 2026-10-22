@@ -415,3 +415,53 @@ https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/3972401345
 
 Tests: https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/39724013470
 
+
+
+### Refined live keyword audit — 22 October 2026
+
+The read-only live scan again checked all 125 tracked channels and 622 public
+video uploads (425 eligible, 197 excluded, 0 API failures). The stronger
+keyword tier still reports 91 strong, 2 manual review, and 332 no-match;
+3 hidden-title candidates remain (Nitro Neisha, Vinny, HCJB).
+
+We corrected a second **audit-only** source of false alarms: a generic
+YouTube link and a long description are not artist evidence. Consequently,
+the unmatched **suspect pool shrank from 112 to just 4** video records
+with actual Missioned Souls references. All four are unrelated on the
+published metadata (3 police/crime videos with copied tags and one
+Nickelback reaction with a stray hashtag). Long descriptions still appear
+as a completeness diagnostic, not as suspected reactions.
+
+For balanced auditing, the review sheet now includes **46 videos**:
+2 title-hidden description-supported review candidates, 4 incidental
+band-reference records, and 40 randomly sampled no-match controls
+(capped at 3 per channel). There are 88 passing offline tests.
+
+Independent metadata review found:
+- Vinny video E2tRH0B6Ow8: video-specific description explicitly confirms
+  a Missioned Souls reaction with the original performance URL.
+- HCJB video jxoHvBlRABA: video-specific description strongly identifies
+  Neisha guitar-performance reaction to Tunnel of Love and Rosanna with
+  Missioned Souls. Video playback has not been verified.
+- Ambiguous Taylor John Hardin no-match w-Lu3DfSMFc: actual description
+  identifies Ren x Chris Webby, **not** Missioned Souls.
+- Ambiguous Vinny no-match P6jrwuhFHlo: actual description identifies
+  Erik Gronwall, **not** Missioned Souls.
+- A Filipino viral-singers compilation paU0F6MOIHo remains genuinely
+  unclear from text and should not be labelled as unrelated without
+  watching the video.
+
+Provenance-preserving assessments are saved as
+data/keyword_metadata_review_findings.json; **they are not independently
+video-watched ground-truth labels**, and no measured recall/precision is
+claimed.
+
+Final read-only artifact includes keyword-live-shadow-report.json,
+keyword-miss-audit.json and keyword-human-review.html at:
+https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/39724894612
+
+All 88 offline tests and 20 curated fixture checks passed:
+https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/39724894617
+
+All this remains on the unmerged draft experiment branch; production
+notification code, Discord and bookmarks are unchanged. No paid API calls.
