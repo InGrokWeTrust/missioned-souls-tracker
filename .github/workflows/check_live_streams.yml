@@ -43,6 +43,11 @@ jobs:
           check_artifacts: true
           if_no_artifact_found: warn
 
+      - name: Recover missing state artifacts from GitHub API if needed
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python restore_missing_state.py live
+
       - name: Restore and persist durable live notification history before scanning
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
