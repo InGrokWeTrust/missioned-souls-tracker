@@ -315,6 +315,15 @@ def get_reactions_with_stats():
     return all_videos, run_start, scanned_channel_ids
 
 
+def discord_timestamp(iso):
+    """Dynamic Discord local-time and relative timestamp for embeds."""
+    dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    stamp = int(dt.timestamp())
+    return f"<t:{stamp}:t> (<t:{stamp}:R>)"
+
+
 def send_to_discord(videos, max_to_send=5, run_start=None, on_success=None):
     if not videos:
         print("⚠️ No new videos to send.")
@@ -332,8 +341,7 @@ def send_to_discord(videos, max_to_send=5, run_start=None, on_success=None):
             title = f"🕒 UPCOMING: {title}"
 
         age = video.get('age_at_run', humanize_ago(video['published_at'], run_start))
-        published_str = format_published_time(video['published_at'])
-        posted_value = f"{published_str} ({age})" if published_str else age
+        posted_value = discord_timestamp(video['published_at'])
 
         embed = {
             "title": title,
