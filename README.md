@@ -292,3 +292,32 @@ If the saved live state has expired, the same emergency option seeds *currently 
 ### Quota documentation
 
 See [Google's current YouTube quota calculator](https://developers.google.com/youtube/data/determine_quota_cost). A search request consumes one of the separate daily search calls; the standard playlist and video fetches consume the general 10,000-unit pool.
+
+---
+
+## Experimental AI vision vs metadata evaluation (NOT deployed)
+
+The experiment branch `experiment/vision-metadata-eval` tests a second approach after traditional thumbnail OCR proved unreliable across different YouTube thumbnails. It does **not** alter the production reaction tracker, notification bookmarks or Discord channel.
+
+### Why this approach
+
+- Read video-specific titles, first portion of descriptions, and exact artist tags as supporting signals, not unquestioned proof.
+- Have a vision-capable model read and interpret a public thumbnail, returning one of: `match`, `not_match`, or `uncertain`, plus visible and reaction evidence. Ambiguous images must stay `uncertain`.
+- Prevent overconfident matches based only on Neisha, a generic song name, or a reactor's channel history.
+- Use an **independently human-labelled** evaluation set for precision, recall, false positives, and abstention/coverage. Unknown labels must not contribute to performance claims.
+
+### Free candidate collection
+
+GitHub Actions workflow **Vision candidate sample - read only** collects *up to 150 UNLABELLED candidates* from public YouTube RSS feeds of up to 65 tracked reactor channels, plus five previously inspected test examples. It may collect fewer if RSS feeds are unavailable. No YouTube API key or Discord webhook is involved, and no OpenAI API calls occur. Download `vision-unlabelled-candidates` artifact to review links and supply independent ground-truth labels. Missing verification must be represented as null, not inferred from titles.
+
+### Opt-in paid vision comparison
+
+The separate **PAID manual vision evaluation - never production** workflow runs **only** on explicit manual dispatch on the experimental branch when you enter `YES` to approve billing. A GitHub Actions repository secret named `OPENAI_API_KEY` is required, configured in GitHub Settings → Secrets and variables → Actions; never share the key in chat or a PR. This secret is **not available from ChatGPT Plus by default**; API usage is separately billed.
+
+Defaults: `gpt-6-luna`, a maximum of 10 calls, and a roughly USD $0.50 estimated API usage budget (plus any taxes/fees). The runner tracks token usage and enforces a call cap. The budget can be exceeded by the final request and depends on actual image processing; do not treat it as a hard billing limit. Review current [OpenAI API pricing](https://developers.openai.com/api/docs/pricing) before execution. Optionally compare `gpt-6.1-sol` after first evaluating the lower-cost model. Every sample yields an inspectable JSON record; uncertain predictions go to manual review.
+
+The report produces numerical precision and recall **only for cases with `ground_truth` = `match` or `not_match` and `reviewed_by` = `human`, `user`, or `manual`**. With no human-confirmed labels the metric is deliberately `null`; a large collection is *not* an accuracy test by itself.
+
+### Safety and rollout
+
+No automatic Discord notifications, no YouTube write access, and no production workflow edits. The API is called only from the manually approved workflow and processes public thumbnail images, titles and metadata. Avoid putting private information in the test sample. Retain results for 14 days. Start with a varied manually-labelled set (ideally 100–200 real uploads with positive and negative cases), then compare model predictions to labels before considering any separate deployment proposal. Image models can still make mistakes; threshold-free model labels are not calibrated probabilities.
