@@ -48,8 +48,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HISTORY_ENABLED: "true"
           DRY_RUN: ${{ vars.DRY_RUN }}
-          HISTORY_ENABLED: "true"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python notification_history.py hydrate live live_last_run.json
 
       - name: Run live stream checker
@@ -60,6 +58,8 @@ jobs:
           MAX_TO_SEND: ${{ vars.MAX_TO_SEND }}
           FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
           DRY_RUN: ${{ vars.DRY_RUN }}
+          HISTORY_ENABLED: "true"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LIVE_LAST_RUN_FILE: live_last_run.json
           BOOTSTRAP_STATE_IF_MISSING: ${{ vars.BOOTSTRAP_STATE_IF_MISSING }}
         shell: bash
