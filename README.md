@@ -638,3 +638,49 @@ review tier based on title alone; they are not rejected merely because
 the titles resemble studio covers.
 
 No production changes or automatic experimental alerts were enabled.
+
+
+### New evidence signal: independently uploaded reaction titles (2026-10-22)
+
+The user verified three genuine reactions whose exact YouTube titles contain
+the band name and musical-cover wording but do NOT literally say "reaction":
+
+- gXWQQNUpKcA — **ROSANNA by Toto | Missioned Souls | Familly band studio cover**
+  — uploader **Global take** (channel UC8ReQVU4PPfbxRy4B18jauw).
+- iVeWY7mTkrE — **MISSIONED SOULS (MS4) "I HATE MYSELF FOR LOVING YOU"
+  STUDIO COVER | THIS IS HOW YOU DO IT!!!** — uploader **Cherman Vlogs**
+  (channel UCvEgHm5bWB8Rvla_Bxl83WA).
+- JjFzKrfhNgg — **Missioned Souls Crazy Train** — uploader **S.E.A.T.**
+  (channel UC27_PpVaZq4kYquM5v0m3lg).
+
+The key distinguishing clue is not the presence of the word "reaction" in
+a title, but that the video was uploaded by an independently tracked reactor,
+**rather than** the band's official channel. This raises the priority of a
+band-titled video for HUMAN REVIEW, but DOES NOT independently prove it is
+a reaction. Independent reactor channels can also publish concert news,
+tributes, reposts, unrelated band discussions, and separate projects.
+
+In the unmerged experimental keyword classifier:
+
+- The independent tracked-reactor signal must be verified using the uploads
+  playlist and channel ID, not just a non-Missioned Souls display name.
+- The exact official Missioned Souls YouTube channel ID is explicitly
+  excluded.
+- A verified tracked reactor publishing a video with the band name in the
+  title but no reaction word receives **tier=review,
+  review_priority=high**. It does not receive **tier=strong** and cannot
+  generate an automatic Discord notification.
+- Other ambiguous title-only band matches stay at **review_priority=normal**;
+  historical controls and arbitrary external uploader identities are not
+  treated as independently verified tracked reactors.
+- Separate Paper Dove performances, tributes, event announcements and
+  archived performances retain their exclusions even when uploaded by a
+  tracked reactor. Generic band discussion can also be review-priority high
+  and must still be manually judged.
+- The read-only shadow runner and experimental title-unmatched report pass
+  channel ID/source context through to the classifier; the rest of production
+  delivery, bookmarks, and Discord remain unchanged.
+
+The three human-confirmed examples are now permanent offline regression
+cases. The signal improves **which videos are reviewed first**, not measured
+precision or verified automatic-posting safety.
