@@ -292,3 +292,28 @@ If the saved live state has expired, the same emergency option seeds *currently 
 ### Quota documentation
 
 See [Google's current YouTube quota calculator](https://developers.google.com/youtube/data/determine_quota_cost). A search request consumes one of the separate daily search calls; the standard playlist and video fetches consume the general 10,000-unit pool.
+
+
+---
+
+## Experimental thumbnail OCR detection (v1, opt-in)
+
+A tracked reactor may omit Missioned Souls from a reaction title, as in Taylor John Hardin Reactions' [Nitro Neisha TEARS It Up On This Classic!](https://www.youtube.com/watch?v=hf03Voz2QBM). The screenshot's thumbnail contains the band name even though the title does not.
+
+The experimental thumbnail_detector.py checks recent uploads on tracked channels using description/tags, then local Tesseract OCR for thumbnail text (not facial recognition). It does not download videos or use paid AI services. A misread band name plus supporting NEISHA text is recognised. An ordinary NEISHA-only thumbnail is not sufficient.
+
+### GitHub Actions repository variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| ENABLE_THUMBNAIL_OCR | false | Enable extra metadata and OCR inspection |
+| OCR_NOTIFY | false | Allow confidently recognised hidden reactions into the Discord queue |
+| MAX_OCR_PER_RUN | 10 | Limit number of thumbnails analysed each tracker run (maximum 20) |
+
+**Recommended first test:** enable ENABLE_THUMBNAIL_OCR=true but leave OCR_NOTIFY=false. This prints identified candidate video IDs and reasons in the Actions log without posting hidden matches. Existing title-based notifications continue normally. Review results before changing OCR_NOTIFY.
+
+To use Tesseract, the workflow installs tesseract-ocr and Pillow only if the feature is enabled. Image requests are restricted to official YouTube thumbnail hosts. Failed downloads are retried next run rather than cached as negative.
+
+Lookback is 96 hours from publication, negative OCR results are cached for 24 hours, and positive classification data is stored in the existing last_run.json bookmark. The detection path obeys standard Shorts/short-duration/live exclusions and existing video-ID deduplication. Limits remain: only the latest five uploads per channel are scanned, and results published more than 96 hours ago are not examined by OCR.
+
+Screenshot regression: local Tesseract OCR read the band text imperfectly as NMissionevySours and independently recognised NEISHA; the detector correctly classified that combination. No production Discord messages are sent as part of this feature's tests.
