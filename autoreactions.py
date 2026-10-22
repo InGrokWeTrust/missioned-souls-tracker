@@ -9,6 +9,7 @@ from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
 from channel_exclusions import is_excluded_channel
 from verified_nitro_reactions import is_verified_nitro_reaction
+from video_release_policy import is_published_vod
 from reaction_state import (StateError, load_state, save_state, plan_notifications,
                             acknowledge, read_live_sent_ids, reconcile_live_notifications)
 
@@ -265,6 +266,7 @@ def get_reactions_with_stats():
     duration_dict = {}
     live_details_dict = {}
     broadcast_status_dict = {}
+    confirmed_ids = set()
 
     for i in range(0, len(video_ids), 50):
         chunk = video_ids[i:i+50]
@@ -275,6 +277,7 @@ def get_reactions_with_stats():
 
         for item in stats_response.get('items', []):
             vid_id = item['id']
+            confirmed_ids.add(vid_id)
             stats = item.get('statistics', {})
             broadcast_status_dict[vid_id] = item.get('snippet', {}).get('liveBroadcastContent', 'none')
             stats_dict[vid_id] = {
@@ -300,14 +303,14 @@ def get_reactions_with_stats():
         video['like_count'] = vid_stats.get('like_count', 0)
         video['comment_count'] = vid_stats.get('comment_count', 0)
         video['duration_sec'] = duration_dict.get(vid_id, 0)
+        video['metadata_confirmed'] = vid_id in confirmed_ids
         video['live_streaming_details'] = live_details_dict.get(vid_id)
         video['live_broadcast_content'] = broadcast_status_dict.get(
             vid_id, video.get('live_broadcast_content', 'none'))
         video['age_at_run'] = humanize_ago(video['published_at'], run_start)
 
-        if video['live_broadcast_content'] in ('live', 'upcoming'):
-            # The separate live checker handles live alerts. Never announce upcoming as LIVE.
-            filtered_log.append((video, "handled by live checker / upcoming"))
+        if not is_published_vod(video):
+            filtered_log.append((video, "upcoming, live, or unconfirmed VOD"))
         elif is_short_or_too_short(video):
             reason = classify_filter_reason(video)
             filtered_log.append((video, reason))
@@ -417,6 +420,15 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
     if bootstrap and not videos:
         raise StateError("Cannot bootstrap from an empty reaction scan.")
     live_ids = read_live_sent_ids(LIVE_LAST_RUN_FILE)
+    # Restore only independently confirmed historical Discord deliveries, never inferred uploads.
+    with open(os.path.join(os.path.dirname(__file__), 'historical_deliveries.json'), encoding='utf-8') as f:
+        historical_ids = json.load(f)['confirmed_sent_video_ids']
+    for vid in historical_ids:
+        if not isinstance(vid, str) or not vid:
+            raise StateError('Invalid historical delivered video ID')
+        if vid not in state['seen_video_ids']:
+            state['seen_video_ids'].append(vid)
+    state['pending'] = [v for v in state['pending'] if v['video_id'] not in historical_ids]
     plan_notifications(state, videos, tracked_channel_ids, now=run_start,
                        channel_added_at=channel_added_at)
     # Only confirmed archived/livestream IDs are removed; ordinary reactions are unaffected.
@@ -429,11 +441,20 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
         return []
 
     if force_send_all:
-        chosen = sorted(videos, key=lambda v: (v["published_at"], v["video_id"]))[-MAX_TO_SEND:]
+        # Force mode must not override the publication-safety policy.
+        chosen = sorted(
+            [v for v in videos if is_published_vod(v)
+             and v['video_id'] not in state['seen_video_ids']
+             and v['video_id'] not in live_ids],
+            key=lambda v: (v["published_at"], v["video_id"])
+        )[-MAX_TO_SEND:]
         print(f"🔄 Force replay: {len(chosen)} recent videos; state remains unchanged.")
         return send_to_discord(chosen, max_to_send=MAX_TO_SEND, run_start=run_start)
 
-    chosen = state["pending"][:MAX_TO_SEND]
+    # A pending video may have been queued when it was public and later scheduled
+    # as a premiere. Only deliver when this scan independently confirms it is ready.
+    ready_ids = {v['video_id'] for v in videos if is_published_vod(v)}
+    chosen = [v for v in state['pending'] if v['video_id'] in ready_ids][:MAX_TO_SEND]
     if not chosen:
         print("ℹ️ No pending reactions to deliver.")
         return []
