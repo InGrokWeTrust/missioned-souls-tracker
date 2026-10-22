@@ -49,6 +49,15 @@ class Strong30ReviewTests(unittest.TestCase):
         self.assertIsNone(r["population_precision"])
         self.assertIsNone(r["population_recall"])
 
+    def test_reaction_specific_precision_not_inferred_from_valid_concert_labels(self):
+        frozen, rows=self.case()
+        result=evaluate(frozen, rows)
+        self.assertIsNone(result["reaction_only_precision"])
+        self.assertTrue(result["review_scope_requires_clarification"])
+        flagged={x["video_id"] for x in result["content_suspected_nonreaction_but_marked_valid"]}
+        self.assertIn("6Eu4f5oqXnk",flagged)
+        self.assertIn("qqhUL5a0rik",flagged)
+
     def test_no_extrapolation_from_risk_enriched_sample(self):
         frozen, rows=self.case()
         r=evaluate(frozen, rows)
