@@ -47,6 +47,7 @@ def clear_reaction_title(video, *, subject="Missioned Souls"):
     return len(tags & {
         "#reaction", "#reactionvideo", "#musicianreacts", "#musicreaction",
         "#firsttimehearing", "#reactingtomusic", "#firsttimereaction",
+        "#firstreaction",
     }) >= 2
 
 def is_strong_reaction_candidate(video, *, subject="Missioned Souls"):
