@@ -155,6 +155,17 @@ class OfflineTrackerTests(unittest.TestCase):
         self.assertIn("UC2", state["known_channel_ids"])
         self.assertIn("id-7", state["seen_video_ids"])
 
+    def test_first_scan_sends_only_reactions_newer_than_channel_added_at(self):
+        self.write_state(blank_state())
+        older = video(1, channel="UC2", published="2026-10-22T09:00:00Z")
+        newer = video(2, channel="UC2", published="2026-10-22T11:00:00Z")
+        with patch.object(tracker, "send_to_discord", side_effect=self.all_sent):
+            delivered = tracker.run_tracker(
+                [older, newer], {"UC1", "UC2"}, run_start=NOW,
+                channel_added_at={"UC2": "2026-10-22T10:00:00Z"})
+        self.assertEqual([v["video_id"] for v in delivered], ["id-2"])
+        self.assertIn("id-1", load_state(self.bookmark)["seen_video_ids"])
+
     def test_old_discovery_outside_lookback_is_not_backfilled(self):
         self.write_state()
         old = video(1, published="2026-09-01T01:00:00Z")
