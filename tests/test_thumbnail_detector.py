@@ -173,6 +173,73 @@ class ThumbnailTests(unittest.TestCase):
                     self.assertEqual(tracker.find_hidden_reactions([sample()], {"ocr_results": {}}, NOW), [])
                     inspect.assert_not_called()
 
+    def test_end_to_end_playlist_scan_without_title_keyword(self):
+        video = sample()
+        item = {
+            "snippet": {
+                "title": video["title"],
+                "thumbnails": {"high": {"url": video["thumbnail"]}},
+                "publishedAt": video["published_at"],
+            },
+            "contentDetails": {
+                "videoId": EXAMPLE_ID, "videoPublishedAt": video["published_at"]
+            }
+        }
+        details = {
+            "id": EXAMPLE_ID,
+            "snippet": {
+                "description": "", "tags": [], "liveBroadcastContent": "none"
+            },
+            "statistics": {"viewCount": "1000"},
+            "contentDetails": {"duration": "PT20M53S"}
+        }
+        with patch.object(tracker, "load_tracked_channels", return_value={
+                video["channel_id"]: {"title": video["channel"]}
+             }), patch.object(tracker, "ENABLE_THUMBNAIL_OCR", True), \
+             patch.object(tracker, "OCR_NOTIFY", True), \
+             patch.object(tracker, "inspect_thumbnail",
+                          return_value=(True, "approximate band plus Neisha")) as inspect, \
+             patch.object(tracker, "youtube") as yt:
+            yt.playlistItems.return_value.list.return_value.execute.return_value = {"items": [item]}
+            yt.videos.return_value.list.return_value.execute.return_value = {"items": [details]}
+            videos, _, scanned = tracker.get_reactions_with_stats(
+                state={"ocr_results": {}})
+        self.assertEqual([v["video_id"] for v in videos], [EXAMPLE_ID])
+        self.assertEqual(scanned, {video["channel_id"]})
+        inspect.assert_called_once()
+
+    def test_skip_already_notified_thumbnail(self):
+        with patch.object(tracker, "ENABLE_THUMBNAIL_OCR", True), \
+             patch.object(tracker, "youtube") as yt:
+            found = tracker.find_hidden_reactions(
+                [sample()], {"ocr_results": {}, "seen_video_ids": [EXAMPLE_ID],
+                             "pending": []}, NOW)
+        self.assertEqual(found, [])
+        yt.videos.assert_not_called()
+
+    def test_throttle_ocr_to_configured_budget(self):
+        videos = []
+        details = []
+        for i in range(5):
+            vid = sample()
+            vid["video_id"] = f"abcdefgh0{i}"
+            vid["thumbnail"] = f"https://i.ytimg.com/vi/{vid['video_id']}/hqdefault.jpg"
+            videos.append(vid)
+            details.append({
+                "id": vid["video_id"],
+                "snippet": {"description": "", "liveBroadcastContent": "none"},
+                "contentDetails": {"duration": "PT15M"},
+                "statistics": {}
+            })
+        with patch.object(tracker, "ENABLE_THUMBNAIL_OCR", True), \
+             patch.object(tracker, "MAX_OCR_PER_RUN", 2), \
+             patch.object(tracker, "inspect_thumbnail", return_value=(False, "no match")) as inspect, \
+             patch.object(tracker, "youtube") as yt:
+            yt.videos.return_value.list.return_value.execute.return_value = {"items": details}
+            found = tracker.find_hidden_reactions(videos, {"ocr_results": {}}, NOW)
+        self.assertEqual(found, [])
+        self.assertEqual(inspect.call_count, 2)
+
     def test_state_roundtrip_preserves_cache(self):
         with tempfile.TemporaryDirectory() as d:
             p = os.path.join(d, "bookmark.json")
