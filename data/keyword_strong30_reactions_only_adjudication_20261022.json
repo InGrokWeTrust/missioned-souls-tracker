@@ -13,152 +13,183 @@
     {
       "video_id": "hf03Voz2QBM",
       "status": "supported_reaction",
-      "rationale": "User-confirmed Nitro Neisha reaction and reactor description."
+      "rationale": "User-confirmed Nitro Neisha reaction and reactor description.",
+      "title": "Nitro Neisha TEARS It Up On This Classic!"
     },
     {
       "video_id": "VhwqMoL-t8A",
       "status": "recheck_video",
-      "rationale": "Reaction archive channel; video may be a band performance repost or a genuine individual reaction. Description describes an archive, not video-specific reactor commentary."
+      "rationale": "Reaction archive channel; video may be a band performance repost or a genuine individual reaction. Description describes an archive, not video-specific reactor commentary.",
+      "title": "MISSIONED SOULS COVERS \"TAKE ON ME\""
     },
     {
       "video_id": "fqTvzUxJT1k",
       "status": "exclude_by_reactions_only_policy",
-      "rationale": "User note explicitly says not an actual reaction; original song tribute to Naces."
+      "rationale": "User note explicitly says not an actual reaction; original song tribute to Naces.",
+      "title": "Naces of Missioned Souls ❤️ The Heartbeat Beneath the Song | A Song for the Unsung Bass Player"
     },
     {
       "video_id": "6Eu4f5oqXnk",
       "status": "exclude_by_reactions_only_policy",
-      "rationale": "Video-specific description announces a future free concert, not a reaction to performance."
+      "rationale": "Video-specific description announces a future free concert, not a reaction to performance.",
+      "title": "Missioned Souls LIVE From Cebu! 🌎 FREE Worldwide Concert | October 23, 2026"
     },
     {
       "video_id": "IjaXJDLaIEM",
       "status": "exclude_by_reactions_only_policy",
-      "rationale": "Video-specific description discusses one-million-view milestone and band promotion, not a performance reaction."
+      "rationale": "Video-specific description discusses one-million-view milestone and band promotion, not a performance reaction.",
+      "title": "Missioned Souls kid 1 MILLION VIEWS for this #missionedsouls #familybandi  #kantakwento"
     },
     {
       "video_id": "qqhUL5a0rik",
       "status": "exclude_by_reactions_only_policy",
-      "rationale": "Video title promotes free concert; generic channel reaction boilerplate in description is not video-specific."
+      "rationale": "Video title promotes free concert; generic channel reaction boilerplate in description is not video-specific.",
+      "title": "Missioned Souls Are Hosting a FREE LIVE CONCERT! 🎶 Don't Miss This!"
     },
     {
       "video_id": "vpYHLQr04LQ",
       "status": "exclude_by_reactions_only_policy",
-      "rationale": "Website review and livestream announcement, not an analysis of a Missioned Souls performance."
+      "rationale": "Website review and livestream announcement, not an analysis of a Missioned Souls performance.",
+      "title": "Missioned Souls |  FREE Live Stream This Weekend! | Reviewing the Website!!"
     },
     {
       "video_id": "r5TVQYSmZcY",
       "status": "exclude_by_reactions_only_policy",
-      "rationale": "User specifically excludes Paper Dove, a different performing group even if it includes some Missioned Souls members."
+      "rationale": "User specifically excludes Paper Dove, a different performing group even if it includes some Missioned Souls members.",
+      "title": "Paper Dove “I’m Not Okay” MCR cover.  FilAm dad reacts. #missionedsouls"
     },
     {
       "video_id": "cx1s0V_8Bu4",
       "status": "recheck_video",
-      "rationale": "Video describes what differentiates the band; whether it actually critiques or reacts to a specific performance requires content-level review."
+      "rationale": "Video describes what differentiates the band; whether it actually critiques or reacts to a specific performance requires content-level review.",
+      "title": "🔥 Missioned Souls- What makes them Different From Other Family Bands"
     },
     {
       "video_id": "JjFzKrfhNgg",
       "status": "recheck_video",
-      "rationale": "Band-and-song title only, 'Great live' description insufficient to verify third-party reaction."
+      "rationale": "Band-and-song title only, 'Great live' description insufficient to verify third-party reaction.",
+      "title": "Missioned Souls Crazy Train"
     },
     {
       "video_id": "iVeWY7mTkrE",
       "status": "recheck_video",
-      "rationale": "Studio-cover title, reaction hashtag and source link; cannot distinguish reaction commentary from repost through metadata alone."
+      "rationale": "Studio-cover title, reaction hashtag and source link; cannot distinguish reaction commentary from repost through metadata alone.",
+      "title": "MISSIONED SOULS (MS4) \"I HATE MYSELF FOR LOVING YOU\" STUDIO COVER | THIS IS HOW YOU DO IT!!!"
     },
     {
       "video_id": "gXWQQNUpKcA",
       "status": "recheck_video",
-      "rationale": "Studio-cover title, generic subscribe caption and reaction hashtag; no video-specific commentary evidence."
+      "rationale": "Studio-cover title, generic subscribe caption and reaction hashtag; no video-specific commentary evidence.",
+      "title": "ROSANNA by Toto | Missioned Souls | Familly band studio cover"
     },
     {
       "video_id": "Yrt40Jti9zA",
       "status": "supported_reaction",
-      "rationale": "Established WILBURN reactor; description explicitly says this is a feedback/reaction video."
+      "rationale": "Established WILBURN reactor; description explicitly says this is a feedback/reaction video.",
+      "title": "OMG! MISSIONED SOULS - OZZY'S CRAZY TRAIN COVER"
     },
     {
       "video_id": "QJp3kNQEUG0",
       "status": "supported_reaction",
-      "rationale": "Title explicitly says reaction to Missioned Souls Total Eclipse performance."
+      "rationale": "Title explicitly says reaction to Missioned Souls Total Eclipse performance.",
+      "title": "MISSIONED SOULS – Total Eclipse of the Heart | Reaction | Another Legendary Cover! + Vlog"
     },
     {
       "video_id": "qz3tZGs8nzo",
       "status": "supported_reaction",
-      "rationale": "Title says Reacting To Missioned Souls; description calls video a reaction."
+      "rationale": "Title says Reacting To Missioned Souls; description calls video a reaction.",
+      "title": "Reacting To Missioned Souls -  I HATE MYSELF FOR LOVING YOU(Joan Jett & The Blackhearts Cover)!!!"
     },
     {
       "video_id": "emohzErkSxU",
       "status": "supported_reaction",
-      "rationale": "Title specifies Missioned Souls performance reaction / first-time hearing."
+      "rationale": "Title specifies Missioned Souls performance reaction / first-time hearing.",
+      "title": "Missioned Souls (ft. Johnny Cummings) - Hysteria (Muse Cover) | REACTION | First Time Hearing"
     },
     {
       "video_id": "eg1mmc5N4_M",
       "status": "supported_reaction",
-      "rationale": "Description identifies creators reacting to Missioned Souls Rosanna performance."
+      "rationale": "Description identifies creators reacting to Missioned Souls Rosanna performance.",
+      "title": "MISSIONED SOULS | \"ROSANNA (TOTO COVER)\" (reaction)"
     },
     {
       "video_id": "X2iIie9DGMQ",
       "status": "supported_reaction",
-      "rationale": "Title names Missioned Souls Reaction; description discusses evaluating their AKAP cover."
+      "rationale": "Title names Missioned Souls Reaction; description discusses evaluating their AKAP cover.",
+      "title": "Why This AKAP Cover Is A Must-Watch | Missioned Souls Reaction"
     },
     {
       "video_id": "qHOVcqgRRgA",
       "status": "supported_reaction",
-      "rationale": "Title and video-specific description explicitly name the cover reaction."
+      "rationale": "Title and video-specific description explicitly name the cover reaction.",
+      "title": "MISSIONED SOULS – Hopelessly Devoted to You COVER REACTION! 🤯 | Olivia Newton-John / Grease"
     },
     {
       "video_id": "WZpAnBgf_aM",
       "status": "supported_reaction",
-      "rationale": "Description explicitly says Today I'm reacting to Missioned Souls Total Eclipse."
+      "rationale": "Description explicitly says Today I'm reacting to Missioned Souls Total Eclipse.",
+      "title": "Missioned Souls Take On Total Eclipse of the Heart | They Nailed It!"
     },
     {
       "video_id": "rhoHMkgcvj0",
       "status": "supported_reaction",
-      "rationale": "Video-specific description says we are checking out the band performance; user marked match."
+      "rationale": "Video-specific description says we are checking out the band performance; user marked match.",
+      "title": "THEYRE ACTUALLY SO GOOD!! | HOPELESSLY DEVOTED TO YOU BY MISSIONED SOULS"
     },
     {
       "video_id": "y2CRFwhqSqM",
       "status": "supported_reaction",
-      "rationale": "Title explicitly says reaction to two Missioned Souls covers."
+      "rationale": "Title explicitly says reaction to two Missioned Souls covers.",
+      "title": "MISSIONED SOULS - Bad Moon Rising and Kiss Me (Reaction)"
     },
     {
       "video_id": "4Irh5GOuklU",
       "status": "supported_reaction",
-      "rationale": "Title identifies Missioned Souls Long Time cover reaction."
+      "rationale": "Title identifies Missioned Souls Long Time cover reaction.",
+      "title": "Missioned Souls Long Time Cover Reaction"
     },
     {
       "video_id": "zPZf_TsXeak",
       "status": "supported_reaction",
-      "rationale": "Title says Reaction and video-specific description discusses a Missioned Souls song."
+      "rationale": "Title says Reaction and video-specific description discusses a Missioned Souls song.",
+      "title": "Missioned Souls – Doc Holliday / Diary of Jane | They ROCKED This! 🔥 | Reaction"
     },
     {
       "video_id": "wf86HLqLmN8",
       "status": "supported_reaction",
-      "rationale": "Title and description explicitly identify studio performance reaction and original link."
+      "rationale": "Title and description explicitly identify studio performance reaction and original link.",
+      "title": "First Time Reaction - Missioned Souls - I Hate Myself For Loving You | Studio Version"
     },
     {
       "video_id": "8PMWuRU-H30",
       "status": "supported_reaction",
-      "rationale": "Title explicitly identifies a Missioned Souls performance reaction."
+      "rationale": "Title explicitly identifies a Missioned Souls performance reaction.",
+      "title": "Missioned Souls - Hopelessly Devoted To You - Reaction"
     },
     {
       "video_id": "XBCg8-44GJs",
       "status": "supported_reaction",
-      "rationale": "Title and description explicitly identify musician reaction to band performance."
+      "rationale": "Title and description explicitly identify musician reaction to band performance.",
+      "title": "Musician reacts to Missioned Souls - The Final Countdown (Europe Cover)"
     },
     {
       "video_id": "_SBmrJZBaaE",
       "status": "supported_reaction",
-      "rationale": "Title and video-specific description say first-time reaction to original Missioned Souls song."
+      "rationale": "Title and video-specific description say first-time reaction to original Missioned Souls song.",
+      "title": "I Absolutely Adore This Family's EPIC ORIGINAL SONG!!! | Missioned Souls - All It Takes - Reaction"
     },
     {
       "video_id": "ETb_O74yn20",
       "status": "supported_reaction",
-      "rationale": "Title signals a reaction and provides original performance attribution."
+      "rationale": "Title signals a reaction and provides original performance attribution.",
+      "title": "A Timeless Classic, a Beautiful Family Performance! | Missioned Souls//Reaction"
     },
     {
       "video_id": "XA1m863syWM",
       "status": "supported_reaction",
-      "rationale": "Title/description explicitly say creators react to Missioned Souls performing live."
+      "rationale": "Title/description explicitly say creators react to Missioned Souls performing live.",
+      "title": "Missioned Souls in Zambales - Whole Lotta Love by Led Zeppelin Live cover [REACTION]"
     }
-  ]
+  ],
+  "title_metadata_source": "Keyword-live shadow v1 2026-10-22 YouTube API titles, frozen from user's 30-video review selection"
 }
