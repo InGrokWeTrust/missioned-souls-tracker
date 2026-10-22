@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
-from reaction_state import StateError, load_state, save_state, plan_notifications, acknowledge
+from reaction_state import (StateError, load_state, save_state, plan_notifications,
+                            acknowledge, read_live_sent_ids, reconcile_live_notifications)
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -19,6 +20,7 @@ MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND", "10"))
 MAX_VIDEOS_PER_CHANNEL = int(os.environ.get("MAX_VIDEOS_PER_CHANNEL", "5"))
 FORCE_SEND_ALL = os.environ.get("FORCE_SEND_ALL", "false").lower() == "true"
 LAST_RUN_FILE = os.environ.get("LAST_RUN_FILE", "last_run.json")
+LIVE_LAST_RUN_FILE = os.environ.get("LIVE_LAST_RUN_FILE", "live_last_run.json")
 TRACKED_CHANNELS_FILE = os.environ.get("TRACKED_CHANNELS_FILE", "tracked_channels.json")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 if not DISCORD_WEBHOOK_URL:
@@ -66,8 +68,8 @@ def is_archived_livestream(video):
 def is_short_or_too_short(video):
     title_lower = video.get('title', '').lower()
 
-    # 1. Filter explicit #short / #shorts hashtags (highest priority)
-    if '#short' in title_lower or 'shorts' in title_lower:
+    # 1. Prefer explicit Shorts labels; generic words in unrelated titles should not match.
+    if re.search(r"#shorts?\\b|\\bshorts\\b", title_lower):
         return True
 
     # 2. Keep ALL livestreams — active, upcoming, or archived
@@ -92,10 +94,8 @@ def classify_filter_reason(video):
     """Return a short reason string for why a video was filtered."""
     title_lower = video.get('title', '').lower()
 
-    if '#short' in title_lower:
-        return "has #short"
-    if 'shorts' in title_lower:
-        return "has 'shorts'"
+    if re.search(r"#shorts?\\b|\\bshorts\\b", title_lower):
+        return "marked as Short"
 
     duration = video.get('duration_sec', 0)
     if duration > 0 and duration < 120:
@@ -163,7 +163,7 @@ def fetch_channel_videos(channel_id, channel_title):
         ).execute()
     except Exception as e:
         print(f"  ❌ Error fetching {channel_title}: {e}")
-        return []
+        return None
 
     videos = []
     for item in response.get('items', []):
@@ -195,13 +195,14 @@ def get_reactions_with_stats():
 
     tracked = load_tracked_channels()
     if not tracked:
-        print("⚠️ No tracked channels found. Run discover_channels.py first.")
-        return [], run_start
+        raise RuntimeError("No tracked channels available: refusing to seed an empty scan.")
 
     print(f"📋 Tracking {len(tracked)} channels\n")
 
     # Stage 1: fetch all candidate videos
     candidates = []
+    scanned_channel_ids = set()
+    failed_channels = []
     no_ms_count = 0
     silent_channels = []
 
@@ -209,6 +210,10 @@ def get_reactions_with_stats():
         channel_title = info.get('title', channel_id) if isinstance(info, dict) else str(info)
 
         videos = fetch_channel_videos(channel_id, channel_title)
+        if videos is None:
+            failed_channels.append(channel_title)
+            continue
+        scanned_channel_ids.add(channel_id)
         reaction_videos = [v for v in videos if is_missioned_souls_reaction(v['title'])]
         no_ms_count += len(videos) - len(reaction_videos)
 
@@ -218,6 +223,8 @@ def get_reactions_with_stats():
         if not reaction_videos:
             silent_channels.append(channel_title)
 
+    if failed_channels:
+        print(f"::warning::{len(failed_channels)} channels failed to scan and will be retried next run.")
     if silent_channels:
         print(f"⏭️  Channels with no MS reactions in last {MAX_VIDEOS_PER_CHANNEL}:")
         for ch in silent_channels:
@@ -230,26 +237,30 @@ def get_reactions_with_stats():
     print(f"   MS keyword matches       : {len(candidates)}")
     print(f"   No MS mention (skipped)  : {no_ms_count}\n")
 
+    if not scanned_channel_ids:
+        raise RuntimeError("All channel scans failed; state will remain untouched.")
     if not candidates:
         print("⚠️ No Missioned Souls reactions found in tracked channels.")
-        return [], run_start
+        return [], run_start, scanned_channel_ids
 
     # Stage 2: batch fetch stats + duration + liveStreamingDetails
     video_ids = [v['video_id'] for v in candidates]
     stats_dict = {}
     duration_dict = {}
     live_details_dict = {}
+    broadcast_status_dict = {}
 
     for i in range(0, len(video_ids), 50):
         chunk = video_ids[i:i+50]
         stats_response = youtube.videos().list(
-            part="statistics,contentDetails,liveStreamingDetails",
+            part="statistics,contentDetails,liveStreamingDetails,snippet",
             id=",".join(chunk)
         ).execute()
 
         for item in stats_response.get('items', []):
             vid_id = item['id']
             stats = item.get('statistics', {})
+            broadcast_status_dict[vid_id] = item.get('snippet', {}).get('liveBroadcastContent', 'none')
             stats_dict[vid_id] = {
                 'view_count': int(stats.get('viewCount', 0)),
                 'like_count': int(stats.get('likeCount', 0)),
@@ -274,9 +285,14 @@ def get_reactions_with_stats():
         video['comment_count'] = vid_stats.get('comment_count', 0)
         video['duration_sec'] = duration_dict.get(vid_id, 0)
         video['live_streaming_details'] = live_details_dict.get(vid_id)
+        video['live_broadcast_content'] = broadcast_status_dict.get(
+            vid_id, video.get('live_broadcast_content', 'none'))
         video['age_at_run'] = humanize_ago(video['published_at'], run_start)
 
-        if is_short_or_too_short(video):
+        if video['live_broadcast_content'] in ('live', 'upcoming'):
+            # The separate live checker handles live alerts. Never announce upcoming as LIVE.
+            filtered_log.append((video, "handled by live checker / upcoming"))
+        elif is_short_or_too_short(video):
             reason = classify_filter_reason(video)
             filtered_log.append((video, reason))
         else:
@@ -296,7 +312,7 @@ def get_reactions_with_stats():
     print(f"   Filtered (shorts/other)  : {len(filtered_log)}")
     print(f"   ✅ Kept for posting      : {len(all_videos)}\n")
 
-    return all_videos, run_start
+    return all_videos, run_start, scanned_channel_ids
 
 
 def send_to_discord(videos, max_to_send=5, run_start=None, on_success=None):
@@ -357,8 +373,12 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
     allow_bootstrap = os.environ.get("BOOTSTRAP_STATE_IF_MISSING", "false").lower() == "true"
     state = load_state(LAST_RUN_FILE, allow_bootstrap=allow_bootstrap)
     bootstrap = state.get("_bootstrap", False)
-
+    if bootstrap and not videos:
+        raise StateError("Cannot bootstrap from an empty reaction scan.")
+    live_ids = read_live_sent_ids(LIVE_LAST_RUN_FILE)
     plan_notifications(state, videos, tracked_channel_ids, now=run_start)
+    # Only confirmed archived/livestream IDs are removed; ordinary reactions are unaffected.
+    reconcile_live_notifications(state, live_ids)
     save_state(LAST_RUN_FILE, state)
 
     # A one-time explicit bootstrap never sends existing videos, even in force mode.
@@ -396,7 +416,6 @@ if __name__ == "__main__":
     load_state(LAST_RUN_FILE, allow_bootstrap=os.environ.get(
         "BOOTSTRAP_STATE_IF_MISSING", "false").lower() == "true")
 
-    videos, run_start = get_reactions_with_stats()
-    tracked_ids = set(load_tracked_channels())
-    run_tracker(videos, tracked_ids, force_send_all=FORCE_SEND_ALL, run_start=run_start)
+    videos, run_start, scanned_ids = get_reactions_with_stats()
+    run_tracker(videos, scanned_ids, force_send_all=FORCE_SEND_ALL, run_start=run_start)
     print("\n🎉 All done!")
