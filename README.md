@@ -684,3 +684,50 @@ In the unmerged experimental keyword classifier:
 The three human-confirmed examples are now permanent offline regression
 cases. The signal improves **which videos are reviewed first**, not measured
 precision or verified automatic-posting safety.
+
+
+### Verified channel-history evaluation — 22 October 2026
+
+The experimental evaluator scripts/evaluate_reactor_history.py now checks
+**all 125 tracked reactor IDs** against 32 video-to-channel assignments
+grounded in two previously downloaded, public YouTube Data API snapshots.
+The exact video IDs and authenticated channel IDs are frozen in
+data/reactor_history_video_channels_20261022.json, and the output is
+reactor-history-report.json. It requires no live YouTube API requests,
+no paid AI, no Discord access and no changes to bookmark state.
+
+Evidence is kept in separate levels to avoid falsely promoting channels:
+
+- **6 directly user-confirmed performance reaction videos** from 6 unique
+  reactors: Taylor John Hardin Reactions, HCJB Music Reaction, Reactions with
+  Vinny, S.E.A.T., Cherman Vlogs, and Global take.
+- **4 explicitly human-confirmed band-related nonreactions**, including
+  Naces tribute, Paper Dove, the reaction-archive repost and an unrelated
+  general band discussion.
+- **18 further metadata-supported reaction candidates**, not individually
+  reconfirmed under the stricter reactions-only definition.
+- **4 further metadata-assessed nonreactions**, such as concert promotions
+  and a popularity milestone, not human-reverified.
+- The 44 videos independently marked unrelated in the earlier review
+  were **not** counted against reactors' Missioned Souls history: creators
+  are allowed to react to other artists.
+
+Only 6 of 125 channels have at least one directly confirmed true Missioned
+Souls reaction in this limited review sample, and **none has two**.
+That is a coverage limitation, NOT evidence that the remaining 119 channels
+never publish reactions. HCJB has mixed confirmed content (one genuine
+reaction and a separate nonreaction tribute), proving that a source can
+publish both.
+
+**No channel is classified as eligible for automatic notification based
+on its history.** A sensible future evidence gate is at least three
+distinct, manually confirmed performance reactions from the channel,
+spread across more than one date, plus examination of band-related
+false positives. Even meeting such a gate should only increase manual
+review priority until a separate production integration is specifically
+approved.
+
+Offline regression test report:
+https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/39736270940
+
+The draft branch remains unmerged. No paid API or new Discord delivery.
