@@ -103,3 +103,54 @@ Continue observing new cases over the recommended 14-day window only
 after explicitly agreeing on a quota-safe metadata source and review
 schedule. Do not start new live YouTube scans or schedule future checks
 as a side effect of merging this draft.
+
+
+## Eight additional human verdicts — 22 October 2026
+
+The user directly returned all eight `reaction`/`not_match` decisions from
+`data/reaction_quality_next8_pending_review_20261022.json`. The
+independent, immutable label file is
+`data/reaction_quality_next8_human_labels_20261022.csv`. We did not
+alter the original blank selection or earlier metadata adjudications.
+
+New reviewer decisions (source is human-reported classification, not
+independent playback by this assistant):
+
+- **Genuine third-party reactions (6)**: `Yrt40Jti9zA`,
+  `WZpAnBgf_aM`, `rhoHMkgcvj0`, `_SBmrJZBaaE`,
+  `QJp3kNQEUG0`, `XA1m863syWM`.
+- **Not performance reactions (2)**: `6Eu4f5oqXnk` (Cebu
+  concert announcement), `vpYHLQr04LQ` (free-stream/website
+  promotion).
+
+`python -m scripts.score_quality_reviewed37_followup` overlays the
+eight independently provided human verdicts onto the previous 37
+*distinct* case report without modifying its source or outputs.
+The updated 37-case human-vs-metadata totals are:
+
+| Evidence provenance | Original baseline | With eight followups |
+| --- | ---: | ---: |
+| Human-confirmed genuine reaction | 8 | 14 |
+| Human-confirmed band-related nonreaction | 7 | 9 |
+| Metadata-supported potential reaction, unverified | 18 | 12 |
+| Metadata-assessed nonreaction, unverified | 4 | 2 |
+
+Of 14 human-confirmed reactions, **8 strong / 6 manual review /
+0 excluded**; of 9 human-confirmed nonreactions, **0 strong /
+1 manual review / 8 excluded**. There remain 14 titles needing
+further human verification, and no population accuracy metric can be
+inferred from the intentionally selected cohorts.
+
+The original reproducible report `reaction-quality-reviewed37.json`
+remains unchanged; follow-up output is separately stored as
+`reaction-quality-reviewed37-with-next8.json`. Both are available
+in the `reaction-quality-reviewed37` Actions artifact.
+
+**Offline regression:** 106/106 Python tests passed; 20/20 curated
+keyword fixtures passed on
+https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/39750062282 .
+
+**Deployment:** PR #8 remains draft, unmerged and completely disconnected
+from the active `autoreactions.py` Discord sender. No real YouTube API
+calls, new uploads or Discord messages were initiated. Preserve HCJB's
+production exclusion and the exact verified Nitro VOD exception.
