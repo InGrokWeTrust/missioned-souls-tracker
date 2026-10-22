@@ -321,3 +321,17 @@ The report produces numerical precision and recall **only for cases with `ground
 ### Safety and rollout
 
 No automatic Discord notifications, no YouTube write access, and no production workflow edits. The API is called only from the manually approved workflow and processes public thumbnail images, titles and metadata. Avoid putting private information in the test sample. Retain results for 14 days. Start with a varied manually-labelled set (ideally 100–200 real uploads with positive and negative cases), then compare model predictions to labels before considering any separate deployment proposal. Image models can still make mistakes; threshold-free model labels are not calibrated probabilities.
+
+### Results of the first free collection trial (22 October 2026)
+
+The first RSS-only CI attempt could not load any of 65 YouTube channel feeds. The sampler was updated to read the existing **production last-run bookmark artifact** strictly as a **read-only** source of recent video IDs. On the later trial this provided 103 IDs plus five previously examined examples and eight videos from two accessible RSS feeds: **116 unique, unlabelled candidates** in total. The number varies between runs and does **not** represent 116 ground-truth confirmed reactions or balanced positives and negatives. RSS access remains patchy from GitHub-hosted runners, so future collection should use an authorised YouTube Data API read-only sampler if greater coverage is needed.
+
+The free artifact includes three forms of the same dataset:
+
+- `vision-unlabelled-candidates.json` for machine comparison.
+- `vision-review-sheet.csv` for a spreadsheet-style human review.
+- `vision-human-review.html` for local browser review, showing thumbnail links and exporting a small CSV of **explicit human selections**. Open this HTML file locally after downloading the artifact ZIP. It never submits labels to a server. Thumbnail images load from public YouTube hosts while viewing.
+
+Only the user's screenshot example `hf03Voz2QBM` is prelabelled as a verified match in `data/vision-labels.csv`. The remaining cases need independent human review; do not infer ground truth from older tracker notifications. To add further verified rows, edit `data/vision-labels.csv` on the experiment branch, using columns `video_id,ground_truth,reviewed_by,review_notes`. Allowed ground-truth values: `match` or `not_match`; reviewed_by: `user`, `human`, or `manual`. Then explicitly initiate the opt-in paid vision workflow if you want model evaluation. That workflow joins human labels to samples before scoring. It cannot claim meaningful precision/recall from one label.
+
+**Experimental branch only:** Draft PR #3 is separate from production and separate from draft OCR PR #2. All new detector components remain outside the live notification path. Even if AI vision performs well, a future production rollout would require additional validation and an explicit decision to integrate it.
