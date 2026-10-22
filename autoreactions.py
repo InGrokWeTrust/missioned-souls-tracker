@@ -376,7 +376,8 @@ def send_to_discord(videos, max_to_send=5, run_start=None, on_success=None):
     return delivered
 
 
-def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=None):
+def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=None,
+                channel_added_at=None):
     """Persist the queue BEFORE delivery and after each confirmed notification."""
     allow_bootstrap = os.environ.get("BOOTSTRAP_STATE_IF_MISSING", "false").lower() == "true"
     state = load_state(LAST_RUN_FILE, allow_bootstrap=allow_bootstrap)
@@ -384,7 +385,8 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
     if bootstrap and not videos:
         raise StateError("Cannot bootstrap from an empty reaction scan.")
     live_ids = read_live_sent_ids(LIVE_LAST_RUN_FILE)
-    plan_notifications(state, videos, tracked_channel_ids, now=run_start)
+    plan_notifications(state, videos, tracked_channel_ids, now=run_start,
+                       channel_added_at=channel_added_at)
     # Only confirmed archived/livestream IDs are removed; ordinary reactions are unaffected.
     reconcile_live_notifications(state, live_ids)
     save_state(LAST_RUN_FILE, state)
@@ -425,5 +427,11 @@ if __name__ == "__main__":
         "BOOTSTRAP_STATE_IF_MISSING", "false").lower() == "true")
 
     videos, run_start, scanned_ids = get_reactions_with_stats()
-    run_tracker(videos, scanned_ids, force_send_all=FORCE_SEND_ALL, run_start=run_start)
+    channels = load_tracked_channels()
+    channel_added_at = {
+        cid: info.get('added_at') for cid, info in channels.items()
+        if isinstance(info, dict) and info.get('added_at')
+    }
+    run_tracker(videos, scanned_ids, force_send_all=FORCE_SEND_ALL,
+                run_start=run_start, channel_added_at=channel_added_at)
     print("\n🎉 All done!")
