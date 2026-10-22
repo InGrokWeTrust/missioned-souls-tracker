@@ -10,6 +10,7 @@ from webhook_delivery import post_webhook
 from channel_exclusions import is_excluded_channel
 from verified_nitro_reactions import is_verified_nitro_reaction
 from video_release_policy import is_published_vod
+from notification_history import save_ids as save_durable_ids
 from reaction_state import (StateError, load_state, save_state, plan_notifications,
                             acknowledge, read_live_sent_ids, reconcile_live_notifications)
 
@@ -481,6 +482,7 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
     def confirmed(video):
         acknowledge(state, video)
         save_state(LAST_RUN_FILE, state)
+        save_durable_ids("reactions", state["seen_video_ids"])
 
     delivered = send_to_discord(
         chosen, max_to_send=MAX_TO_SEND, run_start=run_start, on_success=confirmed
