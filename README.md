@@ -269,7 +269,7 @@ Personal project. Not licensed for redistribution.
 - The tracker fails closed if either primary bookmark is missing or damaged. Logs explain how to restore it from an older workflow artifact.
 - Artifacts are retained for seven days, including after a failed tracker run when a valid state file exists. All tracker runs in `main` share a concurrency group for safer notification ordering.
 - Two separate state files remain necessary: `last_run.json` for reactions and `live_last_run.json` for live announcements. The reaction workflow downloads the latest available live state for archived stream deduplication.
-- Failed GitHub Actions tracker runs send a warning to `ALERT_WEBHOOK_URL` if configured, otherwise to the main Discord webhook. Alerts include a link to the failed workflow run.
+- Production tracker/live-check failures send a Discord health alert **only when the actual error category is recognised** in the captured failing step output. Alerts use safe, actionable text (e.g. **YouTube API quota exceeded**) without workflow-run URLs, raw stack traces, full API errors, secrets, or debugging links. Unknown/setup-only failures stay in GitHub Actions logs and **do not** generate generic Discord warnings. `ALERT_WEBHOOK_URL` is used if configured, otherwise the existing Discord webhook. The run step uses `set -o pipefail` and `tee` to retain the Python exit status while capturing diagnostics.
 - Tests run on pull requests with synthetic data and no YouTube or Discord production credentials. Use **Offline delivery tests** and **Production bookmark preflight** to verify a proposed deployment.
 
 ### One-time migration from a legacy bookmark
