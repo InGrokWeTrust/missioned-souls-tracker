@@ -102,7 +102,8 @@ class OfflineTrackerTests(unittest.TestCase):
         state = load_state(self.bookmark)
         plan_notifications(state, [video(1)], {"UC1"}, now=NOW)
         save_state(self.bookmark, state)
-        with patch.object(tracker, "send_to_discord", side_effect=self.all_sent):
+        with patch.object(tracker, "send_to_discord", side_effect=self.all_sent), \
+             patch.object(tracker, "reconfirm_older_pending_vods", return_value=set()):
             held = tracker.run_tracker([], {"UC1"}, run_start=NOW)
             sent = tracker.run_tracker([video(1)], {"UC1"}, run_start=NOW)
         self.assertEqual(held, [])  # Missing confirmation must not deliver queued VODs.
