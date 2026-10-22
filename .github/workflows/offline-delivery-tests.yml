@@ -9,6 +9,8 @@ on:
       - 'webhook_delivery.py'
       - 'reaction_state.py'
       - 'keyword_detector.py'
+      - 'scripts/run_keyword_trial.py'
+      - 'data/keyword_trial_cases.json'
       - 'discover_channels.py'
       - 'report_failure.py'
       - '.github/workflows/youtube-tracker.yml'
@@ -31,3 +33,13 @@ jobs:
         run: pip install -r requirements.txt
       - name: Test without production credentials
         run: python -m unittest discover -s tests -v
+      - name: Replay real-positive and synthetic keyword fixtures (no network)
+        run: python -m scripts.run_keyword_trial
+      - name: Upload reproducible keyword evaluation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: keyword-trial-report
+          path: keyword-trial-results.json
+          retention-days: 14
+          if-no-files-found: warn
