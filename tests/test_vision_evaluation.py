@@ -15,6 +15,7 @@ from vision_evaluator import (analyze, build_request, download_thumbnail,
                               thumbnail_url)
 from scripts.collect_vision_candidates import parse_feed, collect, saved_state_candidates, create_review_csv
 from scripts.run_vision_evaluation import evaluate, cost_from_usage
+from scripts.apply_human_labels import add_labels
 
 
 def example():
@@ -180,6 +181,36 @@ class VisionOfflineTests(unittest.TestCase):
             "gpt-6-luna"), 0.60)
         with self.assertRaises(ValueError):
             cost_from_usage({}, "gpt-6-luna")
+
+    def test_apply_only_verified_manual_labels_from_csv(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "labels.csv"
+            path.write_text(
+                "video_id,ground_truth,reviewed_by,review_notes\n"
+                "hf03Voz2QBM,match,user,User confirmed this is a reaction\n",
+                encoding="utf-8")
+            samples = [{"video_id": "hf03Voz2QBM", "ground_truth": None},
+                       {"video_id": "kH6vzMgvfS0", "ground_truth": None}]
+            result = add_labels({"samples": samples}, path)
+            self.assertEqual(result["samples"][0]["ground_truth"], "match")
+            self.assertEqual(result["samples"][0]["reviewed_by"], "user")
+            self.assertIsNone(result["samples"][1]["ground_truth"])
+            self.assertIsNone(samples[0]["ground_truth"])
+
+    def test_reject_machine_generated_or_duplicate_labels(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "labels.csv"
+            path.write_text(
+                "video_id,ground_truth,reviewed_by\n"
+                "hf03Voz2QBM,match,ai\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                add_labels({"samples": []}, path)
+            path.write_text(
+                "video_id,ground_truth,reviewed_by\n"
+                "hf03Voz2QBM,match,human\n"
+                "hf03Voz2QBM,match,user\n", encoding="utf-8")
+            with self.assertRaises(ValueError):
+                add_labels({"samples": []}, path)
 
     def test_paid_runner_enforces_call_cap_with_stubbed_model(self):
         samples = [dict(example(), video_id=f"abcdefgh{i:02d}") for i in range(5)]
