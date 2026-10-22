@@ -9,7 +9,12 @@ os.environ.setdefault("DISCORD_WEBHOOK_URL", "https://example.invalid/test-webho
 import discover_channels as discovery
 import check_live_streams as live
 import autoreactions as tracker
-from reaction_state import read_live_sent_ids, reconcile_live_notifications
+from reaction_state import read_live_sent_ids, reconcile_live_notifications, StateError
+from report_failure import report_failure
+from types import SimpleNamespace
+from pathlib import Path
+import tempfile
+import json
 
 
 def result(i, title="Missioned Souls reaction", channel="Reaction Lab"):
@@ -82,6 +87,32 @@ class DiscoveryAndLiveTests(unittest.TestCase):
         item = {"title": "Missioned Souls reaction about shortstop", "duration_sec": 400}
         self.assertFalse(tracker.is_short_or_too_short(item))
         self.assertTrue(tracker.is_short_or_too_short({"title": "Missioned Souls #Shorts", "duration_sec": 150}))
+
+    def test_cross_workflow_live_history_loaded(self):
+        with tempfile.TemporaryDirectory() as d:
+            file = Path(d) / "live.json"
+            file.write_text(json.dumps({"sent_video_ids": ["live-1", "live-2"]}), encoding="utf-8")
+            self.assertEqual(read_live_sent_ids(str(file)), {"live-1", "live-2"})
+
+    def test_corrupt_live_history_fails_closed(self):
+        with tempfile.TemporaryDirectory() as d:
+            file = Path(d) / "live.json"
+            file.write_text("{bad-json", encoding="utf-8")
+            with self.assertRaises(StateError):
+                read_live_sent_ids(str(file))
+
+    def test_failure_alert_uses_only_stub_webhook(self):
+        calls = []
+        def fake_post(url, json, timeout):
+            calls.append((url, json))
+            return SimpleNamespace(status_code=204)
+        self.assertTrue(report_failure(
+            webhook_url="https://example.invalid/alert",
+            workflow="Offline tracker", run_url="https://example.invalid/run",
+            post=fake_post
+        ))
+        self.assertEqual(len(calls), 1)
+        self.assertIn("Offline tracker", calls[0][1]["embeds"][0]["description"])
 
     def test_archive_duplicate_reconciled_from_live_ids(self):
         state = {"pending": [{"video_id": "id-1"}, {"video_id": "id-2"}],
