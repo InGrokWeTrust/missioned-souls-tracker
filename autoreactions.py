@@ -441,7 +441,11 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
         return []
 
     if force_send_all:
-        chosen = sorted(videos, key=lambda v: (v["published_at"], v["video_id"]))[-MAX_TO_SEND:]
+        # Force mode must not override the publication-safety policy.
+        chosen = sorted(
+            [v for v in videos if is_published_vod(v)],
+            key=lambda v: (v["published_at"], v["video_id"])
+        )[-MAX_TO_SEND:]
         print(f"🔄 Force replay: {len(chosen)} recent videos; state remains unchanged.")
         return send_to_discord(chosen, max_to_send=MAX_TO_SEND, run_start=run_start)
 
