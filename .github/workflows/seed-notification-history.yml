@@ -1,0 +1,75 @@
+name: Seed durable notification history once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/seed-notification-history.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: missioned-souls-notifications-${{ github.ref }}
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tested production code
+        uses: actions/checkout@v4
+
+      - name: Download latest main reaction bookmark
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: youtube-tracker.yml
+          branch: main
+          workflow_conclusion: ''
+          name: last-run-state
+          path: ./
+          search_artifacts: true
+          check_artifacts: true
+          if_no_artifact_found: warn
+
+      - name: Download latest main live bookmark
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: check_live_streams.yml
+          branch: main
+          workflow_conclusion: ''
+          name: live-last-run-state
+          path: ./
+          search_artifacts: true
+          check_artifacts: true
+          if_no_artifact_found: warn
+
+      - name: Seed reaction and live ledgers without running trackers
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HISTORY_ENABLED: 'true'
+          DRY_RUN: 'false'
+        run: |
+          python notification_history.py hydrate reactions last_run.json
+          python notification_history.py hydrate live live_last_run.json
+
+      - name: Verify delivery IDs preserved
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          reaction = json.loads(Path('last_run.json').read_text(encoding='utf-8'))
+          live = json.loads(Path('live_last_run.json').read_text(encoding='utf-8'))
+          ids = reaction['seen_video_ids']
+          assert len(ids) >= 110 and len(ids) == len(set(ids))
+          assert {'Etztcp21KUw', 'jm6K2OqOIWE'} <= set(ids)
+          assert not any(v.get('video_id') in ('Etztcp21KUw', 'jm6K2OqOIWE') for v in reaction['pending'])
+          assert isinstance(live['sent_video_ids'], list)
+          print('PASS: durable ledger initialized with', len(ids), 'reaction IDs and', len(live['sent_video_ids']), 'live IDs')
+          print('No YouTube requests or Discord messages were sent.')
+          PY
