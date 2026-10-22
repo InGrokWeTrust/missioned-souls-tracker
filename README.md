@@ -768,3 +768,53 @@ https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/3973673511
 
 The report-only experiment remains draft and unmerged, with no new
 Discord posting or paid AI API use.
+
+
+### Seven-video review completed; HCJB experimentally excluded (22 October 2026)
+
+The user classified all seven additional videos from the frozen previous
+YouTube shadow snapshot. Original labels are preserved unchanged as
+data/reactor_history_next7_human_labels_20261022.csv:
+
+- HCJB Music Reaction: bRpiOxl1sdE, pbgQdCCaPo8 and 7iYFOFiu1KI
+  are **not** genuine performance reactions.
+- Reactions with Vinny: EN0kaZai6T4 is a genuine reaction.
+- Global take: ayffX_R86kw, XBYttS5x4i4 and b6eDBjF6sko
+  are genuine reactions.
+
+Cumulative band-specific human evidence in the tracked sample:
+
+| Channel | Directly confirmed reactions | Band-specific confirmed nonreactions |
+| --- | ---: | ---: |
+| HCJB Music Reaction | 1 | 4 |
+| Reactions with Vinny | 2 | 0 |
+| Global take | 4 | 0 |
+
+The user recommends excluding HCJB. Consequently its exact YouTube
+channel ID **UCtEs-cB4K1XFnXgLrIWW1Zg** is excluded from new
+*experimental keyword discovery* by keyword_detector.py. Its genuine
+previous reaction (jxoHvBlRABA) is kept in historical evidence. The
+tracked_channels.json registry and production autoreactions.py have
+**not** been changed. Existing production title-based Discord alerts
+can therefore still include HCJB until a separately approved deployment.
+
+The new script scripts/evaluate_reactor_history_followup.py preserves the
+original 32 cases, adds 7 reviewed videos with exact ID matches, and
+reproduces a **39 band-related-video** audit across 125 tracked channels:
+10 human-confirmed genuine reactions, 7 human-confirmed band-related
+nonreactions, 18 additional unverified positive candidates, and
+4 metadata-only nonreaction assessments. Of the six channels with
+at least one confirmed reaction, two now have multiple confirmations.
+
+Historical observed fractions in this hand-picked sample MUST NOT be
+reported as unbiased channel reliability percentages. No channel is
+auto-approved; the user-requested HCJB exclusion is keyed by exact
+channel ID, not a display-name similarity.
+
+Passing offline verification:
+https://github.com/InGrokWeTrust/missioned-souls-tracker/actions/runs/39738846687
+171 tests passed plus 20/20 keyword fixtures. The updated machine-readable
+report is reactor-history-followup-report.json in the CI artifact.
+
+Live quota-consuming shadow scan was skipped. No paid APIs and no
+experimental Discord posts. Draft PR remains unmerged.
