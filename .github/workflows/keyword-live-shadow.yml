@@ -13,7 +13,8 @@ permissions:
 
 jobs:
   read-only-keyword-scan:
-    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'experiment/keyword-rules-v1' }}
+    # Prevent repeated quota use on ordinary PR commits; explicit title opt-in required.
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'experiment/keyword-rules-v1' && contains(github.event.pull_request.title, '[shadow-run]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
