@@ -59,8 +59,15 @@ jobs:
         run: python -m scripts.collect_vision_candidates
       - name: Build standalone human-review thumbnail page
         run: python -m scripts.create_review_page
+      - name: Fetch video-specific descriptions and tags (read-only)
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: |
+          python -m scripts.enrich_youtube_metadata \
+            --input vision-unlabelled-candidates.json \
+            --output vision-enriched-candidates.json
       - name: Apply manually verified ground-truth labels
-        run: python -m scripts.apply_human_labels --labels data/vision-labels.csv --input vision-unlabelled-candidates.json --output vision-labelled-candidates.json
+        run: python -m scripts.apply_human_labels --labels data/vision-labels.csv --input vision-enriched-candidates.json --output vision-labelled-candidates.json
       - name: Analyze with opted-in paid model (NO DISCORD)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -85,6 +92,7 @@ jobs:
             vision-review-sheet.csv
             vision-human-review.html
             vision-labelled-candidates.json
+            vision-enriched-candidates.json
             vision-model-evaluation.json
           retention-days: 14
           if-no-files-found: warn
