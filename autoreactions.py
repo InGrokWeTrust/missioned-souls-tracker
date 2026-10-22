@@ -207,7 +207,12 @@ def find_hidden_reactions(unmatched, state, run_start):
     now = run_start or datetime.now(timezone.utc)
     start = now - timedelta(hours=OCR_LOOKBACK_HOURS)
     recent = []
+    already_handled = set(state.get("seen_video_ids", [])) | {
+        item["video_id"] for item in state.get("pending", [])
+    }
     for video in unmatched:
+        if video.get("video_id") in already_handled:
+            continue
         try:
             published = datetime.fromisoformat(video["published_at"].replace("Z", "+00:00"))
             if published.tzinfo is None:
