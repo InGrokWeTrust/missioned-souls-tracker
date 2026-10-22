@@ -1,0 +1,52 @@
+name: Read-only Mr J and recent notification metadata audit
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/audit-mrj-deliveries.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: YouTube metadata audit (no Discord access)
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.parse, urllib.request
+          key = os.environ['YOUTUBE_API_KEY']
+          def request(path, args):
+              args['key'] = key
+              url = 'https://www.googleapis.com/youtube/v3/' + path + '?' + urllib.parse.urlencode(args)
+              with urllib.request.urlopen(url, timeout=20) as r: return json.load(r)
+          channel='UCTR_PSXLloLzLMBVxnt_kLQ'
+          recent = request('playlistItems', {'part':'snippet,contentDetails',
+              'playlistId':'UU'+channel[2:], 'maxResults':12})
+          ids = [x.get('contentDetails',{}).get('videoId') for x in recent.get('items',[])]
+          special=['vs38AkstbI0','MsL5AQIMf0Y','QXtguGsfzHc','Pycs66uUIHQ','TZ7z0pZvn8w']
+          all_ids=list(dict.fromkeys([x for x in ids+special if x]))
+          details = request('videos', {'part':'snippet,contentDetails,liveStreamingDetails,status',
+                                        'id':','.join(all_ids)})
+          archive={x['id']:x for x in details.get('items',[])}
+          print('MR J UPLOADS:',len(ids))
+          for vid in all_ids:
+              item=archive.get(vid)
+              if item is None:
+                  print('UNAVAILABLE:',vid);continue
+              s=item['snippet'];title=s.get('title','')
+              desc=s.get('description','')
+              print('VIDEO:',vid)
+              print(' CHANNEL:',s.get('channelId',''),s.get('channelTitle',''))
+              print(' TITLE:',title)
+              print(' PUBLISHED:',s.get('publishedAt',''))
+              print(' LIVE:',s.get('liveBroadcastContent',''))
+              print(' PRIVACY:',item.get('status',{}).get('privacyStatus',''))
+              print(' DURATION:',item.get('contentDetails',{}).get('duration',''))
+              print(' DESC:',desc[:480].replace('\n',' | '))
+          print('NO BOOKMARKS MODIFIED. NO DISCORD WEBHOOK USED.')
+          PY
