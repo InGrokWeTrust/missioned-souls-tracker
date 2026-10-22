@@ -16,6 +16,8 @@ on:
       - 'data/keyword_manual_labels_20261022.csv'
       - 'scripts/score_keyword_strong30.py'
       - 'scripts/score_keyword_reactions_only.py'
+      - 'scripts/score_keyword_reactions_only_final.py'
+      - 'data/keyword_reactions_only_five_human_labels_20261022.csv'
       - 'data/keyword_strong30_reactions_only_adjudication_20261022.json'
       - 'data/keyword_strong30_human_labels_20261022.csv'
       - 'data/keyword_strong30_pending_review_20261022.json'
@@ -52,6 +54,8 @@ jobs:
         run: python -m scripts.score_keyword_strong30
       - name: Apply frozen reactions-only scope without rewriting source labels
         run: python -m scripts.score_keyword_reactions_only
+      - name: Evaluate reactions only verified followups
+        run: python -m scripts.score_keyword_reactions_only_final
       - name: Upload reproducible keyword evaluation report
         if: always()
         uses: actions/upload-artifact@v4
@@ -62,5 +66,6 @@ jobs:
             keyword-human-label-results.json
             keyword-strong30-human-results.json
             keyword-reactions-only-results.json
+            keyword-reactions-only-final-results.json
           retention-days: 14
           if-no-files-found: warn
