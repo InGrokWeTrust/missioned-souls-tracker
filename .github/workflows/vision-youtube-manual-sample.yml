@@ -1,0 +1,64 @@
+name: Manual YouTube-only sample expansion - read only
+
+on:
+  workflow_dispatch:
+    inputs:
+      approve_youtube_api:
+        description: 'Type YES to spend up to 65 standard YouTube API units to expand the evaluation sample'
+        required: true
+        default: 'NO'
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  expand:
+    if: ${{ inputs.approve_youtube_api == 'YES' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install public API reader
+        run: pip install requests
+      - name: Download public video-ID history only (no production write)
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: youtube-tracker.yml
+          branch: main
+          workflow_conclusion: ''
+          name: last-run-state
+          path: ./
+          search_artifacts: true
+          check_artifacts: true
+          if_no_artifact_found: warn
+      - name: Collect initial unlabelled sample
+        run: python -m scripts.collect_vision_candidates
+      - name: Expand with ambiguous reactor uploads using read-only YouTube API
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: |
+          python -m scripts.augment_reactor_sample \
+            --input vision-unlabelled-candidates.json \
+            --output vision-expanded-candidates.json
+      - name: Create human review sheet and browser preview
+        run: |
+          python -m scripts.create_review_page \
+            --input vision-expanded-candidates.json \
+            --output vision-human-review.html
+      - name: Save review artifacts (no model or Discord calls)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: expanded-human-review-candidates
+          path: |
+            vision-expanded-candidates.json
+            vision-review-sheet.csv
+            vision-human-review.html
+          retention-days: 14
+          if-no-files-found: warn
