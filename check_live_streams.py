@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
+from notification_history import save_ids as save_durable_ids
 from channel_exclusions import is_excluded_channel
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
@@ -298,6 +299,7 @@ if __name__ == "__main__":
             if stream["video_id"] not in sent_ids:
                 sent_ids.append(stream["video_id"])
             save_state(sent_ids)
+            save_durable_ids("live", sent_ids)
 
         delivered = send_to_discord(top_streams, run_start=run_start, on_success=confirmed)
         # Also update last_check if nothing was successfully delivered.
