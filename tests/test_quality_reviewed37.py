@@ -63,5 +63,34 @@ class QualityReviewed37Tests(unittest.TestCase):
             build_rows(adj,_csv(FIVE),bad,seven,_csv(SEVEN_LABELS))
 
 
+    def test_new_review_queue_has_no_fabricated_human_verdicts(self):
+        from pathlib import Path
+        file=Path(__file__).resolve().parents[1]/"data"/"reaction_quality_next8_pending_review_20261022.json"
+        data=json.loads(file.read_text())
+        cases=data["items"]
+        self.assertEqual(len(cases),8)
+        self.assertEqual(len({c["video_id"] for c in cases}),8)
+        self.assertTrue(all(c["review_label"] is None for c in cases))
+        self.assertFalse(data["auto_posting"])
+        self.assertEqual(data["youtube_api_calls"],0)
+        self.assertEqual(sum(c["metadata_status_before_human_review"]=="supported_reaction" for c in cases),6)
+        self.assertEqual(sum(c["metadata_status_before_human_review"]=="exclude_by_reactions_only_policy" for c in cases),2)
+        self.assertIn("not random",data["selection_warning"])
+
+    def test_new_review_queue_does_not_duplicate_human_verified_subset(self):
+        from pathlib import Path
+        data=json.loads((Path(__file__).resolve().parents[1]/"data"/
+                         "reaction_quality_next8_pending_review_20261022.json").read_text())
+        current=evaluate()
+        historical={c["video_id"]:c for c in current["cases"]}
+        for case in data["items"]:
+            with self.subTest(video=case["video_id"]):
+                self.assertIn(case["video_id"],historical)
+                self.assertIn(historical[case["video_id"]]["truth_provenance"],
+                              ("metadata_supported_reaction","metadata_assessed_nonreaction"))
+                self.assertEqual(case["url"],
+                                 "https://www.youtube.com/watch?v="+case["video_id"])
+
+
 if __name__=="__main__":
     unittest.main()
