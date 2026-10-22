@@ -50,6 +50,10 @@ EVENT_NEWS = re.compile(
 )
 ARCHIVE_CHANNEL = re.compile(r"\breaction\s+archive\b", re.I)
 OFFICIAL_BAND_CHANNEL_ID = "UCeTfwcnUVurw7Qrk_KF5Idw"
+# User opt-out for *experimental reaction discovery*. Keep tracked registry,
+# historical true reactions and existing main production untouched.
+EXCLUDED_REACTOR_CHANNEL_IDS = {"UCtEs-cB4K1XFnXgLrIWW1Zg"}  # HCJB
+
 MAX_DESCRIPTION_PREFIX = 650
 
 
@@ -94,6 +98,9 @@ def classify(title: str, description: str = "", tags=None, *, tracked_reactor=Tr
     tier = "none"
     auto_candidate = False
     review_priority = "none"
+    if channel_id in EXCLUDED_REACTOR_CHANNEL_IDS:
+        return {"tier":"none", "auto_candidate":False, "review_priority":"none",
+                "evidence":[], "reasons":["user excluded this reactor from keyword reaction discovery"]}
     if channel_id == OFFICIAL_BAND_CHANNEL_ID:
         return {"tier":"none", "auto_candidate":False, "review_priority":"none",
                 "evidence":[], "reasons":["original band channel, not independent reaction"]}
