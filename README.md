@@ -10,9 +10,9 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 
 | Script | Frequency | Purpose |
 |---|---|---|
-| `autoreactions.py` | Every 30 min | Scans tracked channels' uploads for new reactions |
-| `discover_channels.py` | Every 2 hours | Finds new reactor channels and updates the tracked list |
-| `check_live_streams.py` | Every 2 hours | Detects active Missioned Souls live streams |
+| `autoreactions.py` | Every 30 min | Scans tracked uploads, queues reactions by video ID, retries deliveries |
+| `discover_channels.py` | Every 2 hours | Paginates recent results, retains quiet reactors and updates the tracked list |
+| `check_live_streams.py` | Every 2 hours | Confirms currently active Missioned Souls streams and saves sent IDs |
 
 **Discord output:**
 - New reactions: posted with title, channel, views, likes, comments, and "Posted: HH:MM (Xm ago)"
@@ -29,10 +29,14 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 │   ├── discover_channels.yml        # Runs discover_channels.py
 │   └── check_live_streams.yml       # Runs check_live_streams.py
 ├── autoreactions.py                 # Main tracker
+├── reaction_state.py                # Atomic reaction ID history + pending queue
+├── webhook_delivery.py              # Shared Discord retry logic
+├── report_failure.py                # Failure-only workflow alerts
+├── tests/                          # Offline regression suite
 ├── discover_channels.py             # Channel discovery
 ├── check_live_streams.py            # Live stream detection
 ├── tracked_channels.json            # List of tracked channels (committed)
-├── last_run.json                    # Bookmark (artifact, not committed)
+├── last_run.json                    # Versioned ID history + pending queue (artifact)
 ├── live_last_run.json               # Live bookmark (artifact, not committed)
 ├── requirements.txt                 # Python dependencies
 └── README.md                        # This file
@@ -57,6 +61,9 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 | `MAX_VIDEOS_PER_CHANNEL` | `5` | Videos scanned per channel |
 | `FORCE_SEND_ALL` | `false` | When `true`, sends latest N regardless of bookmark |
 | `LAST_RUN_FILE` | `last_run.json` | Bookmark filename |
+| `BOOTSTRAP_STATE_IF_MISSING` | `false` | Emergency one-run, seed-only recovery when bookmark cannot be restored |
+| `DISCOVERY_PAGES` | `2` | Recent results pages checked every discovery run |
+| `MAX_TRACKED_CHANNELS` | `155` | Conservative limit to preserve daily quota headroom |
 
 ### GitHub Personal Access Token (PAT)
 
@@ -89,7 +96,7 @@ Content-Type: application/json
 - Extracts unique channel IDs from results
 - Adds new channels to `tracked_channels.json`
 - Excludes vlog channels (except **Cherman Vlogs**)
-- Prunes channels inactive for 60+ days
+- Marks channels absent from discovery for 60+ days as `dormant` but keeps them tracked; missing search results are not proof of inactivity
 - Commits `tracked_channels.json` back to the repo
 
 ### 2. Tracking (`autoreactions.py`)
@@ -100,15 +107,18 @@ Content-Type: application/json
 - Filters out shorts (`#short`, `#shorts`, `"shorts"`, duration < 120s)
 - Fetches stats + duration + `liveStreamingDetails` in one batch `videos.list` call
 - Keeps live/upcoming/archived streams (via `liveStreamingDetails`)
-- Compares against bookmark (`last_run.json`), sends new ones to Discord
-- Updates bookmark
+- Migrates the previous timestamp bookmark to a versioned state file with a video-ID deduplication ledger
+- Keeps undelivered reactions in a persistent pending queue; sends up to `MAX_TO_SEND` oldest pending first
+- Saves state before sending and after each confirmed Discord delivery; failed sends remain queued
+- Excludes live/upcoming alerts (handled by the live checker), and uses the live checker artifact to suppress already-announced archived streams
+- Keeps a seven-day lookback for newly discovered old uploads; pending items are not subject to that cutoff
 
 ### 3. Live Streams (`check_live_streams.py`)
 
 - Searches YouTube for **currently live** videos mentioning **Missioned Souls**
 - Filters to titles containing "Missioned Souls"
-- Uses ID-based deduplication (stored in `live_last_run.json`, capped at 200 IDs)
-- Sends new live streams to Discord with `🔴 LIVE:` prefix
+- Confirms live status using `videos.list`, then uses ID-based deduplication (stored in `live_last_run.json`, capped at 2,000 IDs)
+- Sends new live streams to Discord with `🔴 LIVE:` prefix; saves an ID immediately after each successful webhook delivery
 
 ---
 
@@ -118,17 +128,17 @@ YouTube Data API v3 gives **10,000 units/day**.
 
 | Script | Runs/day | Units/run | Units/day |
 |---|---|---|---|
-| `autoreactions.py` | 48 | ~66 (channels) | ~3,200 |
-| `discover_channels.py` | 12 | ~100 | ~1,200 |
-| `check_live_streams.py` | 12 | ~100 | ~1,200 |
-| **Total** | | | **~5,600 (56%)** ✅ |
+| `autoreactions.py` | 48 | 125 playlist + 1–10 video batches | ~6,000–6,500 |
+| `discover_channels.py` | 12 | Up to 2 search calls | 24 search calls/day |
+| `check_live_streams.py` | 12 | 1 search + up to 1 video batch | 12 search calls/day + up to 12 standard units |
+| **Total** | | | **~60–66% of standard units; 36/100 search calls** |
 
 **API unit costs:**
-- `search.list` = 100 units
+- `search.list` = 1 request from a **separate 100 search-calls/day bucket** (Google's updated quota scheme)
 - `playlistItems.list` = 1 unit
 - `videos.list` = 1 unit (up to 50 IDs per call)
 
-**Capacity:** At 30-min tracker frequency + 2-hr discovery + 2-hr live checks, the system supports up to ~158 tracked channels.
+**Capacity:** The discovery script defaults to a conservative limit of 155 channels; review actual Cloud Console usage before changing it. Assumes 48 tracker runs/day and no large recovery scans.
 
 ---
 
@@ -137,10 +147,10 @@ YouTube Data API v3 gives **10,000 units/day**.
 | Decision | Rationale |
 |---|---|
 | **Playlist-based tracking** (not search-based) | 100% reliable for tracked channels; catches VODs of streams |
-| **No backfill for new channels** | Prevents Discord spam when many channels are added at once |
+| **No backfill for new channels** | First scan of a new channel seeds its existing visible uploads by ID, preventing Discord spam |
 | **Cherman Vlogs exception** | Only vlog channel to track; all other vlog channels excluded |
-| **Live streams via `liveStreamingDetails`** | Only way to reliably detect archived stream VODs |
-| **ID-based dedup for live streams** | Handles scheduled streams with old `published_at` timestamps |
+| **Live stream detection via `liveStreamingDetails`** | Distinguishes currently active streams from scheduled/completed ones |
+| **ID-based dedup for live streams** | Handles scheduled streams with old publication timestamps and archived VOD overlap when live history is available |
 | **No RSS feed** | YouTube blocks RSS from datacenter IPs (GitHub Actions) |
 | **30-min tracker frequency** | Doubles channel capacity vs 15-min; negligible latency impact |
 | **No CSV/HTML output** | Unused; removed to reduce runtime and complexity |
@@ -181,7 +191,7 @@ YouTube Data API v3 gives **10,000 units/day**.
 - Commit and push
 
 ### If Discord Posts Are Missing
-- Check that the video's `published_at` is newer than the bookmark
+- Check the pending queue and `seen_video_ids` in the saved reaction-state artifact; historical timestamps alone no longer decide delivery
 - Use `FORCE_SEND_ALL=true` for one run to resend the latest N
 
 ---
@@ -219,11 +229,14 @@ Actions tab → Check Live Streams → Run workflow
 
 | Limitation | Impact |
 |---|---|
-| YouTube `search.list` returns only top 50 newest | Discovery may miss channels not in the top 50 |
+| YouTube `search.list` returns at most 50 per page | Discovery checks two pages by default, but deeper results may still be missed |
 | RSS feeds blocked from cloud IPs | Cannot use RSS for zero-quota tracking |
 | Live stream detection latency | Up to 2 hours (based on cron schedule) |
+| Cross-workflow dedup | Uses the latest retained live sent-IDs artifact; if it expires, archived-stream dedup may be incomplete |
+| Exactly-once delivery | Unachievable across webhook and Actions artifact storage if GitHub stops after Discord accepts a message but before artifact upload |
 | Past videos from newly added channels | Not backfilled (by design) |
 | Vlog channels | Excluded except Cherman (hardcoded) |
+| Discovery pruning | Search-dormant channels remain tracked rather than being deleted automatically |
 
 ---
 
@@ -247,4 +260,35 @@ Personal project. Not licensed for redistribution.
 
 ---
 
-*Last updated: 2026-10-08*
+*Updated for the reliability branch: 2026-10-22. Merge only after production bookmark preflight passes.*
+
+---
+
+## 🩺 Operational safeguards
+
+- The tracker fails closed if either primary bookmark is missing or damaged. Logs explain how to restore it from an older workflow artifact.
+- Artifacts are retained for seven days, including after a failed tracker run when a valid state file exists. All tracker runs in `main` share a concurrency group for safer notification ordering.
+- Two separate state files remain necessary: `last_run.json` for reactions and `live_last_run.json` for live announcements. The reaction workflow downloads the latest available live state for archived stream deduplication.
+- Failed GitHub Actions tracker runs send a warning to `ALERT_WEBHOOK_URL` if configured, otherwise to the main Discord webhook. Alerts include a link to the failed workflow run.
+- Tests run on pull requests with synthetic data and no YouTube or Discord production credentials. Use **Offline delivery tests** and **Production bookmark preflight** to verify a proposed deployment.
+
+### One-time migration from a legacy bookmark
+
+On the first deployment, the tracker reads the current `last_run.json` artifact containing `last_published_at`, seeds already-covered IDs and writes the versioned state. Keep an independent backup of the artifact before merging.
+
+If the artifact has expired, **do not simply create an empty JSON file**. Restore an existing artifact if possible. The explicit emergency option `BOOTSTRAP_STATE_IF_MISSING=true` seeds currently visible uploads without posting; use it for one run only, then return it to `false`.
+
+If the saved live state has expired, the same emergency option seeds *currently active* live stream IDs without posting them; it will not recover sent IDs for older archived streams.
+
+### Safe deployment checklist
+
+1. Confirm the PR's offline tests and bookmark preflight are both green.
+2. Confirm the `main` branch is still healthy, including both scheduled tracker jobs and the discovery job.
+3. Take copies of `last_run.json` and `live_last_run.json` artifacts before changing `main`.
+4. Merge only after the preflight passes; do not trigger `FORCE_SEND_ALL` for migration.
+5. Confirm that the next normal tracker and live-check runs succeed and that bookmark artifacts are regenerated.
+6. Verify Discord received only intended alerts and that no redundant archived live-stream VOD was announced.
+
+### Quota documentation
+
+See [Google's current YouTube quota calculator](https://developers.google.com/youtube/data/determine_quota_cost). A search request consumes one of the separate daily search calls; the standard playlist and video fetches consume the general 10,000-unit pool.
