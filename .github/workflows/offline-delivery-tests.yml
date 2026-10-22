@@ -8,6 +8,7 @@ on:
       - 'check_live_streams.py'
       - 'webhook_delivery.py'
       - 'reaction_state.py'
+      - 'thumbnail_detector.py'
       - 'discover_channels.py'
       - 'report_failure.py'
       - '.github/workflows/youtube-tracker.yml'
@@ -27,6 +28,6 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install offline test dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt Pillow
       - name: Test without production credentials
         run: python -m unittest discover -s tests -v
