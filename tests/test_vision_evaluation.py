@@ -1,6 +1,8 @@
 """Offline guardrails for experimental vision, candidate harvesting and cost limits."""
 import json
 import os
+import tempfile
+from pathlib import Path
 from io import BytesIO
 import unittest
 from types import SimpleNamespace
@@ -11,7 +13,7 @@ os.environ.setdefault("DISCORD_WEBHOOK_URL", "https://example.invalid/unused")
 from vision_evaluator import (analyze, build_request, download_thumbnail,
                               metadata_evidence, parse_response, score_labelled,
                               thumbnail_url)
-from scripts.collect_vision_candidates import parse_feed, collect
+from scripts.collect_vision_candidates import parse_feed, collect, saved_state_candidates, create_review_csv
 from scripts.run_vision_evaluation import evaluate, cost_from_usage
 
 
@@ -147,6 +149,30 @@ class VisionOfflineTests(unittest.TestCase):
         self.assertEqual(len(rows), 9)
         self.assertEqual(len(set(x["channel_id"] for x in rows)), 4)
         self.assertFalse(errors)
+
+    def test_unlabelled_state_history_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "last_run.json"
+            path.write_text(json.dumps({
+                "seen_video_ids": ["hf03Voz2QBM", "Lr4gUjZVjT0", "bad id"],
+                "version": 2
+            }), encoding="utf-8")
+            rows = saved_state_candidates(path)
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(rows[0]["video_id"], "Lr4gUjZVjT0")
+            self.assertIsNone(rows[0]["ground_truth"])
+            self.assertEqual(rows[0]["source"], "read-only production video-ID history")
+
+    def test_manual_review_csv_has_blank_truth_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "review.csv"
+            rows = [{"video_id":"hf03Voz2QBM","thumbnail_url":
+                     "https://i.ytimg.com/vi/hf03Voz2QBM/hqdefault.jpg",
+                     "source":"test"}]
+            create_review_csv(rows, path=path)
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("ground_truth,reviewed_by,review_notes", text)
+            self.assertIn("youtube.com/watch?v=hf03Voz2QBM", text)
 
     def test_cost_guard_and_usage_math(self):
         self.assertAlmostEqual(cost_from_usage(
