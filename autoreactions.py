@@ -227,7 +227,7 @@ def get_reactions_with_stats():
     silent_channels = []
 
     for channel_id, info in tracked.items():
-        if is_excluded_channel(channel_id):
+        if is_excluded_channel(channel_id) or is_official_artist_channel(channel_id):
             continue
         channel_title = info.get('title', channel_id) if isinstance(info, dict) else str(info)
 
