@@ -264,6 +264,29 @@ class VisionOfflineTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 add_labels({"samples": []}, path)
 
+    def test_metadata_first_skips_paid_vision_for_explicit_reaction_title(self):
+        definite = dict(example(), title="Missioned Souls First Time REACTION!",
+                        ground_truth=None, reviewed_by=None)
+        ambiguous = example()
+        seen = []
+        def classifier(sample, api_key, model):
+            seen.append(sample["video_id"])
+            return {
+                "label": "uncertain",
+                "vision": {"reason": "Needs human review", "evidence": ""},
+                "metadata": {},
+                "usage": {"input_tokens": 500, "output_tokens": 100},
+            }
+        r = evaluate({"samples": [definite, ambiguous]}, api_key="fake",
+                     model="gpt-6-luna", max_calls=1,
+                     budget_usd=.5, classifier=classifier)
+        self.assertEqual(r["metadata_only_results"], 1)
+        self.assertEqual(r["paid_vision_calls"], 1)
+        self.assertEqual(len(seen), 1)
+        self.assertEqual(r["results"][0]["classification_source"], "metadata")
+        self.assertEqual(r["results"][1]["classification_source"], "vision")
+        self.assertEqual(r["metrics"]["labelled"], 0)
+
     def test_paid_runner_enforces_call_cap_with_stubbed_model(self):
         samples = [dict(example(), video_id=f"abcdefgh{i:02d}") for i in range(5)]
         def classifier(sample, api_key, model):
