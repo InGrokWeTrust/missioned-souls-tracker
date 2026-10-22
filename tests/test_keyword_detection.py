@@ -172,7 +172,7 @@ class KeywordClassifierTests(unittest.TestCase):
             ('MISSIONED SOULS (MS4) "I HATE MYSELF FOR LOVING YOU" STUDIO COVER | THIS IS HOW YOU DO IT!!!',
              "Cherman Vlogs", "UCvEgHm5bWB8Rvla_Bxl83WA"),
             ("Missioned Souls Crazy Train",
-             "Independent tracked reactor", "UC-lB_sG0uviaY9pD07kiwjg"),
+             "S.E.A.T.", "UC27_PpVaZq4kYquM5v0m3lg"),
         ]
         for title, channel, cid in cases:
             with self.subTest(title=title):
