@@ -21,7 +21,9 @@ OTHER="UC8ReQVU4PPfbxRy4B18jauw"
 def item(id,channel,when="2026-10-22T09:00:00Z"):
     return dict(video_id=id,channel_id=channel,title="Missioned Souls Reaction",
                 published_at=when,channel="Fake Channel",
-                url="https://youtu.be/"+id)
+                url="https://youtu.be/"+id,
+                live_broadcast_content="none",live_streaming_details=None,
+                metadata_confirmed=True)
 
 
 class ChannelExclusionTests(unittest.TestCase):
@@ -64,11 +66,10 @@ class ChannelExclusionTests(unittest.TestCase):
             send.side_effect=confirmed
             out=reactions.run_tracker([], {HCJB,OTHER})
             after=load_state(reactions.LAST_RUN_FILE)
-        self.assertEqual([v["video_id"] for v in out],["fromglobal1"])
-        self.assertEqual(after["pending"],[])
+        self.assertEqual([v["video_id"] for v in out],[])  # No fresh scan means hold pending.
+        self.assertEqual([v["video_id"] for v in after["pending"]],["fromglobal1"])
         self.assertNotIn("fromhcjb001",after["seen_video_ids"])
-        self.assertEqual(send.call_count,1)
-        self.assertEqual([v["video_id"] for v in send.call_args.args[0]],["fromglobal1"])
+        send.assert_not_called()
 
     def test_hcjb_pending_only_results_no_webhook_call(self):
         with tempfile.TemporaryDirectory() as d, \
