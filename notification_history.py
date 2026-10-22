@@ -138,7 +138,17 @@ def hydrate(kind, local_file):
     if DRY_RUN:
         print("🧪 DRY RUN: inspected " + kind + " durable history; no state or history writes")
         return combined
-    save_ids(kind, combined)  # Seed/reconcile durable history BEFORE any Discord delivery.
+    if kind == "live":
+        # Live-state IDs represent announcements; they may be reconciled.
+        save_ids(kind, combined)
+    else:
+        # Reaction seen_video_ids ALSO contains first-discovery seed/suppressed
+        # uploads. They are not evidence of actual Discord delivery. Only the
+        # successful webhook callback appends reaction IDs to remote history.
+        # Preserve legacy entries already present; never promote new seeds.
+        if set(local_ids) - set(remote_ids):
+            print("ℹ️ Local reaction seen IDs not in confirmed durable history: "
+                  "retaining locally without marking them as delivered.")
     if combined != local_ids:
         local[field] = combined
         if kind == "reactions":

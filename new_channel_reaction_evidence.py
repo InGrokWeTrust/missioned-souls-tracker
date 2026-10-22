@@ -14,7 +14,9 @@ _REACTION = re.compile(
 _EXCLUDE = re.compile(
     r"\b(?:reupload|re-upload|reposted?|reaction\s+archive|"
     r"compilation|tribute|interview|discussion|watch\s+party|"
-    r"podcast|highlights?|teaser|trailer|official\s+(?:music\s+)?video)\b",
+    r"podcast|highlights?|teaser|trailer|official\s+(?:music\s+)?video|"
+    r"flew\s+to|meet(?:ing)?\s+missioned\s+souls|travel\s+(?:vlog|diary)|"
+    r"behind\s+the\s+scenes|fan\s+meet|concert\s+announcement)\b",
     re.IGNORECASE,
 )
 
@@ -45,4 +47,14 @@ def clear_reaction_title(video, *, subject="Missioned Souls"):
     return len(tags & {
         "#reaction", "#reactionvideo", "#musicianreacts", "#musicreaction",
         "#firsttimehearing", "#reactingtomusic", "#firsttimereaction",
+        "#firstreaction",
     }) >= 2
+
+def is_strong_reaction_candidate(video, *, subject="Missioned Souls"):
+    """Publication-independent metadata evidence used by production VOD delivery.
+
+    A band mention alone, unrelated vlog, archive or discussion never suffices.
+    For ambiguous song-title uploads, multiple explicit reaction hashtags can
+    qualify, but even strong metadata is not proof of video contents.
+    """
+    return clear_reaction_title(video, subject=subject)

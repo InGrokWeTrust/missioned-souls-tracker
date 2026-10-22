@@ -70,7 +70,7 @@ class DurableHistoryTests(unittest.TestCase):
             result = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(result["pending"], [original["pending"][1]])
             self.assertEqual(result["known_channel_ids"], original["known_channel_ids"])
-            save.assert_called_once_with("reactions", ids)
+            save.assert_not_called()  # Seen IDs include seeds, not confirmed sends.
 
     def test_dry_run_never_modifies_local_or_remote(self):
         with tempfile.TemporaryDirectory() as directory:

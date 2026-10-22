@@ -10,6 +10,7 @@ from webhook_delivery import post_webhook
 from channel_exclusions import is_excluded_channel
 from reaction_channel_policy import is_official_artist_channel
 from verified_nitro_reactions import is_verified_nitro_reaction
+from new_channel_reaction_evidence import is_strong_reaction_candidate
 from video_release_policy import is_published_vod
 from notification_history import save_ids as save_durable_ids
 from reaction_state import (StateError, load_state, save_state, plan_notifications,
@@ -78,6 +79,15 @@ def is_missioned_souls_reaction(title, *, video_id=None, channel_id=None):
     return is_verified_nitro_reaction({
         "title": title, "video_id": video_id, "channel_id": channel_id
     })
+
+
+def is_safe_reaction_candidate(video):
+    """Only independently supported third-party reactions may reach Discord."""
+    if is_excluded_channel(video.get("channel_id")) or is_official_artist_channel(video.get("channel_id")):
+        return False
+    if is_strong_reaction_candidate(video, subject=CHANNEL_NAME):
+        return True
+    return is_verified_nitro_reaction(video)
 
 
 def is_archived_livestream(video):
@@ -321,6 +331,8 @@ def get_reactions_with_stats():
 
         if not is_published_vod(video):
             filtered_log.append((video, "upcoming, live, or unconfirmed VOD"))
+        elif not is_safe_reaction_candidate(video):
+            filtered_log.append((video, "unconfirmed reaction: title/metadata lacks strong evidence"))
         elif is_short_or_too_short(video):
             reason = classify_filter_reason(video)
             filtered_log.append((video, reason))
@@ -397,13 +409,24 @@ def reconfirm_older_pending_vods(pending, scanned_ids, *, now=None, limit=50):
             continue
         fresh = {
             "title": current_title,
+            "description": snippet.get("description", ""),
+            "channel_id": snippet.get("channelId"),
             "metadata_confirmed": True,
             "live_broadcast_content": snippet.get("liveBroadcastContent"),
             "live_streaming_details": item.get("liveStreamingDetails"),
             "duration_sec": parse_duration(
                 (item.get("contentDetails") or {}).get("duration"))
         }
-        if is_published_vod(fresh) and not is_short_or_too_short(fresh):
+        if (is_published_vod(fresh)
+                and is_safe_reaction_candidate(fresh)
+                and not is_short_or_too_short(fresh)):
+            queued_video.update({
+                "title": fresh["title"],
+                "description": fresh["description"],
+                "live_broadcast_content": fresh["live_broadcast_content"],
+                "live_streaming_details": fresh["live_streaming_details"],
+                "metadata_confirmed": True,
+            })
             ready.add(vid)
     print(f"✅ {len(ready)} older queued VODs confirmed published; "
           f"others remain pending.")
@@ -424,8 +447,9 @@ def send_to_discord(videos, max_to_send=5, run_start=None, on_success=None):
         print(f"🧪 DRY RUN: would deliver up to {min(max_to_send, len(videos))} videos; webhook disabled.")
         return []
     # Last line of defence, even for FORCE_SEND_ALL or direct callers.
-    videos = [v for v in videos if not is_excluded_channel(v.get("channel_id"))
-              and not is_official_artist_channel(v.get("channel_id"))]
+    videos = [v for v in videos
+              if is_safe_reaction_candidate(v) and is_published_vod(v)
+              and not is_short_or_too_short(v)]
     if not videos:
         print("⚠️ No new videos to send.")
         return []
@@ -521,7 +545,8 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
     if not DRY_RUN:
         # Save the queue before any supplementary metadata fetch or delivery.
         save_state(LAST_RUN_FILE, state)
-    ready_ids = {v['video_id'] for v in videos if is_published_vod(v)}
+    ready_ids = {v['video_id'] for v in videos
+                 if is_published_vod(v) and is_safe_reaction_candidate(v)}
     if not bootstrap and not force_send_all:
         ready_ids.update(reconfirm_older_pending_vods(
             state["pending"], {v["video_id"] for v in videos}, now=run_start
@@ -534,7 +559,9 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
                       and v['video_id'] not in state['seen_video_ids']
                       and v['video_id'] not in live_ids][:MAX_TO_SEND]
         else:
-            chosen = [v for v in state['pending'] if v['video_id'] in ready_ids][:MAX_TO_SEND]
+            current_videos = {v["video_id"]: v for v in videos}
+            chosen = [current_videos.get(v["video_id"], v) for v in state["pending"]
+                      if v["video_id"] in ready_ids][:MAX_TO_SEND]
         print(f"🧪 DRY RUN: {len(chosen)} would be sent, {len(state['pending'])} pending in simulated state.")
         for v in chosen:
             print(f"  WOULD SEND: {v['video_id']} {v['title'][:70]}")
@@ -558,15 +585,19 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
         return send_to_discord(chosen, max_to_send=MAX_TO_SEND, run_start=run_start)
 
     # Recent uploads and older queued items were independently reconfirmed above.
-    chosen = [v for v in state['pending'] if v['video_id'] in ready_ids][:MAX_TO_SEND]
+    current_videos = {v["video_id"]: v for v in videos}
+    chosen = [current_videos.get(v["video_id"], v) for v in state["pending"]
+              if v["video_id"] in ready_ids][:MAX_TO_SEND]
     if not chosen:
         print("ℹ️ No pending reactions to deliver.")
         return []
 
     def confirmed(video):
+        # Only the confirmed webhook delivery belongs in the durable sent ledger.
+        # Seeded/seen uploads must never be promoted to delivered history.
+        save_durable_ids("reactions", [video["video_id"]])
         acknowledge(state, video)
         save_state(LAST_RUN_FILE, state)
-        save_durable_ids("reactions", state["seen_video_ids"])
 
     delivered = send_to_discord(
         chosen, max_to_send=MAX_TO_SEND, run_start=run_start, on_success=confirmed
