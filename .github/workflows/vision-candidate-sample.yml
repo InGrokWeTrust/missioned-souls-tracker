@@ -1,0 +1,52 @@
+name: Vision candidate sample - read only
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/vision-candidate-sample.yml'
+      - 'scripts/collect_vision_candidates.py'
+      - 'tracked_channels.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install public-feed client
+        run: pip install requests
+      - name: Read most recent production reaction ID history (NO WRITE)
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: youtube-tracker.yml
+          branch: main
+          workflow_conclusion: ''
+          name: last-run-state
+          path: ./
+          search_artifacts: true
+          check_artifacts: true
+          if_no_artifact_found: warn
+      - name: Fetch up to 150 unlabelled candidates from tracked reactor feeds
+        run: python -m scripts.collect_vision_candidates
+      - name: Build standalone human-review thumbnail page
+        run: python -m scripts.create_review_page
+      - name: Save sample for human review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vision-unlabelled-candidates
+          path: |
+            vision-unlabelled-candidates.json
+            vision-review-sheet.csv
+            vision-human-review.html
+          retention-days: 14
+          if-no-files-found: warn
