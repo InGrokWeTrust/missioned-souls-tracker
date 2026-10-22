@@ -5,6 +5,12 @@ on:
 
 permissions:
   contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   track:
@@ -30,6 +36,8 @@ jobs:
           workflow: youtube-tracker.yml
           name: last-run-state
           path: ./
+          workflow_conclusion: ''
+          search_artifacts: true
           if_no_artifact_found: warn
 
       - name: Run YouTube reaction tracker
@@ -41,12 +49,14 @@ jobs:
           MAX_VIDEOS_PER_CHANNEL: ${{ vars.MAX_VIDEOS_PER_CHANNEL }}
           FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
           LAST_RUN_FILE: ${{ vars.LAST_RUN_FILE }}
+          BOOTSTRAP_STATE_IF_MISSING: ${{ vars.BOOTSTRAP_STATE_IF_MISSING }}
           TRACKED_CHANNELS_FILE: tracked_channels.json
         run: python autoreactions.py
 
       - name: Upload last_run.json for next run
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: last-run-state
           path: last_run.json
-          retention-days: 1
+          retention-days: 7
