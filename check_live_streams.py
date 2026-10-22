@@ -4,6 +4,7 @@ import json
 import requests
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
+from webhook_delivery import post_webhook
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -140,7 +141,9 @@ def find_active_live_streams():
 def send_to_discord(streams, run_start=None):
     if not streams:
         print("⚠️ No live streams to send.")
-        return
+        return []
+
+    delivered = []
 
     print(f"\n📨 Sending {len(streams)} live stream(s) to Discord...\n")
 
@@ -168,15 +171,15 @@ def send_to_discord(streams, run_start=None):
             "embeds": [embed]
         }
 
-        try:
-            response = requests.post(DISCORD_WEBHOOK_URL, json=data, timeout=10)
-            if response.status_code == 204:
-                print(f"✅ Sent: [{posted_value}] {stream['title'][:60]}...")
-            else:
-                print(f"❌ Discord error {response.status_code}")
-        except Exception as e:
-            print(f"❌ Failed to send: {e}")
+        if post_webhook(DISCORD_WEBHOOK_URL, data):
+            print(f"✅ Sent: [{posted_value}] {stream['title'][:60]}...")
+            delivered.append(stream)
+        else:
+            print("::warning::Discord live alert delivery failed; unsent ID remains eligible for retry.")
+            break
         time.sleep(1.3)
+
+    return delivered
 
 
 # ===================== MAIN =====================
@@ -209,11 +212,11 @@ if __name__ == "__main__":
 
     if new_streams:
         new_streams.sort(key=lambda x: x['published_at'], reverse=False)
-        top_streams = new_streams[-MAX_TO_SEND:] if len(new_streams) >= MAX_TO_SEND else new_streams
-        send_to_discord(top_streams, run_start=run_start)
+        top_streams = new_streams[:MAX_TO_SEND]  # Drain oldest eligible alerts first.
+        delivered = send_to_discord(top_streams, run_start=run_start)
 
-        # Record the IDs we just sent
-        for s in top_streams:
+        # Only acknowledge successfully delivered IDs.
+        for s in delivered:
             if s['video_id'] not in sent_ids:
                 sent_ids.append(s['video_id'])
 
