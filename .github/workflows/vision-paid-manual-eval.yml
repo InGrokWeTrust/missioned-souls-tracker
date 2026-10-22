@@ -57,6 +57,8 @@ jobs:
           if_no_artifact_found: warn
       - name: Collect unlabelled sample from public feeds
         run: python -m scripts.collect_vision_candidates
+      - name: Apply manually verified ground-truth labels
+        run: python -m scripts.apply_human_labels --labels data/vision-labels.csv --input vision-unlabelled-candidates.json --output vision-labelled-candidates.json
       - name: Analyze with opted-in paid model (NO DISCORD)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -65,7 +67,7 @@ jobs:
           BUDGET: ${{ inputs.api_budget_usd }}
         run: |
           python -m scripts.run_vision_evaluation \
-            --input vision-unlabelled-candidates.json \
+            --input vision-labelled-candidates.json \
             --output vision-model-evaluation.json \
             --model "$MODEL" \
             --max-calls "$MAX_CALLS" \
@@ -79,6 +81,7 @@ jobs:
           path: |
             vision-unlabelled-candidates.json
             vision-review-sheet.csv
+            vision-labelled-candidates.json
             vision-model-evaluation.json
           retention-days: 14
           if-no-files-found: warn
