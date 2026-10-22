@@ -102,7 +102,9 @@ def classify_actual(row, item):
         excluded_reason = "labelled Shorts"
     elif duration is not None and 0 < duration < 120:
         excluded_reason = "under two minutes"
-    result = classify(title, snippet.get("description") or "", snippet.get("tags") or [])
+    description = snippet.get("description") or ""
+    tags = snippet.get("tags") or []
+    result = classify(title, description, tags)
     return {
         **row,
         "title": title,
@@ -112,6 +114,9 @@ def classify_actual(row, item):
         "excluded_reason": excluded_reason,
         "evidence":result["evidence"],
         "reasons":result["reasons"],
+        "description_excerpt":description[:2200],
+        "description_length":len(description),
+        "tags":tags[:30] if isinstance(tags,list) else [],
         "title_has_band": bool(re.search(r"\bmissioned[\s_-]*souls\b",title,re.I)),
         "matched_without_band_title": not bool(re.search(
             r"\bmissioned[\s_-]*souls\b",title,re.I)) and result["tier"] in ("strong","review"),
@@ -235,6 +240,13 @@ def main():
     for row in result["candidate_examples"][:25]:
         print(f" [{row['tier'].upper()}] {row['video_id']} | {row['channel'][:30]} | "
               f"{row['title'][:80]} | {'; '.join(row['evidence'])}")
+    print("REVIEW CANDIDATE DESCRIPTION EVIDENCE")
+    for row in result["candidate_examples"]:
+        if row.get("tier") == "review":
+            full = next((v for v in result["all_scanned"]
+                         if v.get("video_id") == row["video_id"]), {})
+            print(f" review {row['video_id']} | description excerpt: "
+                  f"{' '.join(full.get('description_excerpt','').split())[:1050]}")
     print("HISTORICAL CONTROL IDENTITIES")
     for row in result["historical_controls"]:
         print(f" control {row['video_id']} | found={row['found']} | "
