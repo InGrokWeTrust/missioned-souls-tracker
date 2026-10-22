@@ -1,0 +1,61 @@
+name: Diagnose specific reaction video discovery
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/diagnose-tz7-video.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Read one YouTube video and compare registered uploader
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from urllib.request import Request, urlopen
+          from urllib.parse import urlencode
+          video_id = 'TZ7z0pZvn8w'
+          api_key = os.getenv('YOUTUBE_API_KEY')
+          if not api_key:
+              raise SystemExit('API key unavailable to diagnostic PR workflow; no lookup performed')
+          query = urlencode({'part': 'snippet,contentDetails,status',
+                             'id': video_id, 'key': api_key})
+          request = Request('https://www.googleapis.com/youtube/v3/videos?' + query)
+          with urlopen(request, timeout=20) as response:
+              data = json.load(response)
+          videos = data.get('items') or []
+          if len(videos) != 1:
+              raise SystemExit('Video not returned by YouTube videos.list; public metadata unavailable')
+          video = videos[0]
+          snippet = video.get('snippet') or {}
+          channel_id = snippet.get('channelId', '')
+          channel_title = snippet.get('channelTitle', '')
+          title = snippet.get('title', '')
+          published = snippet.get('publishedAt', '')
+          live = snippet.get('liveBroadcastContent', '')
+          privacy = (video.get('status') or {}).get('privacyStatus', '')
+          registry = json.load(open('tracked_channels.json', encoding='utf-8'))['channels']
+          in_registry = channel_id in registry
+          registered = registry.get(channel_id) or {}
+          print('VIDEO ID:', video_id)
+          print('TITLE:', title)
+          print('CHANNEL:', channel_title)
+          print('CHANNEL ID:', channel_id)
+          print('PUBLISHED UTC:', published)
+          print('BROADCAST:', live)
+          print('PRIVACY:', privacy)
+          print('TRACKED IN REGISTRY:', in_registry)
+          print('REGISTERED NAME:', registered.get('title', '(none)'))
+          print('ADDED AT UTC:', registered.get('added_at', '(none)'))
+          print('DIAGNOSTIC ONLY: 1 videos.list request; no Discord sends, no state changes')
+          PY
