@@ -139,7 +139,7 @@ def find_active_live_streams():
         video_id = item.get("id", {}).get("videoId")
         if not video_id or CHANNEL_NAME.lower() not in title.lower():
             continue
-        if re.search(r"#shorts?\\b|\\bshorts\\b", title.lower()):
+        if re.search(r"#shorts?\b|\bshorts\b", title.lower()):
             print(f"  ⏭️ Explicit Short filtered: {title[:50]}")
             continue
         matches[video_id] = item
@@ -161,7 +161,7 @@ def find_active_live_streams():
         live = detail.get("liveStreamingDetails", {})
         # The search request is for active broadcasts; reject videos that have ended
         # or are still merely scheduled according to their detailed metadata.
-        is_active = (broadcast == "live" or bool(live.get("actualStartTime"))) \\
+        is_active = (broadcast == "live" or bool(live.get("actualStartTime"))) \
             and not live.get("actualEndTime") and broadcast != "upcoming"
         if not is_active:
             print(f"  ⏭️ Not confirmed live: {video_id} (broadcast={broadcast})")
