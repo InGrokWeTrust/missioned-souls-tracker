@@ -76,6 +76,21 @@ def evaluate(selection, labels):
         "confirmed_match_fraction_of_consistent_sample":round(len(matches) / consistent,4) if consistent else None,
         "population_precision":None,
         "population_recall":None,
+        "reaction_only_precision":None,
+        "review_scope_requires_clarification":True,
+        "content_suspected_nonreaction_but_marked_valid": [
+            {"video_id":"6Eu4f5oqXnk","title_hint":"FREE worldwide concert livestream announcement"},
+            {"video_id":"qqhUL5a0rik","title_hint":"Hosting FREE LIVE CONCERT announcement"},
+            {"video_id":"vpYHLQr04LQ","title_hint":"Free livestream this weekend; website review"},
+            {"video_id":"IjaXJDLaIEM","title_hint":"One million views celebration"},
+            {"video_id":"gXWQQNUpKcA","title_hint":"Family band studio cover"},
+            {"video_id":"VhwqMoL-t8A","title_hint":"Reaction archive; may be archive rather than new reaction"},
+        ],
+        "content_scope_note":"The user marked these examples as matches although titles suggest "
+                             "concerts, announcements, covers or archives; do not change "
+                             "labels from title alone. Explicitly clarify whether the tracker "
+                             "should send only actual third-party reactions or all band-related "
+                             "posts before allowing automatic alerts.",
         "sample_selection":selection.get("selection"),
         "limitations":[
             "Risk-enriched, one per channel, with a pre-confirmed positive control. Not a random sample.",
