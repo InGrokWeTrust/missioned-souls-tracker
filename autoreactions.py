@@ -443,7 +443,9 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
     if force_send_all:
         # Force mode must not override the publication-safety policy.
         chosen = sorted(
-            [v for v in videos if is_published_vod(v)],
+            [v for v in videos if is_published_vod(v)
+             and v['video_id'] not in state['seen_video_ids']
+             and v['video_id'] not in live_ids],
             key=lambda v: (v["published_at"], v["video_id"])
         )[-MAX_TO_SEND:]
         print(f"🔄 Force replay: {len(chosen)} recent videos; state remains unchanged.")
