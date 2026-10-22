@@ -104,7 +104,7 @@ def classify_actual(row, item):
         excluded_reason = "under two minutes"
     description = snippet.get("description") or ""
     tags = snippet.get("tags") or []
-    result = classify(title, description, tags)
+    result = classify(title, description, tags, channel_name=row.get("channel", ""))
     return {
         **row,
         "title": title,
