@@ -22,11 +22,12 @@ CHANNEL_NAME = (os.environ.get("CHANNEL_NAME") or "Missioned Souls")
 MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND") or "10")
 MAX_VIDEOS_PER_CHANNEL = int(os.environ.get("MAX_VIDEOS_PER_CHANNEL") or "5")
 FORCE_SEND_ALL = os.environ.get("FORCE_SEND_ALL", "false").lower() == "true"
+DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
 LAST_RUN_FILE = (os.environ.get("LAST_RUN_FILE") or "last_run.json")
 LIVE_LAST_RUN_FILE = (os.environ.get("LIVE_LAST_RUN_FILE") or "live_last_run.json")
 TRACKED_CHANNELS_FILE = (os.environ.get("TRACKED_CHANNELS_FILE") or "tracked_channels.json")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
-if not DISCORD_WEBHOOK_URL:
+if not DISCORD_WEBHOOK_URL and not DRY_RUN:
     raise ValueError("Missing DISCORD_WEBHOOK_URL environment variable")
 
 # ===========================================
@@ -344,6 +345,9 @@ def discord_timestamp(iso):
 
 
 def send_to_discord(videos, max_to_send=5, run_start=None, on_success=None):
+    if DRY_RUN:
+        print(f"🧪 DRY RUN: would deliver up to {min(max_to_send, len(videos))} videos; webhook disabled.")
+        return []
     # Last line of defence, even for FORCE_SEND_ALL or direct callers.
     videos = [v for v in videos if not is_excluded_channel(v.get("channel_id"))]
     if not videos:
@@ -433,6 +437,21 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
                        channel_added_at=channel_added_at)
     # Only confirmed archived/livestream IDs are removed; ordinary reactions are unaffected.
     reconcile_live_notifications(state, live_ids)
+    if DRY_RUN:
+        ready_ids = {v['video_id'] for v in videos if is_published_vod(v)}
+        if bootstrap:
+            chosen = []
+        elif force_send_all:
+            chosen = [v for v in videos if v['video_id'] in ready_ids
+                      and v['video_id'] not in state['seen_video_ids']
+                      and v['video_id'] not in live_ids][:MAX_TO_SEND]
+        else:
+            chosen = [v for v in state['pending'] if v['video_id'] in ready_ids][:MAX_TO_SEND]
+        print(f"🧪 DRY RUN: {len(chosen)} would be sent, {len(state['pending'])} pending in simulated state.")
+        for v in chosen:
+            print(f"  WOULD SEND: {v['video_id']} {v['title'][:70]}")
+        print("🧪 DRY RUN: no Discord messages, no bookmark writes.")
+        return []
     save_state(LAST_RUN_FILE, state)
 
     # A one-time explicit bootstrap never sends existing videos, even in force mode.
