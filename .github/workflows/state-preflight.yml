@@ -1,0 +1,58 @@
+name: Production bookmark preflight
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/state-preflight.yml'
+      - '.github/workflows/youtube-tracker.yml'
+      - '.github/workflows/check_live_streams.yml'
+      - 'reaction_state.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify-existing-bookmarks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download latest production reaction state
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: youtube-tracker.yml
+          branch: main
+          workflow_conclusion: ''
+          name: last-run-state
+          path: preflight/reactions/
+          search_artifacts: true
+          check_artifacts: true
+          if_no_artifact_found: fail
+
+      - name: Download latest production live state
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: check_live_streams.yml
+          branch: main
+          workflow_conclusion: ''
+          name: live-last-run-state
+          path: preflight/live/
+          search_artifacts: true
+          check_artifacts: true
+          if_no_artifact_found: fail
+
+      - name: Validate production bookmark formats (read-only)
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          reactions = json.loads(Path("preflight/reactions/last_run.json").read_text())
+          live = json.loads(Path("preflight/live/live_last_run.json").read_text())
+          assert isinstance(reactions, dict), "Reaction state must be a JSON object"
+          assert isinstance(reactions.get("last_published_at"), str), "Reaction state timestamp unavailable"
+          assert isinstance(live.get("sent_video_ids"), list), "Live sent IDs unavailable"
+          print("PASS: both production bookmark artifacts are present and readable")
+          print("Reaction state format:", "v2" if reactions.get("version") == 2 else "legacy")
+          print("Saved live video IDs:", len(live["sent_video_ids"]))
