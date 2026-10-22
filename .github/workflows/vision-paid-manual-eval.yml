@@ -57,14 +57,21 @@ jobs:
           if_no_artifact_found: warn
       - name: Collect unlabelled sample from public feeds
         run: python -m scripts.collect_vision_candidates
+      - name: Expand recent ambiguous uploads using YouTube API (read-only)
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: |
+          python -m scripts.augment_reactor_sample \
+            --input vision-unlabelled-candidates.json \
+            --output vision-expanded-candidates.json
       - name: Build standalone human-review thumbnail page
-        run: python -m scripts.create_review_page
+        run: python -m scripts.create_review_page --input vision-expanded-candidates.json
       - name: Fetch video-specific descriptions and tags (read-only)
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
           python -m scripts.enrich_youtube_metadata \
-            --input vision-unlabelled-candidates.json \
+            --input vision-expanded-candidates.json \
             --output vision-enriched-candidates.json
       - name: Apply manually verified ground-truth labels
         run: python -m scripts.apply_human_labels --labels data/vision-labels.csv --input vision-enriched-candidates.json --output vision-labelled-candidates.json
@@ -93,6 +100,7 @@ jobs:
             vision-human-review.html
             vision-labelled-candidates.json
             vision-enriched-candidates.json
+            vision-expanded-candidates.json
             vision-model-evaluation.json
           retention-days: 14
           if-no-files-found: warn
