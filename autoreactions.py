@@ -336,6 +336,72 @@ def get_reactions_with_stats():
     return all_videos, run_start, scanned_channel_ids
 
 
+
+def reconfirm_older_pending_vods(pending, scanned_ids, *, now=None, limit=50):
+    """Safely recheck queued videos no longer covered by the newest-upload scan.
+
+    Only a bounded number of older items are checked in each run (one batched
+    YouTube videos.list request), rotating the selection every 30-minute slot.
+    An unavailable, upcoming, live, private, changed-channel, or short video
+    remains pending. A failed API request fails closed: no messages are sent.
+    """
+    older = [v for v in pending if v["video_id"] not in scanned_ids]
+    if not older:
+        return set()
+    if not isinstance(limit, int) or limit < 1 or limit > 50:
+        raise ValueError("Pending VOD recheck limit must be between 1 and 50")
+    now = now or datetime.now(timezone.utc)
+    if len(older) > limit:
+        # Offset changes per half-hour so an old upcoming video cannot starve
+        # the rest of the queue. No cursor or bookmark schema change required.
+        slot = int(now.timestamp()) // 1800
+        start = (slot * limit) % len(older)
+        selected = (older[start:] + older[:start])[:limit]
+    else:
+        selected = older
+    queued = {v["video_id"]: v for v in selected}
+    print(f"🔎 Rechecking {len(queued)} older queued VODs "
+          f"({len(older)} not covered by the latest upload scan).")
+    try:
+        response = youtube.videos().list(
+            part="snippet,contentDetails,liveStreamingDetails,status",
+            id=",".join(queued)
+        ).execute()
+    except Exception as exc:
+        raise StateError("Unable to reconfirm older queued VODs; queue preserved, "
+                         "refusing Discord delivery.") from exc
+    ready = set()
+    for item in response.get("items", []):
+        vid = item.get("id")
+        queued_video = queued.get(vid)
+        if queued_video is None:
+            continue
+        snippet = item.get("snippet") or {}
+        current_title = snippet.get("title", "")
+        if (not isinstance(current_title, str)
+                or snippet.get("channelId") != queued_video["channel_id"]
+                or is_excluded_channel(snippet.get("channelId"))
+                or not is_missioned_souls_reaction(
+                    current_title, video_id=vid, channel_id=snippet.get("channelId"))):
+            continue
+        privacy = (item.get("status") or {}).get("privacyStatus")
+        if privacy is not None and privacy != "public":
+            continue
+        fresh = {
+            "title": current_title,
+            "metadata_confirmed": True,
+            "live_broadcast_content": snippet.get("liveBroadcastContent"),
+            "live_streaming_details": item.get("liveStreamingDetails"),
+            "duration_sec": parse_duration(
+                (item.get("contentDetails") or {}).get("duration"))
+        }
+        if is_published_vod(fresh) and not is_short_or_too_short(fresh):
+            ready.add(vid)
+    print(f"✅ {len(ready)} older queued VODs confirmed published; "
+          f"others remain pending.")
+    return ready
+
+
 def discord_timestamp(iso):
     """Dynamic Discord local-time and relative timestamp for embeds."""
     dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
@@ -438,8 +504,15 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
                        channel_added_at=channel_added_at)
     # Only confirmed archived/livestream IDs are removed; ordinary reactions are unaffected.
     reconcile_live_notifications(state, live_ids)
+    if not DRY_RUN:
+        # Save the queue before any supplementary metadata fetch or delivery.
+        save_state(LAST_RUN_FILE, state)
+    ready_ids = {v['video_id'] for v in videos if is_published_vod(v)}
+    if not bootstrap and not force_send_all:
+        ready_ids.update(reconfirm_older_pending_vods(
+            state["pending"], {v["video_id"] for v in videos}, now=run_start
+        ))
     if DRY_RUN:
-        ready_ids = {v['video_id'] for v in videos if is_published_vod(v)}
         if bootstrap:
             chosen = []
         elif force_send_all:
@@ -453,7 +526,6 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
             print(f"  WOULD SEND: {v['video_id']} {v['title'][:70]}")
         print("🧪 DRY RUN: no Discord messages, no bookmark writes.")
         return []
-    save_state(LAST_RUN_FILE, state)
 
     # A one-time explicit bootstrap never sends existing videos, even in force mode.
     if bootstrap:
@@ -471,9 +543,7 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
         print(f"🔄 Force replay: {len(chosen)} recent videos; state remains unchanged.")
         return send_to_discord(chosen, max_to_send=MAX_TO_SEND, run_start=run_start)
 
-    # A pending video may have been queued when it was public and later scheduled
-    # as a premiere. Only deliver when this scan independently confirms it is ready.
-    ready_ids = {v['video_id'] for v in videos if is_published_vod(v)}
+    # Recent uploads and older queued items were independently reconfirmed above.
     chosen = [v for v in state['pending'] if v['video_id'] in ready_ids][:MAX_TO_SEND]
     if not chosen:
         print("ℹ️ No pending reactions to deliver.")
