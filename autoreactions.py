@@ -15,13 +15,13 @@ API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
     raise ValueError("Missing YOUTUBE_API_KEY environment variable")
 
-CHANNEL_NAME = os.environ.get("CHANNEL_NAME", "Missioned Souls")
-MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND", "10"))
-MAX_VIDEOS_PER_CHANNEL = int(os.environ.get("MAX_VIDEOS_PER_CHANNEL", "5"))
+CHANNEL_NAME = (os.environ.get("CHANNEL_NAME") or "Missioned Souls")
+MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND") or "10")
+MAX_VIDEOS_PER_CHANNEL = int(os.environ.get("MAX_VIDEOS_PER_CHANNEL") or "5")
 FORCE_SEND_ALL = os.environ.get("FORCE_SEND_ALL", "false").lower() == "true"
-LAST_RUN_FILE = os.environ.get("LAST_RUN_FILE", "last_run.json")
-LIVE_LAST_RUN_FILE = os.environ.get("LIVE_LAST_RUN_FILE", "live_last_run.json")
-TRACKED_CHANNELS_FILE = os.environ.get("TRACKED_CHANNELS_FILE", "tracked_channels.json")
+LAST_RUN_FILE = (os.environ.get("LAST_RUN_FILE") or "last_run.json")
+LIVE_LAST_RUN_FILE = (os.environ.get("LIVE_LAST_RUN_FILE") or "live_last_run.json")
+TRACKED_CHANNELS_FILE = (os.environ.get("TRACKED_CHANNELS_FILE") or "tracked_channels.json")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 if not DISCORD_WEBHOOK_URL:
     raise ValueError("Missing DISCORD_WEBHOOK_URL environment variable")
