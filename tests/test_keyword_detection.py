@@ -95,6 +95,28 @@ class KeywordClassifierTests(unittest.TestCase):
     def test_multiple_member_names_without_instruments_not_automatic(self):
         self.tier("Neisha Stacey Naces on this great song",expected="none")
 
+    def test_human_confirmed_paper_dove_false_match_is_review_not_strong(self):
+        title="Paper Dove “I’m Not Okay” MCR cover. FilAm dad reacts. #missionedsouls"
+        result=self.tier(title,expected="review",strong=False)
+        self.assertIn("Paper Dove", " ".join(result["evidence"]))
+        self.assertFalse(result["auto_candidate"])
+
+    def test_paper_dove_with_explicit_reaction_context_still_not_strong(self):
+        title="Reacting to Paper Dove #MissionedSouls - amazing cover"
+        self.tier(title,expected="review",strong=False)
+
+    def test_human_disputed_naces_tribute_is_review_not_strong(self):
+        title="Naces of Missioned Souls ❤️ The Heartbeat Beneath the Song | A Song for the Unsung Bass Player"
+        result=self.tier(title,expected="review",strong=False)
+        self.assertIn("tribute", " ".join(result["reasons"]))
+
+    def test_missioned_souls_tribute_review_only(self):
+        self.tier("Special Tribute to Naces of Missioned Souls",expected="review",strong=False)
+
+    def test_actual_band_reaction_without_paper_dove_stays_strong(self):
+        self.tier("Reacting to Missioned Souls - The Final Countdown",
+                  expected="strong",strong=True)
+
     def test_neisha_only_is_not_enough(self):
         self.tier("Neisha is amazing",expected="none")
 
