@@ -29,6 +29,18 @@ class DurableHistoryTests(unittest.TestCase):
         self.assertEqual(args[2]["branch"], history.HISTORY_BRANCH)
         self.assertEqual(args[2]["sha"], "sha-old")
 
+    def test_conflict_retry_keeps_concurrent_history(self):
+        from urllib.error import HTTPError
+        conflict = HTTPError("https://api.github.com", 409, "conflict", {}, None)
+        with patch.object(history, "HISTORY_ENABLED", True), \
+             patch.object(history, "DRY_RUN", False), \
+             patch.object(history, "_read_remote",
+                          side_effect=[(["old"], "sha-old"), (["old", "concurrent"], "sha-new")]), \
+             patch.object(history, "_api_request", side_effect=[conflict, {}]) as api:
+            merged = history.save_ids("reactions", ["my-delivery"])
+        self.assertEqual(merged, ["old", "concurrent", "my-delivery"])
+        self.assertEqual(api.call_count, 2)
+
     def test_save_never_removes_old_ids(self):
         with patch.object(history, "HISTORY_ENABLED", True), \
              patch.object(history, "DRY_RUN", False), \
