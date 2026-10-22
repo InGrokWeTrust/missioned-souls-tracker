@@ -14,6 +14,9 @@ on:
       - 'scripts/keyword_miss_audit.py'
       - 'scripts/score_keyword_human_review.py'
       - 'data/keyword_manual_labels_20261022.csv'
+      - 'scripts/score_keyword_strong30.py'
+      - 'data/keyword_strong30_human_labels_20261022.csv'
+      - 'data/keyword_strong30_pending_review_20261022.json'
       - 'data/keyword_audit_snapshot_20261022.json'
       - '.github/workflows/keyword-live-shadow.yml'
       - 'data/keyword_trial_cases.json'
@@ -43,6 +46,8 @@ jobs:
         run: python -m scripts.run_keyword_trial
       - name: Score all 46 human-reviewed cases without extrapolation
         run: python -m scripts.score_keyword_human_review
+      - name: Score strong-tier reviews; preserve conflicting tribute note
+        run: python -m scripts.score_keyword_strong30
       - name: Upload reproducible keyword evaluation report
         if: always()
         uses: actions/upload-artifact@v4
@@ -51,5 +56,6 @@ jobs:
           path: |
             keyword-trial-results.json
             keyword-human-label-results.json
+            keyword-strong30-human-results.json
           retention-days: 14
           if-no-files-found: warn
