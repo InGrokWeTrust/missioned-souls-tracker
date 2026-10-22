@@ -1,5 +1,5 @@
 {
-  "note": "Seven identified real positive videos + constructed edge/negative controls. Synthetic cases are not real-world ground truth; no statistical precision/recall is inferred.",
+  "note": "Reaction-only policy regression: verified real positives may still be review-tier if the title lacks reaction-specific evidence; synthetic controls are not accuracy data.",
   "cases": [
     {
       "kind": "publicly identified real positive",
@@ -23,7 +23,8 @@
       "source": "Public previously inspected WILBURN video",
       "title": "THIS 11 YEAR OLD DRUMMER IS UNREAL - MISSIONED SOULS",
       "description": "",
-      "expect": "strong"
+      "expect": "review",
+      "note": "Genuine reaction identity previously established, but band-name title alone is insufficient for automatic reaction-only classification"
     },
     {
       "kind": "publicly identified real positive",
