@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import tempfile
 import requests
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
@@ -28,31 +29,49 @@ youtube = build('youtube', 'v3', developerKey=API_KEY)
 
 
 def load_state():
-    """Load the sent video IDs and last check time."""
+    """Fail closed if the bookmark disappeared or is malformed."""
     try:
-        with open(LIVE_LAST_RUN_FILE, 'r', encoding='utf-8') as f:
+        with open(LIVE_LAST_RUN_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            sent_ids = data.get('sent_video_ids', [])
-            last_check = data.get('last_check')
-            # Backward compatibility: if old format, return empty list
-            if not isinstance(sent_ids, list):
-                sent_ids = []
-            return sent_ids, last_check
-    except (FileNotFoundError, json.JSONDecodeError):
-        return [], None
+    except FileNotFoundError as exc:
+        if os.environ.get("BOOTSTRAP_STATE_IF_MISSING", "false").lower() == "true":
+            return [], "BOOTSTRAP"
+        raise RuntimeError(
+            "Live bookmark missing: restore the workflow artifact, or explicitly "
+            "bootstrap once with BOOTSTRAP_STATE_IF_MISSING=true."
+        ) from exc
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise RuntimeError("Live bookmark corrupt; refusing to reset and repost.") from exc
+
+    if not isinstance(data, dict) or not isinstance(data.get("sent_video_ids"), list):
+        raise RuntimeError("Live bookmark has an invalid schema.")
+    if not all(isinstance(v, str) and v for v in data["sent_video_ids"]):
+        raise RuntimeError("Live bookmark has invalid video IDs.")
+    return data["sent_video_ids"], data.get("last_check")
 
 
 def save_state(sent_ids):
-    """Save the sent video IDs (capped) and current time."""
-    # Cap at MAX_STORED_IDS, keeping the most recent
-    sent_ids = sent_ids[-MAX_STORED_IDS:]
+    """Atomic state write to avoid half-written JSON after interruption."""
     data = {
-        "sent_video_ids": sent_ids,
+        "sent_video_ids": sent_ids[-MAX_STORED_IDS:],
         "last_check": datetime.now(timezone.utc).isoformat()
     }
-    with open(LIVE_LAST_RUN_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2)
-    print(f"💾 Updated {LIVE_LAST_RUN_FILE} → {len(sent_ids)} IDs tracked")
+    directory = os.path.dirname(os.path.abspath(LIVE_LAST_RUN_FILE))
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w", encoding="utf-8", dir=directory,
+            prefix=".live-state-", suffix=".tmp", delete=False
+        ) as f:
+            path = f.name
+            json.dump(data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(path, LIVE_LAST_RUN_FILE)
+    finally:
+        if path and os.path.exists(path):
+            os.unlink(path)
+    print(f"💾 Updated {LIVE_LAST_RUN_FILE} → {len(data['sent_video_ids'])} IDs tracked")
 
 
 def humanize_ago(published_at_iso, now=None):
@@ -195,6 +214,12 @@ if __name__ == "__main__":
 
     streams = find_active_live_streams()
 
+    if last_check == "BOOTSTRAP":
+        sent_ids = list(dict.fromkeys(s["video_id"] for s in streams))
+        save_state(sent_ids)
+        print("📌 Live bootstrap: current stream IDs seeded with no Discord posts.")
+        raise SystemExit(0)
+
     if not streams:
         print("ℹ️ No active Missioned Souls live streams found.")
         # Still save state to update last_check
@@ -221,6 +246,8 @@ if __name__ == "__main__":
                 sent_ids.append(s['video_id'])
 
         save_state(sent_ids)
+        if len(delivered) < len(top_streams):
+            raise RuntimeError("Some live alerts failed. Sent IDs persisted for retry.")
         print(f"📌 {len(sent_ids)} total IDs tracked")
     else:
         print("ℹ️ No new live streams – state unchanged")
