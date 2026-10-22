@@ -24,6 +24,8 @@ def video(i, *, channel="UC1", published=None):
         "video_id": f"id-{i}", "channel_id": channel, "title": f"Missioned Souls #{i}",
         "published_at": published or f"2026-10-22T{i:02}:00:00Z",
         "channel": "Demo", "url": f"https://youtu.be/id-{i}",
+        "live_broadcast_content": "none", "live_streaming_details": None,
+        "metadata_confirmed": True,
     }
 
 
@@ -73,7 +75,7 @@ class OfflineTrackerTests(unittest.TestCase):
         self.assertEqual(len(second), 4)
         self.assertEqual(third, [])
         self.assertEqual(len(after_first["pending"]), 4)
-        self.assertEqual(len(load_state(self.bookmark)["seen_video_ids"]), 10)
+        self.assertEqual(len(load_state(self.bookmark)["seen_video_ids"]), 11)
         self.assertEqual(send.call_count, 2)
 
     def test_partial_discord_failure_persists_only_successes(self):
@@ -83,7 +85,7 @@ class OfflineTrackerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Discord delivery failed"):
                 tracker.run_tracker([video(i) for i in range(1, 5)], {"UC1"}, run_start=NOW)
         state = load_state(self.bookmark)
-        self.assertEqual(state["seen_video_ids"], ["id-1"])
+        self.assertEqual(state["seen_video_ids"], ["jm6K2OqOIWE", "id-1"])
         self.assertEqual([v["video_id"] for v in state["pending"]], ["id-2", "id-3", "id-4"])
 
     def test_complete_discord_failure_preserves_full_queue(self):
@@ -92,7 +94,7 @@ class OfflineTrackerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Discord delivery failed"):
                 tracker.run_tracker([video(1), video(2)], {"UC1"}, run_start=NOW)
         state = load_state(self.bookmark)
-        self.assertEqual(state["seen_video_ids"], [])
+        self.assertEqual(state["seen_video_ids"], ["jm6K2OqOIWE"])
         self.assertEqual(len(state["pending"]), 2)
 
     def test_pending_recoverable_with_empty_next_scan(self):
@@ -101,7 +103,9 @@ class OfflineTrackerTests(unittest.TestCase):
         plan_notifications(state, [video(1)], {"UC1"}, now=NOW)
         save_state(self.bookmark, state)
         with patch.object(tracker, "send_to_discord", side_effect=self.all_sent):
-            sent = tracker.run_tracker([], {"UC1"}, run_start=NOW)
+            held = tracker.run_tracker([], {"UC1"}, run_start=NOW)
+            sent = tracker.run_tracker([video(1)], {"UC1"}, run_start=NOW)
+        self.assertEqual(held, [])  # Missing confirmation must not deliver queued VODs.
         self.assertEqual([x["video_id"] for x in sent], ["id-1"])
 
     def test_missing_bookmark_fails_closed(self):
@@ -118,7 +122,7 @@ class OfflineTrackerTests(unittest.TestCase):
              patch.object(tracker, "send_to_discord") as send:
             self.assertEqual(tracker.run_tracker([video(1)], {"UC1"}, run_start=NOW), [])
         send.assert_not_called()
-        self.assertEqual(load_state(self.bookmark)["seen_video_ids"], ["id-1"])
+        self.assertEqual(load_state(self.bookmark)["seen_video_ids"], ["jm6K2OqOIWE", "id-1"])
 
     def test_legacy_timestamp_migrates_without_spam(self):
         self.write_state({"last_published_at": "2026-10-22T05:00:00Z"})
@@ -127,7 +131,7 @@ class OfflineTrackerTests(unittest.TestCase):
                 [video(4), video(5), video(6)], {"UC1"}, run_start=NOW)
         state = load_state(self.bookmark)
         self.assertEqual([v["video_id"] for v in result], ["id-6"])
-        self.assertEqual(state["seen_video_ids"], ["id-4", "id-5", "id-6"])
+        self.assertEqual(state["seen_video_ids"], ["jm6K2OqOIWE", "id-4", "id-5", "id-6"])
         self.assertEqual(state["known_channel_ids"], ["UC1"])
 
     def test_late_discovered_older_published_video_is_sent(self):
@@ -180,7 +184,7 @@ class OfflineTrackerTests(unittest.TestCase):
             tracker.run_tracker([video(1)], {"UC1"}, force_send_all=True, run_start=NOW)
         after = load_state(self.bookmark)
         # Force mode is a replay only. Newly detected IDs remain queued.
-        self.assertEqual(after["seen_video_ids"], original["seen_video_ids"])
+        self.assertEqual(after["seen_video_ids"], original["seen_video_ids"] + ["jm6K2OqOIWE"])
         self.assertEqual(len(after["pending"]), 1)
 
     def test_webhook_rate_limit_retried(self):
