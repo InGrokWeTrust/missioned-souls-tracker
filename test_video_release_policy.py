@@ -28,6 +28,12 @@ class VideoReleasePolicyTests(unittest.TestCase):
     def test_finished_broadcast_is_eligible(self):
         self.assertTrue(is_published_vod(self.video(details={"actualEndTime": "2026-10-22T10:30:00Z"})))
 
+    def test_completed_premiere_needs_non_live_status(self):
+        ended = {"actualEndTime": "2026-10-22T10:30:00Z"}
+        self.assertFalse(is_published_vod(self.video(status="live", details=ended)))
+        self.assertFalse(is_published_vod(self.video(status="upcoming", details=ended)))
+        self.assertTrue(is_published_vod(self.video(status="none", details=ended)))
+
     def test_unconfirmed_metadata_fails_closed(self):
         self.assertFalse(is_published_vod(self.video(confirmed=False)))
         self.assertFalse(is_published_vod(self.video(status="unknown")))
