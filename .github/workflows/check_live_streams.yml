@@ -8,7 +8,7 @@ permissions:
   actions: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: missioned-souls-notifications-${{ github.ref }}
   cancel-in-progress: false
   queue: max
 
@@ -33,12 +33,14 @@ jobs:
       - name: Download previous live_last_run.json
         uses: dawidd6/action-download-artifact@v3
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: check_live_streams.yml
           name: live-last-run-state
           path: ./
           branch: ${{ github.ref_name }}
           workflow_conclusion: ''
           search_artifacts: true
+          check_artifacts: true
           if_no_artifact_found: warn
 
       - name: Run live stream checker
@@ -59,3 +61,12 @@ jobs:
           name: live-last-run-state
           path: live_last_run.json
           retention-days: 7
+          if-no-files-found: error
+
+      - name: Alert on production failure
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL || secrets.DISCORD_WEBHOOK_URL }}
+          GITHUB_WORKFLOW: ${{ github.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python report_failure.py
