@@ -1,0 +1,70 @@
+name: PAID manual vision evaluation - never production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_billing:
+        description: 'Type YES to approve OpenAI API charges for this test'
+        required: true
+        default: 'NO'
+        type: string
+      vision_model:
+        description: 'Vision model (latest documented rates)'
+        required: true
+        default: 'gpt-6-luna'
+        type: choice
+        options:
+          - gpt-6-luna
+          - gpt-6.1-sol
+      max_calls:
+        description: 'Maximum thumbnails to send to AI (1-200)'
+        required: true
+        default: '10'
+        type: string
+      api_budget_usd:
+        description: 'Approximate API budget in USD (max 10; may exceed by one request)'
+        required: true
+        default: '0.50'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    if: ${{ inputs.confirm_billing == 'YES' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install network client
+        run: pip install requests
+      - name: Collect unlabelled sample from public feeds
+        run: python -m scripts.collect_vision_candidates
+      - name: Analyze with opted-in paid model (NO DISCORD)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MODEL: ${{ inputs.vision_model }}
+          MAX_CALLS: ${{ inputs.max_calls }}
+          BUDGET: ${{ inputs.api_budget_usd }}
+        run: |
+          python -m scripts.run_vision_evaluation \
+            --input vision-unlabelled-candidates.json \
+            --output vision-model-evaluation.json \
+            --model "$MODEL" \
+            --max-calls "$MAX_CALLS" \
+            --budget-usd "$BUDGET" \
+            --execute-paid-vision
+      - name: Save model evidence, no production notifications
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vision-evaluation-review-only
+          path: |
+            vision-unlabelled-candidates.json
+            vision-model-evaluation.json
+          retention-days: 14
+          if-no-files-found: warn
