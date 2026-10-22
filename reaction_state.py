@@ -163,6 +163,41 @@ def plan_notifications(state, videos, tracked_channel_ids, *, now=None):
     return enqueued, seeded
 
 
+def read_live_sent_ids(path):
+    """Read recently announced live stream IDs for cross-workflow deduplication.
+
+    A missing live artifact means no cross-workflow history is available.
+    We warn instead of assuming an empty file contains authoritative history.
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+    except FileNotFoundError:
+        print("::warning::Live stream history artifact unavailable; archived VOD dedup is partial.")
+        return set()
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise StateError("Live history artifact is corrupt; refusing ambiguous duplicate checks.") from exc
+    if not isinstance(payload, dict) or not isinstance(payload.get("sent_video_ids"), list):
+        raise StateError("Live history artifact has invalid schema.")
+    return {v for v in payload["sent_video_ids"] if isinstance(v, str) and v}
+
+
+def reconcile_live_notifications(state, sent_live_ids):
+    """Remove duplicates already announced by the live-stream workflow."""
+    removed = 0
+    remaining = []
+    for video in state["pending"]:
+        if video["video_id"] in sent_live_ids:
+            _remember(state, video["video_id"])
+            removed += 1
+        else:
+            remaining.append(video)
+    state["pending"] = remaining
+    if removed:
+        print(f"🔁 Skipped {removed} archived stream notifications already announced live.")
+    return removed
+
+
 def acknowledge(state, video):
     """Call only following a confirmed webhook success."""
     vid = video["video_id"]
