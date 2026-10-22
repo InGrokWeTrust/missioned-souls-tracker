@@ -1,0 +1,177 @@
+{
+  "cohort": "reaction-quality-remaining14-20261022",
+  "status": "awaiting-independent-human-content-review",
+  "source": "Frozen earlier 30-video metadata adjudication minus previously confirmed human reviews",
+  "preserve_sources": [
+    "data/keyword_strong30_reactions_only_adjudication_20261022.json",
+    "data/reaction_quality_next8_human_labels_20261022.csv",
+    "data/reaction_quality_next8_pending_review_20261022.json"
+  ],
+  "review_policy": "A reaction requires fresh third-party commentary, criticism or analysis of a Missioned Souls musical performance; otherwise label not_match, or uncertain if inaccessible/indeterminate",
+  "review_values": [
+    "reaction",
+    "not_match",
+    "uncertain"
+  ],
+  "selection_warning": "14 remaining previously metadata-only titles from an intentionally selected, risk-enriched 37-video sample; no representative precision or recall",
+  "priority_note": "Order starts with less explicit performance framing; provisional status shown for provenance only, never as suggested reviewer answer",
+  "youtube_api_calls": 0,
+  "discord_posts": 0,
+  "originals_unchanged": true,
+  "items": [
+    {
+      "video_id": "ETb_O74yn20",
+      "title": "A Timeless Classic, a Beautiful Family Performance! | Missioned Souls//Reaction",
+      "channel_id": "UCQax0riMpFBipXSJhx6AavQ",
+      "channel_name": "Lil Kash",
+      "url": "https://www.youtube.com/watch?v=ETb_O74yn20",
+      "prior_metadata_status": "supported_reaction",
+      "review_label": null,
+      "reviewer": null,
+      "notes": ""
+    },
+    {
+      "video_id": "X2iIie9DGMQ",
+      "title": "Why This AKAP Cover Is A Must-Watch | Missioned Souls Reaction",
+      "channel_id": "UCl_B0xiwmej1pcqVw9W_6Bg",
+      "channel_name": "GenX Rock Comeback",
+      "url": "https://www.youtube.com/watch?v=X2iIie9DGMQ",
+      "prior_metadata_status": "supported_reaction",
+      "review_label": null,
+      "reviewer": null,
+      "notes": ""
+    },
+    {
+      "video_id": "emohzErkSxU",
+      "title": "Missioned Souls (ft. Johnny Cummings) - Hysteria (Muse Cover) | REACTION | First Time Hearing",
+      "channel_id": "UCV8aPBobvkyD3AHNqhHYOOg",
+      "channel_name": "MommaOG",
+      "url": "https://www.youtube.com/watch?v=emohzErkSxU",
+      "prior_metadata_status": "supported_reaction",
+      "review_label": null,
+      "reviewer": null,
+      "notes": ""
+    },
+    {
+      "video_id": "4Irh5GOuklU",
+      "title": "Missioned Souls Long Time Cover Reaction",
+      "channel_id": "UCiE7yuTtYGtVWRvgLGy3_tQ",
+      "channel_name": "Kranky Old Dude",
+      "url": "https://www.youtube.com/watch?v=4Irh5GOuklU",
+      "prior_metadata_status": "supported_reaction",
+      "review_label": null,
+      "reviewer": null,
+      "notes": ""
+    },
+    {
+      "video_id": "zPZf_TsXeak",
+      "title": "Missioned Souls – Doc Holliday / Diary of Jane | They ROCKED This! 🔥 | Reaction",
+      "channel_id": "UCBt8z4eHlqhrysdHgRSmiVA",
+      "channel_name": "Melodic Logic",
+      "url": "https://www.youtube.com/watch?v=zPZf_TsXeak",
+      "prior_metadata_status": "supported_reaction",
+      "review_label": null,
+      "reviewer": null,
+      "notes": ""
+    },
+    {
+      "video_id": "qz3tZGs8nzo",
+      "title": "Reacting To Missioned Souls -  I HATE MYSELF FOR LOVING YOU(Joan Jett & The Blackhearts Cover)!!!",
+      "channel_id": "UCppMNpRCT9AkqlRAhbnvd4Q",
+      "channel_name": "Radio Teo",
+      "url": "https://www.youtube.com/watch?v=qz3tZGs8nzo",
+      "prior_metadata_status": "supported_reaction",
+      "review_label": null,
+      "reviewer": null,
+      "notes": ""
+    },
+    {
+      "video_id": "eg1mmc5N4_M",
+      "title": "MISSIONED SOULS | \"ROSANNA (TOTO COVER)\" (reaction)",
+      "channel_id": "UCDUpanoPZcSgTkn9lWb60yA",
+      "channel_name": "Sight After Dark",
+      "url": "https://www.youtube.com/watch?v=eg1mmc5N4_M",
+      "prior_metadata_status": "supported_reaction",
+      "review_label": null,
+      "reviewer": null,
+      "notes": ""
+    },
+    {
+      "video_id": "qHOVcqgRRgA",
+      "title": "MISSIONED SOULS – Hopelessly Devoted to You COVER REACTION! 🤯 | Olivia Newton-John / Grease",
+      "channel_id": "UC4GqmiZ-Q6_RQNT1DkB5xZg",
+      "channel_name": "Mike's Musical Rehab",
+      "url": "https://www.youtube.com/watch?v=qHOVcqgRRgA",
+      "prior_metadata_status": "supported_reaction",
+      "review_label": null,
+      "reviewer": null,
+      "notes": ""
+    },
+    {
+      "video_id": "y2CRFwhqSqM",
+      "title": "MISSIONED SOULS - Bad Moon Rising and Kiss Me (Reaction)",
+      "channel_id": "UCofWn-j1U2gZHosTHH96pfQ",
+      "channel_name": "BadBird Reactions",
+      "url": "https://www.youtube.com/watch?v=y2CRFwhqSqM",
+      "prior_metadata_status": "supported_reaction",
+      "review_label": null,
+      "reviewer": null,
+      "notes": ""
+    },
+    {
+      "video_id": "wf86HLqLmN8",
+      "title": "First Time Reaction - Missioned Souls - I Hate Myself For Loving You | Studio Version",
+      "channel_id": "UCucnXR4qmpfnEsPUMSnE_Gw",
+      "channel_name": "Tristan Reacts",
+      "url": "https://www.youtube.com/watch?v=wf86HLqLmN8",
+      "prior_metadata_status": "supported_reaction",
+      "review_label": null,
+      "reviewer": null,
+      "notes": ""
+    },
+    {
+      "video_id": "8PMWuRU-H30",
+      "title": "Missioned Souls - Hopelessly Devoted To You - Reaction",
+      "channel_id": "UCY8xhfU0TDowDMY_r5lSUoA",
+      "channel_name": "CS 780",
+      "url": "https://www.youtube.com/watch?v=8PMWuRU-H30",
+      "prior_metadata_status": "supported_reaction",
+      "review_label": null,
+      "reviewer": null,
+      "notes": ""
+    },
+    {
+      "video_id": "XBCg8-44GJs",
+      "title": "Musician reacts to Missioned Souls - The Final Countdown (Europe Cover)",
+      "channel_id": "UCZJ9ZsJGHLHmkqIh30knRXw",
+      "channel_name": "Vault of Art",
+      "url": "https://www.youtube.com/watch?v=XBCg8-44GJs",
+      "prior_metadata_status": "supported_reaction",
+      "review_label": null,
+      "reviewer": null,
+      "notes": ""
+    },
+    {
+      "video_id": "IjaXJDLaIEM",
+      "title": "Missioned Souls kid 1 MILLION VIEWS for this #missionedsouls #familybandi  #kantakwento",
+      "channel_id": "UCz-hLsF25Xu8ILLo9twh-9g",
+      "channel_name": "KANTA KWENTO",
+      "url": "https://www.youtube.com/watch?v=IjaXJDLaIEM",
+      "prior_metadata_status": "exclude_by_reactions_only_policy",
+      "review_label": null,
+      "reviewer": null,
+      "notes": ""
+    },
+    {
+      "video_id": "qqhUL5a0rik",
+      "title": "Missioned Souls Are Hosting a FREE LIVE CONCERT! 🎶 Don't Miss This!",
+      "channel_id": "UClegyeZzlSHbcw5vyAv9OxQ",
+      "channel_name": "Peace Beats with Dan Blackwell",
+      "url": "https://www.youtube.com/watch?v=qqhUL5a0rik",
+      "prior_metadata_status": "exclude_by_reactions_only_policy",
+      "review_label": null,
+      "reviewer": null,
+      "notes": ""
+    }
+  ]
+}
