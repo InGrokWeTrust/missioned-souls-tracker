@@ -67,3 +67,39 @@ Apply/validate the verified Nitro PR #7 changes on the quality staging
 branch, then collect independently reviewed new evidence during the
 evaluation window. Preserve the Nitro exact-video exception separately:
 PR #8 itself does not activate new content posting.
+
+
+## Current offline evidence checkpoint — 22 October 2026
+
+Reconciled with production commit `e5fcfeab3bd9fad717f6a120e9c71c5f2903ed7e`.
+Exact Nitro VOD matching remains in production and is not broadened by
+these shadow quality tiers. The staged detector remains unwired to
+Discord, so its `auto_candidate` does not trigger a message.
+
+A reproducible 37-video selected-case report is produced with:
+
+```bash
+python -m scripts.score_quality_reviewed37
+```
+
+Human-confirmed reaction videos: 8, of which 5 are strong title evidence
+and 3 need manual review; none was missed. Human-confirmed
+nonreaction videos: 7, of which none is strong, 1 needs manual review,
+and 6 are excluded. Another **18 metadata-supported reactions** and
+**4 metadata-excluded videos** remain **unverified under strict content
+review**. These are risk-enriched and selective, *not unbiased sample
+accuracy or representative channel quality rates*. Source data are
+frozen; the script never fetches YouTube or sends to Discord.
+
+Next review cohort: `data/reaction_quality_next8_pending_review_20261022.json`.
+It contains **six provisional positives and two provisional negatives**
+from eight distinct channels, none newly human-labelled. The user can
+open the embedded official YouTube video URLs and assign
+`reaction`, `not_match` or `uncertain` after inspection. Selection
+was deliberately enriched for ambiguity; do not extrapolate any rate.
+This review queue does **not** run or notify automatically.
+
+Continue observing new cases over the recommended 14-day window only
+after explicitly agreeing on a quota-safe metadata source and review
+schedule. Do not start new live YouTube scans or schedule future checks
+as a side effect of merging this draft.
