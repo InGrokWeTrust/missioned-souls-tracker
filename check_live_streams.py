@@ -3,6 +3,8 @@ import time
 import json
 import tempfile
 import requests
+import re
+from zoneinfo import ZoneInfo
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
@@ -21,7 +23,8 @@ if not DISCORD_WEBHOOK_URL:
     raise ValueError("Missing DISCORD_WEBHOOK_URL environment variable")
 
 # Cap on stored IDs to prevent unbounded growth
-MAX_STORED_IDS = 200
+MAX_STORED_IDS = 2000
+AUCKLAND_TZ = ZoneInfo('Pacific/Auckland')
 
 # ===========================================
 
@@ -109,14 +112,16 @@ def format_published_time(published_at_iso):
     try:
         ts = published_at_iso.replace('Z', '+00:00')
         dt = datetime.fromisoformat(ts)
-        return dt.strftime('%I:%M %p').lstrip('0')
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(AUCKLAND_TZ).strftime('%I:%M %p %Z').lstrip('0')
     except Exception:
         return ""
 
 
 def find_active_live_streams():
-    """Search YouTube for active live streams mentioning Missioned Souls."""
-    print(f"🔍 Searching for ACTIVE live streams about {CHANNEL_NAME}...\n")
+    """Check search hits against live broadcast metadata before announcing."""
+    print(f"🔍 Searching for ACTIVE live streams about {CHANNEL_NAME}...")
 
     response = youtube.search().list(
         part="snippet",
@@ -127,35 +132,54 @@ def find_active_live_streams():
         order="date"
     ).execute()
 
-    items = response.get('items', [])
-    print(f"📊 YouTube returned {len(items)} live streams\n")
+    matches = {}
+    for item in response.get("items", []):
+        snippet = item.get("snippet", {})
+        title = snippet.get("title", "")
+        video_id = item.get("id", {}).get("videoId")
+        if not video_id or CHANNEL_NAME.lower() not in title.lower():
+            continue
+        if re.search(r"#shorts?\\b|\\bshorts\\b", title.lower()):
+            print(f"  ⏭️ Explicit Short filtered: {title[:50]}")
+            continue
+        matches[video_id] = item
+
+    if not matches:
+        print("ℹ️ No qualifying live streams returned by search.")
+        return []
+
+    videos_response = youtube.videos().list(
+        part="snippet,liveStreamingDetails",
+        id=",".join(matches)
+    ).execute()
 
     streams = []
-    for item in items:
-        snippet = item['snippet']
-        video_id = item['id'].get('videoId')
-        if not video_id:
+    for detail in videos_response.get("items", []):
+        video_id = detail["id"]
+        snippet = detail.get("snippet", {})
+        broadcast = snippet.get("liveBroadcastContent", "none")
+        live = detail.get("liveStreamingDetails", {})
+        # The search request is for active broadcasts; reject videos that have ended
+        # or are still merely scheduled according to their detailed metadata.
+        is_active = (broadcast == "live" or bool(live.get("actualStartTime"))) \\
+            and not live.get("actualEndTime") and broadcast != "upcoming"
+        if not is_active:
+            print(f"  ⏭️ Not confirmed live: {video_id} (broadcast={broadcast})")
             continue
-
-        title = snippet['title']
-        # Double-check title actually mentions Missioned Souls
-        if CHANNEL_NAME.lower() not in title.lower():
-            print(f"  ⏭️  [title mismatch] {snippet['channelTitle'][:24]:24} | {title[:55]}")
-            continue
-
+        original = matches[video_id]["snippet"]
         streams.append({
-            'title': title,
-            'video_id': video_id,
-            'channel': snippet['channelTitle'],
-            'published_at': snippet['publishedAt'],
-            'url': f"https://youtu.be/{video_id}",
-            'thumbnail': snippet.get('thumbnails', {}).get('medium', {}).get('url'),
-            'live_broadcast_content': snippet.get('liveBroadcastContent', 'live')
+            "title": snippet.get("title", original.get("title", "")),
+            "video_id": video_id,
+            "channel": snippet.get("channelTitle", original.get("channelTitle", "")),
+            "published_at": live.get("actualStartTime") or original["publishedAt"],
+            "url": f"https://youtu.be/{video_id}",
+            "thumbnail": snippet.get("thumbnails", {}).get("medium", {}).get("url")
+                or original.get("thumbnails", {}).get("medium", {}).get("url"),
+            "live_broadcast_content": "live"
         })
 
-    print(f"\n✅ {len(streams)} live streams match (title contains '{CHANNEL_NAME}')")
+    print(f"✅ {len(streams)} genuinely active streams confirmed")
     return streams
-
 
 def send_to_discord(streams, run_start=None, on_success=None):
     if not streams:
