@@ -36,6 +36,7 @@ jobs:
           workflow: youtube-tracker.yml
           name: last-run-state
           path: ./
+          branch: ${{ github.ref_name }}
           workflow_conclusion: ''
           search_artifacts: true
           if_no_artifact_found: warn
