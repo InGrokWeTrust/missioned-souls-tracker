@@ -2,7 +2,7 @@
 import os
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -175,6 +175,8 @@ class ThumbnailTests(unittest.TestCase):
 
     def test_end_to_end_playlist_scan_without_title_keyword(self):
         video = sample()
+        # Keep upload recent relative to the actual CI runner clock.
+        video["published_at"] = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
         item = {
             "snippet": {
                 "title": video["title"],
