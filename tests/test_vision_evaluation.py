@@ -182,6 +182,30 @@ class VisionOfflineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             cost_from_usage({}, "gpt-6-luna")
 
+    def test_html_review_sheet_has_explicit_labels_and_export(self):
+        from scripts.create_review_page import make_review_page
+        data = {"samples": [{
+            "video_id": "hf03Voz2QBM", "title": "Nitro Neisha",
+            "channel": "Taylor John Hardin Reactions",
+            "ground_truth": None, "reviewed_by": None
+        }]}
+        page = make_review_page(data)
+        self.assertIn("vision-labels-reviewed.csv", page)
+        self.assertIn("Missioned Souls reaction", page)
+        self.assertIn("Not a reaction", page)
+        self.assertIn("hf03Voz2QBM", page)
+        self.assertIn("Human-review tool", page)
+
+    def test_html_review_sheet_escapes_malicious_video_title(self):
+        from scripts.create_review_page import make_review_page
+        page = make_review_page({"samples": [{
+            "video_id": "hf03Voz2QBM",
+            "title": "</script><script>alert('x')</script>",
+            "channel": "Example"
+        }]})
+        self.assertNotIn("</script><script>alert", page)
+        self.assertIn("\\u003c", page)
+
     def test_apply_only_verified_manual_labels_from_csv(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "labels.csv"
