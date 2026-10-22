@@ -548,3 +548,60 @@ To conserve the shared YouTube API quota, the experimental live workflow
 is now gated behind the explicit text **[shadow-run]** in Draft PR #4's title,
 instead of running on every PR update. No existing production workflow was
 changed, and nothing posts to Discord.
+
+
+### Scope confirmed: reactions ONLY (22 October 2026)
+
+The user explicitly settled the content policy:
+
+**VALID:** A new, independent third-party YouTube video genuinely reacting to,
+critiquing or analysing a musical performance by Missioned Souls.
+
+**NOT VALID:** Mere band-name mentions; concert or livestream announcements;
+views/subscriber milestones; website updates/reviews; musical tributes;
+covers or collabs by separate groups including Paper Dove; original
+performances without a third-party reactor; reaction archives or copied
+video posts without new commentary. Generic reaction hashtags or a reactor
+channel's standard description do not transform these into reactions.
+
+The 30 human strong-match labels remain unchanged in
+data/keyword_strong30_human_labels_20261022.csv. A *separate* provisional
+reactions-only reassessment is frozen in
+data/keyword_strong30_reactions_only_adjudication_20261022.json and scored by
+scripts/score_keyword_reactions_only.py:
+
+| Provisional decision | Number | Meaning |
+| --- | ---: | --- |
+| Supported reaction candidates | 19 | Previously user-marked valid, with video-specific published description or reaction-oriented title supporting a performance reaction |
+| Exclude for reactions-only policy | 6 | Naces musical tribute, Paper Dove cover, concert announcements (2), one-million-views milestone, website/livestream announcement |
+| Requires video-content confirmation | 5 | Reaction archive, band comparison/commentary, minimal Crazy Train listing, ambiguous Cherman studio cover, ambiguous Global Take studio cover |
+
+These 30 were intentionally risk-enriched and channel-balanced, and this
+new reassessment uses previously available titles, descriptions and user
+notes, **not** new independent video viewing. The 19 candidates are
+*metadata-supported*, not 19 newly verified reactions. The five unresolved
+videos must not become automatic alerts based on hashtags alone.
+
+In the experimental keyword classifier:
+- A title containing the band name alone now yields **review**, not strong.
+- A title explicitly identifying both the band and a performance reaction
+  may yield **strong evidence** (still report-only).
+- The previously verified Nitro Neisha reactor example remains strong.
+- Clearly irrelevant Paper Dove, musical tribute, concert promotion,
+  website review, milestone or reaction-archive titles/channels yield
+  **none** (excluded by conservative policy).
+- A reaction in generic tags, boilerplate description, or generic reactor
+  channel branding is not sufficient for a strong match.
+
+The new scoring script validates all original 30 IDs and preserves the raw
+user review unchanged, produces keyword-reactions-only-results.json, and
+refuses any strong keyword classification for the six exclusions or five
+uncertain videos.
+
+**No keyword-triggered Discord delivery was activated.**
+The experimental live scan remains opt-in only (PR title must include
+[shadow-run]) to protect the existing YouTube quota. The production
+autoreactions.py remains unchanged, including its old title-based behavior.
+**Therefore these stricter keyword rules are NOT YET enforced on existing
+production Discord alerts.** Implementation of production reaction-only
+filters requires a separate, explicitly approved deployment and safety test.
