@@ -52,7 +52,10 @@ jobs:
           FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
           LIVE_LAST_RUN_FILE: live_last_run.json
           BOOTSTRAP_STATE_IF_MISSING: ${{ vars.BOOTSTRAP_STATE_IF_MISSING }}
-        run: python check_live_streams.py
+        shell: bash
+        run: |
+          set -o pipefail
+          python check_live_streams.py 2>&1 | tee live-checker-output.log
 
       - name: Upload live_last_run.json for next run
         if: always()
@@ -68,5 +71,5 @@ jobs:
         env:
           ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL || secrets.DISCORD_WEBHOOK_URL }}
           GITHUB_WORKFLOW: ${{ github.workflow }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ALERT_LOG_FILE: live-checker-output.log
         run: python report_failure.py
