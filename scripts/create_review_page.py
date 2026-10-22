@@ -2,8 +2,10 @@
 
 No image processing, AI calls or uploads: labels export locally to CSV.
 """
+import argparse
 import json
 from pathlib import Path
+from scripts.collect_vision_candidates import create_review_csv
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -115,9 +117,14 @@ update();
 
 
 def main():
-    dataset = json.loads((ROOT / "vision-unlabelled-candidates.json").read_text(encoding="utf-8"))
-    dest = ROOT / "vision-human-review.html"
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--input", default="vision-unlabelled-candidates.json")
+    ap.add_argument("--output", default="vision-human-review.html")
+    args = ap.parse_args()
+    dataset = json.loads((ROOT / args.input).read_text(encoding="utf-8"))
+    dest = ROOT / args.output
     dest.write_text(make_review_page(dataset), encoding="utf-8")
+    create_review_csv(dataset.get("samples", []), ROOT / "vision-review-sheet.csv")
     print(f"Wrote browser-based review page for {len(dataset.get('samples', []))} candidates")
 
 
