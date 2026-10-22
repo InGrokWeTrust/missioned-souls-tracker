@@ -1,0 +1,96 @@
+{
+  "title": "Additional independent human reaction-only review queue",
+  "as_of": "2026-10-22",
+  "source": "Earlier frozen 30-video metadata adjudication. 6 provisional reactions and 2 provisional nonreactions selected for content-level recheck.",
+  "selection_warning": "Handpicked for ambiguous titles and distinct channels, not random; do not derive population rates. These were not rewatched by this assistant.",
+  "verdicts_allowed": [
+    "reaction",
+    "not_match",
+    "uncertain"
+  ],
+  "notes": "Require viewing actual video to assign label; metadata is not human-confirmed under the stricter policy. Preserve original old labels and statuses unchanged.",
+  "auto_posting": false,
+  "youtube_api_calls": 0,
+  "items": [
+    {
+      "video_id": "Yrt40Jti9zA",
+      "channel_id": "UCRYiATJo58gU-pj82EqubFw",
+      "channel_name": "WILBURN MUSIC REACTIONS",
+      "title": "OMG! MISSIONED SOULS - OZZY'S CRAZY TRAIN COVER",
+      "url": "https://www.youtube.com/watch?v=Yrt40Jti9zA",
+      "metadata_status_before_human_review": "supported_reaction",
+      "review_label": null,
+      "notes": ""
+    },
+    {
+      "video_id": "WZpAnBgf_aM",
+      "channel_id": "UCMQYQZqpnEkzdr5DA1UzyOg",
+      "channel_name": "Modern Life for the 70's Mind",
+      "title": "Missioned Souls Take On Total Eclipse of the Heart | They Nailed It!",
+      "url": "https://www.youtube.com/watch?v=WZpAnBgf_aM",
+      "metadata_status_before_human_review": "supported_reaction",
+      "review_label": null,
+      "notes": ""
+    },
+    {
+      "video_id": "rhoHMkgcvj0",
+      "channel_id": "UCju_HuzKeD3oBO_EYLvPNmA",
+      "channel_name": "TerrenceJr",
+      "title": "THEYRE ACTUALLY SO GOOD!! | HOPELESSLY DEVOTED TO YOU BY MISSIONED SOULS",
+      "url": "https://www.youtube.com/watch?v=rhoHMkgcvj0",
+      "metadata_status_before_human_review": "supported_reaction",
+      "review_label": null,
+      "notes": ""
+    },
+    {
+      "video_id": "_SBmrJZBaaE",
+      "channel_id": "UCxtKLK3DhJ7Z9noOwgYQxkQ",
+      "channel_name": "The Waylon Perspective",
+      "title": "I Absolutely Adore This Family's EPIC ORIGINAL SONG!!! | Missioned Souls - All It Takes - Reaction",
+      "url": "https://www.youtube.com/watch?v=_SBmrJZBaaE",
+      "metadata_status_before_human_review": "supported_reaction",
+      "review_label": null,
+      "notes": ""
+    },
+    {
+      "video_id": "QJp3kNQEUG0",
+      "channel_id": "UCoWAWe5OXibddW2NYWF6Wgw",
+      "channel_name": "LukeTheRed",
+      "title": "MISSIONED SOULS – Total Eclipse of the Heart | Reaction | Another Legendary Cover! + Vlog",
+      "url": "https://www.youtube.com/watch?v=QJp3kNQEUG0",
+      "metadata_status_before_human_review": "supported_reaction",
+      "review_label": null,
+      "notes": ""
+    },
+    {
+      "video_id": "XA1m863syWM",
+      "channel_id": "UCgOzPhZcicJwSpRQc-cMWDQ",
+      "channel_name": "Chelsea Leigh Yogi",
+      "title": "Missioned Souls in Zambales - Whole Lotta Love by Led Zeppelin Live cover [REACTION]",
+      "url": "https://www.youtube.com/watch?v=XA1m863syWM",
+      "metadata_status_before_human_review": "supported_reaction",
+      "review_label": null,
+      "notes": ""
+    },
+    {
+      "video_id": "6Eu4f5oqXnk",
+      "channel_id": "UCFwf5lAecSKl2Dvk7kYcCJQ",
+      "channel_name": "The Soulmate Journey",
+      "title": "Missioned Souls LIVE From Cebu! 🌎 FREE Worldwide Concert | October 23, 2026",
+      "url": "https://www.youtube.com/watch?v=6Eu4f5oqXnk",
+      "metadata_status_before_human_review": "exclude_by_reactions_only_policy",
+      "review_label": null,
+      "notes": ""
+    },
+    {
+      "video_id": "vpYHLQr04LQ",
+      "channel_id": "UCKqxwz5xJoLmgM8n29g8trQ",
+      "channel_name": "J Marv ",
+      "title": "Missioned Souls |  FREE Live Stream This Weekend! | Reviewing the Website!!",
+      "url": "https://www.youtube.com/watch?v=vpYHLQr04LQ",
+      "metadata_status_before_human_review": "exclude_by_reactions_only_policy",
+      "review_label": null,
+      "notes": ""
+    }
+  ]
+}
