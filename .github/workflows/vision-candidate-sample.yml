@@ -1,0 +1,34 @@
+name: Vision candidate sample - read only
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/vision-candidate-sample.yml'
+      - 'scripts/collect_vision_candidates.py'
+      - 'tracked_channels.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install public-feed client
+        run: pip install requests
+      - name: Fetch up to 150 unlabelled candidates from tracked reactor feeds
+        run: python -m scripts.collect_vision_candidates
+      - name: Save sample for human review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vision-unlabelled-candidates
+          path: vision-unlabelled-candidates.json
+          retention-days: 14
+          if-no-files-found: warn
