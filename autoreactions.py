@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
 from channel_exclusions import is_excluded_channel
+from verified_nitro_reactions import is_verified_nitro_reaction
 from reaction_state import (StateError, load_state, save_state, plan_notifications,
                             acknowledge, read_live_sent_ids, reconcile_live_notifications)
 
@@ -58,9 +59,17 @@ def parse_duration(duration_str):
     return hours * 3600 + minutes * 60 + seconds
 
 
-def is_missioned_souls_reaction(title):
-    """Return True if the title mentions Missioned Souls (case-insensitive)."""
-    return CHANNEL_NAME.lower() in title.lower()
+def is_missioned_souls_reaction(title, *, video_id=None, channel_id=None):
+    """Preserve existing title matching; add only human-verified Nitro exceptions.
+
+    An unknown Nitro title is never promoted just because it uses that name.
+    Exact video and uploading channel IDs must match the verified allowlist.
+    """
+    if CHANNEL_NAME.lower() in title.lower():
+        return True
+    return is_verified_nitro_reaction({
+        "title": title, "video_id": video_id, "channel_id": channel_id
+    })
 
 
 def is_archived_livestream(video):
@@ -219,7 +228,9 @@ def get_reactions_with_stats():
             failed_channels.append(channel_title)
             continue
         scanned_channel_ids.add(channel_id)
-        reaction_videos = [v for v in videos if is_missioned_souls_reaction(v['title'])]
+        reaction_videos = [v for v in videos if is_missioned_souls_reaction(
+            v["title"], video_id=v["video_id"], channel_id=v["channel_id"]
+        )]
         no_ms_count += len(videos) - len(reaction_videos)
 
         for v in reaction_videos:

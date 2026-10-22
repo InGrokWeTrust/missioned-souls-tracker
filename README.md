@@ -330,3 +330,44 @@ needed before full reactions-only automatic notifications.
 The production HCJB blacklist and link-free error alerts remain unchanged;
 this branch does not change the active sender, YouTube polling cadence,
 state files or tracked-channel registry.
+
+### Verified Nitro Neisha production exception (deployed via PR #7)
+
+The deployed production branch includes `verified_nitro_reactions.py`: the one
+independently human-confirmed performance reaction by **Taylor John Hardin
+Reactions**, video `hf03Voz2QBM` and authenticated uploading channel ID
+`UC-lB_sG0uviaY9pD07kiwjg`. To qualify, **video ID, channel ID and a
+distinctive Nitro Neisha title** must all agree.
+
+All existing `Missioned Souls` title matching and subsequent Discord
+delivery/bookmark behaviour remain untouched. Unknown Nitro Neisha titles
+on the same channel or other channels are **not** silently verified.
+The HCJB exact-channel opt-out remains active.
+
+A normal manual tracker dispatch still checks only the **latest five**
+uploads of each reactor and honours the seven-day lookback and
+already-seen/pending state. Consequently, deploying this rule does **not**
+guarantee the historical VOD will automatically be delivered.
+
+Read-only audit (requires an existing `last_run.json` downloaded from
+production's workflow artifact):
+
+```bash
+python -m scripts.nitro_recovery_preflight --bookmark last_run.json
+```
+
+It reports whether `hf03Voz2QBM` is already seen, pending, or absent.
+The script makes **zero YouTube API requests**, posts **zero Discord
+messages**, and does **not** modify any bookmark. If the video is absent,
+a separately reviewed and explicitly authorised **single-video**
+recovery is necessary; do **not** activate `FORCE_SEND_ALL`, backfill
+entire channels, or automatically deliver on the basis of the artist
+nickname alone.
+
+The broader reactions-only detector in draft PR #4 is still report-only.
+It must be reconciled against recent production hotfixes and validated
+before any automatic delivery policy changes.
+
+### Staging branch reconciliation (22 October 2026)
+
+Draft PR #8 now includes the deployed Nitro exception from main as a separate, exact-video rule. It does not activate `keyword_detector.py` for Discord posting. Production title matching and every HCJB/live-health safeguard remain intact. Evaluation runs are offline-only until new live scans are explicitly approved.
