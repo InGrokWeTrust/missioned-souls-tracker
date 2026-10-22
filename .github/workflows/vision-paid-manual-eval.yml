@@ -29,6 +29,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   evaluate:
@@ -42,6 +43,18 @@ jobs:
           python-version: '3.11'
       - name: Install network client
         run: pip install requests
+      - name: Read most recent production reaction ID history (NO WRITE)
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: youtube-tracker.yml
+          branch: main
+          workflow_conclusion: ''
+          name: last-run-state
+          path: ./
+          search_artifacts: true
+          check_artifacts: true
+          if_no_artifact_found: warn
       - name: Collect unlabelled sample from public feeds
         run: python -m scripts.collect_vision_candidates
       - name: Analyze with opted-in paid model (NO DISCORD)
@@ -65,6 +78,7 @@ jobs:
           name: vision-evaluation-review-only
           path: |
             vision-unlabelled-candidates.json
+            vision-review-sheet.csv
             vision-model-evaluation.json
           retention-days: 14
           if-no-files-found: warn
