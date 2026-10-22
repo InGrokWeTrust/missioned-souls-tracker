@@ -12,6 +12,9 @@ on:
       - 'scripts/run_keyword_trial.py'
       - 'scripts/keyword_live_shadow.py'
       - 'scripts/keyword_miss_audit.py'
+      - 'scripts/score_keyword_human_review.py'
+      - 'data/keyword_manual_labels_20261022.csv'
+      - 'data/keyword_audit_snapshot_20261022.json'
       - '.github/workflows/keyword-live-shadow.yml'
       - 'data/keyword_trial_cases.json'
       - 'discover_channels.py'
@@ -38,11 +41,15 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Replay real-positive and synthetic keyword fixtures (no network)
         run: python -m scripts.run_keyword_trial
+      - name: Score all 46 human-reviewed cases without extrapolation
+        run: python -m scripts.score_keyword_human_review
       - name: Upload reproducible keyword evaluation report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: keyword-trial-report
-          path: keyword-trial-results.json
+          path: |
+            keyword-trial-results.json
+            keyword-human-label-results.json
           retention-days: 14
           if-no-files-found: warn
