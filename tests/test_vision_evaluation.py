@@ -17,6 +17,7 @@ from scripts.collect_vision_candidates import parse_feed, collect, saved_state_c
 from scripts.run_vision_evaluation import evaluate, cost_from_usage
 from scripts.apply_human_labels import add_labels
 from scripts.enrich_youtube_metadata import enrich
+from scripts.augment_reactor_sample import augment
 
 
 def example():
@@ -175,6 +176,34 @@ class VisionOfflineTests(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertIn("ground_truth,reviewed_by,review_notes", text)
             self.assertIn("youtube.com/watch?v=hf03Voz2QBM", text)
+
+    def test_ambiguous_reactor_sample_is_distinct_and_unlabelled(self):
+        channels = {f"UC{i:022d}":{"title":f"Reactor {i}"} for i in range(3)}
+        calls = []
+        def fake_get(url, timeout, params):
+            calls.append(params)
+            cid = params["playlistId"]
+            return SimpleNamespace(
+                raise_for_status=lambda: None,
+                json=lambda: {"items": [
+                    {"snippet": {"title": "Surprising guitarist reaction",
+                                 "publishedAt": "2026-10-22T03:00:00Z"},
+                     "contentDetails": {"videoId": "abcdefgh001"}},
+                    {"snippet": {"title": "Missioned Souls REVIEW",
+                                 "publishedAt": "2026-10-22T03:00:00Z"},
+                     "contentDetails": {"videoId": "abcdefgh002"}},
+                ]})
+        result = augment({"samples":[]}, channels, api_key="fake", getter=fake_get,
+                         max_channels=3, max_new=3)
+        self.assertEqual(result["sample_count"], 1)
+        self.assertEqual(result["samples"][0]["video_id"], "abcdefgh001")
+        self.assertIsNone(result["samples"][0]["ground_truth"])
+        self.assertEqual(result["extra_playlist_calls"], 3)
+        self.assertEqual(calls[0]["part"], "snippet,contentDetails")
+
+    def test_youtube_extra_sample_requires_api_key(self):
+        with self.assertRaises(ValueError):
+            augment({"samples":[]}, {}, api_key="")
 
     def test_youtube_metadata_enrichment_read_only_batched(self):
         samples = [{"video_id": "hf03Voz2QBM", "title": "Unclear", "description": "",
