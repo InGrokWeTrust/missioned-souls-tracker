@@ -8,6 +8,8 @@ on:
       - 'check_live_streams.py'
       - 'webhook_delivery.py'
       - 'reaction_state.py'
+      - 'discover_channels.py'
+      - 'report_failure.py'
       - '.github/workflows/youtube-tracker.yml'
       - '.github/workflows/check_live_streams.yml'
       - 'tests/**'
