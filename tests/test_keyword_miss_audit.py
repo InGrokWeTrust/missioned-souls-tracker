@@ -50,6 +50,29 @@ class KeywordMissAuditTests(unittest.TestCase):
         row=self.make_row(3,"channel1",title="Crazy Train guitar solo")
         self.assertEqual(independent_flags(row),[])
 
+    def test_generic_youtube_links_are_not_artist_evidence(self):
+        row=self.make_row(20,"channel1",description=
+                          "Original video: https://youtu.be/abcdefghXYZ "
+                          "or https://www.youtube.com/watch?v=abcdefghXYZ")
+        self.assertEqual(independent_flags(row),[])
+        result=audit({"all_scanned":[row]})
+        self.assertEqual(result["selected_random_unmatched"],1)
+        self.assertEqual(result["flagged_no_match_total"],0)
+
+    def test_official_artist_channel_links_are_flagged(self):
+        row=self.make_row(21,"channel2",description=
+                          "Original artist: https://www.youtube.com/@missionedsouls")
+        self.assertIn("original_artist_reference",independent_flags(row))
+        self.assertEqual(audit({"all_scanned":[row]})["flagged_no_match_total"],1)
+
+    def test_long_description_is_diagnostic_not_suspicious(self):
+        row=self.make_row(22,"channel3",description="Generic text "*300)
+        row["description_excerpt"]=row["description_excerpt"][:220]
+        self.assertEqual(independent_flags(row),[])
+        result=audit({"all_scanned":[row]})
+        self.assertEqual(result["truncated_description_count"],1)
+        self.assertEqual(result["flagged_no_match_total"],0)
+
     def test_review_html_escapes_untrusted_title(self):
         row=self.make_row(4,"channel1",title="</script><script>alert('BAD')</script>")
         page=make_review_html([{**row,"sample_type":"random_unmatched","audit_flags":[]}])
