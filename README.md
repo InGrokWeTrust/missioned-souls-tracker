@@ -292,3 +292,79 @@ If the saved live state has expired, the same emergency option seeds *currently 
 ### Quota documentation
 
 See [Google's current YouTube quota calculator](https://developers.google.com/youtube/data/determine_quota_cost). A search request consumes one of the separate daily search calls; the standard playlist and video fetches consume the general 10,000-unit pool.
+
+---
+
+## Experimental free member-keyword detection — Draft PR #4, NOT deployed
+
+This is an optional, **report-only** experiment on `experiment/keyword-rules-v1`.
+The current production YouTube-to-Discord logic is unchanged, and its existing
+title-based delivery has not been altered by this draft PR.
+
+### Matching tiers
+
+- **Strong title evidence:** an unambiguous `Missioned Souls` name in the
+  title, or the distinctive `Nitro Neisha` phrase on an already tracked
+  reactor's uploads. In the experiment these are logged only; they do not
+  create or send new keyword-based Discord notifications.
+- **Review only:** `Neisha/Neesha + guitar/solo`,
+  `Stacey/Stacy + vocals`, `Naces + bass/base/keyboard`,
+  `Ice/Isaiah/Isiah + drum/barefoot`, `Sheena + vocals`,
+  `Secan + bass/mixing`, or band references in descriptions/tags.
+  Description boilerplate and unrelated people with common names can create
+  false positives, so **NONE** of these clues are automatic-delivery evidence.
+- **Ignore:** lone member names, song titles without band context, generic
+  `young drummer` or `family band` labels, and instrument words alone.
+
+`autoreactions.py` has these new **optional** environment controls:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KEYWORD_REPORT_ONLY` | `false` | Enable separate keyword discovery log of unmatched recent uploads; does not send keyword notifications |
+| `MAX_KEYWORD_SCAN_VIDEOS` | `150` | Maximum video IDs fetched per scan, capped at 200 |
+
+The original tracker still checks up to 5 latest uploads per tracked channel.
+When report-only is on, it additionally batches up to 150 unmatched video IDs
+in the existing YouTube Data API `videos.list` endpoint (up to 3 additional
+metadata requests per run), checking video-specific descriptions and tags,
+duration, and actual live/Short status. Normal filters and delivery are not
+changed. An API failure in this experimental path logs a warning but does not
+block normal title-based detection or notifications.
+
+### Verified test results (22 October 2026)
+
+- **68/68 offline GitHub regression tests pass**, including the existing
+  delivery/bookmark coverage and 37 new keyword-specific tests.
+- **20/20 reference fixtures produced their expected tier**, comprising
+  seven publicly identified reaction titles and 13 *constructed* positive,
+  ambiguous and negative examples. Detailed data:
+  `data/keyword_trial_cases.json` and the uploaded
+  `keyword-trial-results.json` artifact.
+- [Taylor John Hardin's title-only missing-band example](https://www.youtube.com/watch?v=hf03Voz2QBM)
+  classifies as **strong** based on `Nitro Neisha`.
+- [HCJB Music's hidden-name multi-member example](https://www.youtube.com/watch?v=4J6dullEftA)
+  classifies as **review**, not automatic: the title includes multiple members
+  but excludes the band's name; its description provides their instrument
+  roles.
+- Known unrelated and generic-title examples did not trigger a strong match.
+  `Stacey Solomon + vocal` is deliberately review-only, illustrating why
+  first names and roles must never be auto-posted.
+
+**These are functionality tests, not measured precision or recall** on a
+representative, human-labelled corpus. No live API-backed trial against all
+125 tracked reactors has been run with this branch. The GitHub Actions
+workflow uses mocks, never accesses YouTube/Discord in its offline tests,
+and does not prove the keyword report function will find every real reaction.
+
+### Recommended deployment gate
+
+1. Review Draft PR #4 and confirm no unintended changes to production paths.
+2. Deploy disabled and run a time-bounded `KEYWORD_REPORT_ONLY=true` trial
+   with the existing YouTube key, keeping Discord rules unchanged.
+3. Review both candidate video titles and description context; independently
+   verify all proposed matches and a random sample of nonmatches.
+4. Only after precision/recall look acceptable on genuinely different real
+   samples, consider a *separate* PR allowing **strong, verified** keyword
+   matches to be enqueued through the existing video-ID deduplication state.
+
+No paid AI services or new secrets are needed.
