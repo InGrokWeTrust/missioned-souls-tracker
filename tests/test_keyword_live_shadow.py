@@ -25,6 +25,28 @@ class RealShadowTests(unittest.TestCase):
         self.assertTrue(matched["matched_without_band_title"])
         self.assertFalse(matched["would_auto_post"])
 
+    def test_actual_tracked_uploads_prioritize_ambiguous_rosanna_reaction(self):
+        row={"video_id":"gXWQQNUpKcA",
+             "title":"ROSANNA by Toto | Missioned Souls | Familly band studio cover",
+             "channel":"Global take","channel_id":"UC8ReQVU4PPfbxRy4B18jauw",
+             "source":"tracked uploads playlist"}
+        item={"snippet":{"title":row["title"],"description":"", "tags":[]},
+              "contentDetails":{"duration":"PT13M"}}
+        res=classify_actual(row,item)
+        self.assertEqual(res["tier"],"review")
+        self.assertEqual(res["review_priority"],"high")
+        self.assertFalse(res["would_auto_post"])
+
+    def test_historical_control_does_not_falsely_authenticate_source(self):
+        row={"video_id":"gXWQQNUpKcA",
+             "title":"ROSANNA by Toto | Missioned Souls | Familly band studio cover",
+             "channel":"Global take","channel_id":"UC8ReQVU4PPfbxRy4B18jauw",
+             "source":"explicit historical control (outside latest 5 possible)"}
+        res=classify_actual(row,{"snippet":{"title":row["title"]},
+                                 "contentDetails":{"duration":"PT13M"}})
+        self.assertEqual(res["tier"],"review")
+        self.assertEqual(res["review_priority"],"normal")
+
     def test_unrelated_title_negative(self):
         v={"video_id":"Lr4gUjZVjT0","title":"Nene Royal is PERFECT PITCH",
            "channel":"Taylor John Hardin Reactions", "channel_id":"UC-lB_sG0uviaY9pD07kiwjg"}
