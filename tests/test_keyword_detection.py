@@ -137,8 +137,22 @@ class KeywordClassifierTests(unittest.TestCase):
                   "Neisha's guitar solo stunned me; Stacey sings lead vocals", expected="review")
 
     def test_exact_band_tag_without_title_evidence_review(self):
-        self.tier("Wow, I didn't expect that",tags=["music","MissionedSouls"],
+        self.tier("Wow, I didn't expect this REACTION",tags=["music","MissionedSouls"],
                   expected="review")
+
+    def test_live_false_positive_crime_titles_with_only_band_tags(self):
+        for title in [
+            "POLICE - I DIDN'T DO ANYTHING - TOO FUNNY AND ANNOYING",
+            'Crime Time Friday EP-2 - "DANCER" Refuses to Exit Her Car, Gets Dragged Out',
+            "Crime Time Friday EP-1 Honda CBR500 130MPH - Teen charged with FELONY",
+        ]:
+            with self.subTest(title=title):
+                out=self.tier(title,tags=["Missioned Souls","reaction","music"],
+                              expected="none")
+                self.assertIn("isolated band tag", " ".join(out["reasons"]))
+
+    def test_unrelated_stacey_solomon_vocals_not_member_evidence(self):
+        self.tier("Stacey Solomon vocal lessons",expected="none")
 
     def test_generic_tags_do_not_influence(self):
         self.tier("One Direction reaction",tags=["guitar", "music", "rock"],expected="none")
