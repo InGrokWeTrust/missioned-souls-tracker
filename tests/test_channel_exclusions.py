@@ -54,7 +54,8 @@ class ChannelExclusionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d, \
              patch.object(reactions,"LAST_RUN_FILE",str(Path(d)/"last_run.json")), \
              patch.object(reactions,"LIVE_LAST_RUN_FILE",str(Path(d)/"not_exists.json")), \
-             patch.object(reactions,"send_to_discord") as send:
+             patch.object(reactions,"send_to_discord") as send, \
+             patch.object(reactions,"reconfirm_older_pending_vods",return_value=set()):
             state={"version":2,"last_published_at":"2026-10-21T00:00:00Z",
                    "seen_video_ids":[],"known_channel_ids":[HCJB,OTHER],
                    "pending":[item("fromhcjb001",HCJB),item("fromglobal1",OTHER)]}
