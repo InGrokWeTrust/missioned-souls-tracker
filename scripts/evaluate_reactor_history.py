@@ -82,7 +82,7 @@ def build_cases(adjudication, five, earlier):
     return cases
 
 
-def assess_all(registry, mapping, cases):
+def assess_all(registry, mapping, cases, *, expected_verified_reactions=6, expected_verified_nonreactions=4):
     if not isinstance(registry,dict) or len(registry)!=125:
         raise ValueError("Expected full frozen set of 125 tracked reactors")
     ids=mapping.get("video_channel_ids",{})
@@ -128,7 +128,8 @@ def assess_all(registry, mapping, cases):
     counts=Counter(c["history_signal"] for c in channels)
     verified=sum(c["confirmed_reactions"] for c in channels)
     verified_non=sum(c["confirmed_band_nonreactions"] for c in channels)
-    if verified!=6 or verified_non!=4:raise ValueError("Historical human evidence totals changed")
+    if verified!=expected_verified_reactions or verified_non!=expected_verified_nonreactions:
+        raise ValueError("Historical human evidence totals changed")
     return {
         "policy":"Third-party Missioned Souls performance reactions only",
         "as_of":"2026-10-22",
