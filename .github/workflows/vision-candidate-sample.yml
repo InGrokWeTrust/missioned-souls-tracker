@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   collect:
@@ -22,6 +23,18 @@ jobs:
           python-version: '3.11'
       - name: Install public-feed client
         run: pip install requests
+      - name: Read most recent production reaction ID history (NO WRITE)
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: youtube-tracker.yml
+          branch: main
+          workflow_conclusion: ''
+          name: last-run-state
+          path: ./
+          search_artifacts: true
+          check_artifacts: true
+          if_no_artifact_found: warn
       - name: Fetch up to 150 unlabelled candidates from tracked reactor feeds
         run: python -m scripts.collect_vision_candidates
       - name: Save sample for human review
@@ -29,6 +42,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: vision-unlabelled-candidates
-          path: vision-unlabelled-candidates.json
+          path: |
+            vision-unlabelled-candidates.json
+            vision-review-sheet.csv
           retention-days: 14
           if-no-files-found: warn
