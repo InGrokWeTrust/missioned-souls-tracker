@@ -14,6 +14,8 @@ on:
       - 'scripts/apply_human_labels.py'
       - 'scripts/create_review_page.py'
       - 'scripts/enrich_youtube_metadata.py'
+      - 'scripts/augment_reactor_sample.py'
+      - '.github/workflows/vision-youtube-manual-sample.yml'
       - 'data/vision-labels.csv'
       - '.github/workflows/vision-paid-manual-eval.yml'
       - 'discover_channels.py'
