@@ -21,7 +21,7 @@ NOW = datetime(2026, 10, 22, 16, tzinfo=timezone.utc)
 
 def video(i, *, channel="UC1", published=None):
     return {
-        "video_id": f"id-{i}", "channel_id": channel, "title": f"Missioned Souls #{i}",
+        "video_id": f"id-{i}", "channel_id": channel, "title": f"Missioned Souls reaction #{i}",
         "published_at": published or f"2026-10-22T{i:02}:00:00Z",
         "channel": "Demo", "url": f"https://youtu.be/id-{i}",
         "live_broadcast_content": "none", "live_streaming_details": None,
