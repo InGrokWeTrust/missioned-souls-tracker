@@ -18,9 +18,10 @@ if not API_KEY:
 CHANNEL_NAME = (os.environ.get("CHANNEL_NAME") or "Missioned Souls")
 MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND") or "6")
 FORCE_SEND_ALL = os.environ.get("FORCE_SEND_ALL", "false").lower() == "true"
+DRY_RUN = os.environ.get("DRY_RUN", "false").lower() == "true"
 LIVE_LAST_RUN_FILE = (os.environ.get("LIVE_LAST_RUN_FILE") or "live_last_run.json")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
-if not DISCORD_WEBHOOK_URL:
+if not DISCORD_WEBHOOK_URL and not DRY_RUN:
     raise ValueError("Missing DISCORD_WEBHOOK_URL environment variable")
 
 # Cap on stored IDs to prevent unbounded growth
@@ -56,6 +57,9 @@ def load_state():
 
 def save_state(sent_ids):
     """Atomic state write to avoid half-written JSON after interruption."""
+    if DRY_RUN:
+        print("🧪 DRY RUN: live bookmark remains unchanged.")
+        return
     data = {
         "sent_video_ids": sent_ids[-MAX_STORED_IDS:],
         "last_check": datetime.now(timezone.utc).isoformat()
@@ -197,6 +201,9 @@ def discord_timestamp(iso):
 
 
 def send_to_discord(streams, run_start=None, on_success=None):
+    if DRY_RUN:
+        print(f"🧪 DRY RUN: would announce {len(streams)} live streams; webhook disabled.")
+        return []
     # Enforce the exclusion again for direct calls and FORCE_SEND_ALL.
     streams = [s for s in streams if not is_excluded_channel(s.get("channel_id"))]
     if not streams:
@@ -276,6 +283,12 @@ if __name__ == "__main__":
         # Filter by video ID, not timestamp
         new_streams = [s for s in streams if s['video_id'] not in sent_ids]
         print(f"🆕 {len(new_streams)} new live streams (not previously sent)")
+
+    if DRY_RUN:
+        for stream in new_streams[:MAX_TO_SEND]:
+            print(f"🧪 WOULD ANNOUNCE LIVE: {stream['video_id']} {stream['title'][:70]}")
+        print("🧪 DRY RUN: no Discord messages, no bookmark writes.")
+        raise SystemExit(0)
 
     if new_streams:
         new_streams.sort(key=lambda x: x['published_at'], reverse=False)
