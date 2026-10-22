@@ -503,3 +503,48 @@ Discord delivery. The free metadata + official-video-link strategy is
 still a candidate for a separate, explicitly report-only test.
 
 No paid AI/API billing, and this branch remains unmerged.
+
+
+### New 30 strong-tier user reviews — 22 October 2026
+
+The user reviewed 30 previously selected strong-keyword results from 30
+different tracked channels. Original classifications and exact review notes
+are preserved in data/keyword_strong30_human_labels_20261022.csv, with the
+frozen selection in data/keyword_strong30_pending_review_20261022.json.
+
+- **Raw submitted labels:** 29 match, 1 not_match.
+- **One internal contradiction:** fqTvzUxJT1k (HCJB tribute to Naces) was
+  labelled match while the attached human note says: *Not an actual reaction*.
+  This entry is **DISPUTED, not silently corrected**.
+- **Uncontested human labels:** 28 match and 1 not_match (Paper Dove),
+  or 28/29 matches in the consistent portion of this risk-enriched set.
+  These are human-marked **valid** videos, not established genuine reactions
+  in every case, and not a population-wide accuracy estimate.
+- **Confirmed separate-project exception:** r5TVQYSmZcY is a Paper Dove
+  cover featuring some Missioned Souls members plus other musicians; user
+  marked not_match. The detector now downgrades any Paper Dove + band-name
+  title from strong to **review only**, even when the title says reacts.
+- **Tribute warning:** titles referring to a tribute/dedication are also
+  downgraded to **review only**, pending a clarified content policy.
+- **Definition unresolved:** several other videos marked match have titles
+  announcing a concert, livestream, YouTube view milestone, album cover,
+  or reaction archive. If the tracker should report only fresh third-party
+  reactions, these classifications need a separate definition check.
+
+The scorer scripts/score_keyword_strong30.py refuses duplicate, missing or
+nonhuman label data, preserves contradictory raw notes, and leaves
+reaction_only_precision and population_precision as null. It publishes
+keyword-strong30-human-results.json via the offline test workflow.
+
+Current caution: the original 30-video selection is risk-enriched and
+includes a known positive. Its 28/29 consistent-portion result must **not**
+be treated as an unbiased precision estimate. The live 125-channel metadata
+scan started to fail on a YouTube API metadata request during later retries;
+a quota-related problem is possible but not verified because errors are
+deliberately redacted to avoid exposing keys. Therefore do not claim a new
+successful live trial for this stage.
+
+To conserve the shared YouTube API quota, the experimental live workflow
+is now gated behind the explicit text **[shadow-run]** in Draft PR #4's title,
+instead of running on every PR update. No existing production workflow was
+changed, and nothing posts to Discord.
