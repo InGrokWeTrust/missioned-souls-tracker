@@ -390,7 +390,7 @@ def get_reactions_with_stats(*, held=None):
             duration_str = content_details.get('duration', 'PT0S')
             duration_dict[vid_id] = parse_duration(duration_str)
 
-            if 'liveStreamingDetails' in item:
+            if item.get('liveStreamingDetails'):
                 live_details_dict[vid_id] = item['liveStreamingDetails']
 
     # Stage 3: apply filters, log per-video outcome
