@@ -12,6 +12,9 @@ if not API_KEY:
 CHANNEL_NAME = os.environ.get("CHANNEL_NAME", "Missioned Souls")
 TRACKED_CHANNELS_FILE = os.environ.get("TRACKED_CHANNELS_FILE", "tracked_channels.json")
 CHANNEL_INACTIVITY_DAYS = int(os.environ.get("CHANNEL_INACTIVITY_DAYS", "60"))
+# At most one additional search.list request (1 Search Queries unit) per run.
+# DISCOVERY_PAGES=1 is a rollback switch if daily search quota becomes tight.
+DISCOVERY_PAGES = max(1, min(2, int(os.environ.get("DISCOVERY_PAGES") or "2")))
 
 # Exclusion rule: any channel with these keywords is skipped,
 # unless it also matches an allowed exception.
@@ -56,44 +59,67 @@ def save_tracked_channels(channels):
 
 
 def discover_channels(*, include_videos=False):
-    """Keep the original single broad search and remember its source video IDs."""
+    """Search up to two pages using the ORIGINAL broad band-name query.
+
+    Do not narrow discovery using reaction keywords or metadata classifiers.
+    Record precise qualifying video IDs for the existing new-channel handoff.
+    """
     print(f"🔍 Discovering new reactor channels for {CHANNEL_NAME}...\n")
-
-    search_response = youtube.search().list(
-        part="snippet",
-        q=f'"{CHANNEL_NAME}"',    # ← Broadened: any video mentioning Missioned Souls
-        type="video",
-        maxResults=50,
-        order="date"
-    ).execute()
-
-    items = search_response.get('items', [])
-    print(f"Search returned {len(items)} videos\n")
 
     discovered = {}
     source_videos = {}
-    for item in items:
-        snippet = item.get('snippet', {})
-        channel_id = snippet.get('channelId')
-        channel_title = snippet.get('channelTitle', '')
-        if not channel_id or not channel_title:
-            continue
-        if is_excluded_channel(channel_id):
-            print(f"  🚫 Skipping excluded channel ID: {channel_id}")
-            continue
-        discovered[channel_id] = channel_title
-        # Only titles already accepted by the ORIGINAL broad tracker qualify
-        # as source videos; no new reaction keywords or classifier are used.
-        if CHANNEL_NAME.lower() in snippet.get('title', '').lower():
-            video_id = (item.get('id') or {}).get('videoId')
-            if video_id and snippet.get('publishedAt'):
-                source_videos.setdefault(channel_id, []).append({
-                    'video_id': video_id,
-                    'published_at': snippet['publishedAt'],
-                })
+    seen_source_ids = set()
+    page_token = None
+    api_calls = 0
+    results_scanned = 0
 
+    for page in range(DISCOVERY_PAGES):
+        # First page has no pageToken; the second requires YouTube's token.
+        arguments = {
+            "part": "snippet",
+            "q": f'"{CHANNEL_NAME}"',
+            "type": "video",
+            "maxResults": 50,
+            "order": "date",
+        }
+        if page_token:
+            arguments["pageToken"] = page_token
+        response = youtube.search().list(**arguments).execute()
+        api_calls += 1
+        items = response.get("items", [])
+        results_scanned += len(items)
+        print(f"  Page {page + 1}: {len(items)} search results")
+
+        for item in items:
+            snippet = item.get('snippet', {})
+            channel_id = snippet.get('channelId')
+            channel_title = snippet.get('channelTitle', '')
+            if not channel_id or not channel_title:
+                continue
+            if is_excluded_channel(channel_id):
+                print(f"  🚫 Skipping excluded channel ID: {channel_id}")
+                continue
+            discovered[channel_id] = channel_title
+            # The unchanged broad-title condition applies to source videos,
+            # NOT to deciding whether a channel may be discovered.
+            if CHANNEL_NAME.lower() in snippet.get('title', '').lower():
+                video_id = (item.get('id') or {}).get('videoId')
+                key = (channel_id, video_id)
+                if (video_id and snippet.get('publishedAt')
+                        and key not in seen_source_ids):
+                    seen_source_ids.add(key)
+                    source_videos.setdefault(channel_id, []).append({
+                        'video_id': video_id,
+                        'published_at': snippet['publishedAt'],
+                    })
+
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            break
+
+    print(f"📊 Discovery searched {api_calls} page(s), "
+          f"{results_scanned} results, {len(discovered)} unique channels")
     return (discovered, source_videos) if include_videos else discovered
-
 
 def mark_search_dormancy(tracked, *, now=None):
     """Annotate search absence without removing tracked upload sources.
