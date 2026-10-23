@@ -619,6 +619,37 @@
       "title": "Sight After Dark",
       "added_at": "2026-10-21T21:01:16.994096+00:00",
       "last_seen_at": "2026-10-22T01:01:11.596712+00:00"
+    },
+    "UC2--hembGIwyaMVuhhI0SVw": {
+      "title": "Erica Reacts - Music & Retro Gaming",
+      "added_at": "2026-10-22T17:01:16.962493+00:00",
+      "last_seen_at": "2026-10-23T07:50:46.364488+00:00",
+      "dormant": false
+    },
+    "UCRg2we57-t5Igtxh0_9SrPg": {
+      "title": "Robk Reacts",
+      "added_at": "2026-10-22T17:01:16.962524+00:00",
+      "last_seen_at": "2026-10-23T07:50:46.364493+00:00",
+      "dormant": false
+    },
+    "UCTR_PSXLloLzLMBVxnt_kLQ": {
+      "title": "The Mr. J Show",
+      "added_at": "2026-10-22T19:01:20.685232+00:00",
+      "last_seen_at": "2026-10-23T07:50:46.364464+00:00",
+      "dormant": false
+    },
+    "UCDDLs7WUrN288iktGODa0yw": {
+      "title": "LEE REACTS - INFINITE REACTIONS ",
+      "added_at": "2026-10-23T03:50:43.696678+00:00",
+      "last_seen_at": "2026-10-23T07:50:46.364396+00:00",
+      "discovery_videos": [
+        {
+          "video_id": "xclrgEcb8mo",
+          "published_at": "2026-10-23T02:15:16+00:00",
+          "discovered_at": "2026-10-23T03:50:43.696681+00:00"
+        }
+      ],
+      "dormant": false
     }
   },
   "last_discovery_run": "2026-10-22T01:01:11.597132+00:00"
