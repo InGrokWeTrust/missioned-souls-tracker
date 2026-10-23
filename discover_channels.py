@@ -13,8 +13,8 @@ if not API_KEY:
 CHANNEL_NAME = os.environ.get("CHANNEL_NAME", "Missioned Souls")
 TRACKED_CHANNELS_FILE = os.environ.get("TRACKED_CHANNELS_FILE", "tracked_channels.json")
 CHANNEL_INACTIVITY_DAYS = int(os.environ.get("CHANNEL_INACTIVITY_DAYS", "60"))
-# At most one additional search.list request (1 Search Queries unit) per run.
-# DISCOVERY_PAGES=1 is a rollback switch if daily search quota becomes tight.
+# Original plural search makes up to two requests; the singular search adds
+# at most one more. DISCOVERY_PAGES=1 reduces plural pagination if needed.
 DISCOVERY_PAGES = max(1, min(2, int(os.environ.get("DISCOVERY_PAGES") or "2")))
 # One independent singular-name page; disable explicitly only if quota is tight.
 DISCOVERY_INCLUDE_SINGULAR = os.environ.get("DISCOVERY_INCLUDE_SINGULAR", "true").lower() == "true"
@@ -67,7 +67,7 @@ def discover_channels(*, include_videos=False):
     No reaction-keyword classifier: candidates must still pass exact-ID
     YouTube verification in the notification tracker before Discord sending.
     """
-    print(f"🔍 Discovering new reactor channels for {CHANNEL_NAME}...\\n")
+    print(f"🔍 Discovering new reactor channels for {CHANNEL_NAME}...\n")
 
     discovered = {}
     source_videos = {}
