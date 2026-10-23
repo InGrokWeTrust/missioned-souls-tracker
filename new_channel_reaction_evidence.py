@@ -50,9 +50,18 @@ def subject_reaction_search_hit(snippet, *, subject="Missioned Souls"):
             and not _EXCLUDE.search(title))
 
 
-def clear_reaction_title(video, *, subject="Missioned Souls"):
-    """True only with explicit title evidence that the VOD is a reaction.
+_REACTION_CHANNEL = re.compile(r"\\breact(?:s|ion|ions|or|ors)?\\b", re.IGNORECASE)
+_QUESTION_TITLE = re.compile(
+    r"^\\s*(?:is|are|did|do|does|can|could|will|would|was|were|has|have|how|what|why)\\b",
+    re.IGNORECASE,
+)
 
+
+def clear_reaction_title(video, *, subject="Missioned Souls"):
+    """Require clear title evidence, or multiple independent contextual signals.
+
+    Question-style titles are accepted only from reaction-labelled channels
+    with an explicit reaction hashtag; ordinary covers are still rejected.
     A title saying only 'Missioned Souls Family Band Studio Cover' does NOT
     establish a reaction, unless description metadata also carries multiple
     explicit reaction hashtags. Neither source is visual content proof.
@@ -69,6 +78,18 @@ def clear_reaction_title(video, *, subject="Missioned Souls"):
         return False
     if _REACTION.search(title):
         return True
+    # "Is MISSIONED SOULS Black Velvet As Good As the Original?" is a
+    # confirmed reaction, but says neither "reacts" nor "reaction" in title.
+    # Require a QUESTION, a reaction-labelled uploader, and a reaction tag
+    # in the actual video's description: these three signals must agree.
+    channel = video.get("channel") or video.get("channel_title") or ""
+    if (isinstance(channel, str) and _QUESTION_TITLE.match(title)
+            and "?" in title
+            and _REACTION_CHANNEL.search(channel)
+            and isinstance(description, str)):
+        tags = set(re.findall(r"(?<![a-z0-9])#[a-z0-9]+", description.lower()))
+        if tags & {"#reaction", "#reactionvideo", "#musicreaction", "#firsttimereaction"}:
+            return True
     # Many reactors copy the original song title verbatim and identify their
     # reaction using hashtags in the video description. Require MULTIPLE
     # explicit reaction tags; one loose hashtag is insufficient.
