@@ -50,9 +50,9 @@ def subject_reaction_search_hit(snippet, *, subject="Missioned Souls"):
             and not _EXCLUDE.search(title))
 
 
-_REACTION_CHANNEL = re.compile(r"\\breact(?:s|ion|ions|or|ors)?\\b", re.IGNORECASE)
+_REACTION_CHANNEL = re.compile(r"\breact(?:s|ion|ions|or|ors)?\b", re.IGNORECASE)
 _QUESTION_TITLE = re.compile(
-    r"^\\s*(?:is|are|did|do|does|can|could|will|would|was|were|has|have|how|what|why)\\b",
+    r"^\s*(?:is|are|did|do|does|can|could|will|would|was|were|has|have|how|what|why)\b",
     re.IGNORECASE,
 )
 
