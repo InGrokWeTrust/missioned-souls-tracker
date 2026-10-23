@@ -3,6 +3,7 @@ import json
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
 from channel_exclusions import is_excluded_channel
+from discovery_video_handoff import add_candidates, active_candidates
 
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
@@ -54,7 +55,8 @@ def save_tracked_channels(channels):
     print(f"💾 Saved {len(channels)} tracked channels to {TRACKED_CHANNELS_FILE}")
 
 
-def discover_channels():
+def discover_channels(*, include_videos=False):
+    """Keep the original single broad search and remember its source video IDs."""
     print(f"🔍 Discovering new reactor channels for {CHANNEL_NAME}...\n")
 
     search_response = youtube.search().list(
@@ -69,16 +71,28 @@ def discover_channels():
     print(f"Search returned {len(items)} videos\n")
 
     discovered = {}
+    source_videos = {}
     for item in items:
-        snippet = item['snippet']
-        channel_id = snippet['channelId']
-        channel_title = snippet['channelTitle']
+        snippet = item.get('snippet', {})
+        channel_id = snippet.get('channelId')
+        channel_title = snippet.get('channelTitle', '')
+        if not channel_id or not channel_title:
+            continue
         if is_excluded_channel(channel_id):
             print(f"  🚫 Skipping excluded channel ID: {channel_id}")
             continue
         discovered[channel_id] = channel_title
+        # Only titles already accepted by the ORIGINAL broad tracker qualify
+        # as source videos; no new reaction keywords or classifier are used.
+        if CHANNEL_NAME.lower() in snippet.get('title', '').lower():
+            video_id = (item.get('id') or {}).get('videoId')
+            if video_id and snippet.get('publishedAt'):
+                source_videos.setdefault(channel_id, []).append({
+                    'video_id': video_id,
+                    'published_at': snippet['publishedAt'],
+                })
 
-    return discovered
+    return (discovered, source_videos) if include_videos else discovered
 
 
 if __name__ == "__main__":
@@ -89,9 +103,10 @@ if __name__ == "__main__":
     if last_run:
         print(f"📅 Last discovery: {last_run}")
 
-    discovered = discover_channels()
+    discovered, source_videos = discover_channels(include_videos=True)
 
     new_count = 0
+    handoff_added = 0
     skipped_count = 0
     for channel_id, channel_title in discovered.items():
         # Apply exclusion rule first
@@ -112,12 +127,29 @@ if __name__ == "__main__":
                 "last_seen_at": datetime.now(timezone.utc).isoformat()
             }
             new_count += 1
+            handoff_added += add_candidates(
+                tracked[channel_id], source_videos.get(channel_id),
+                now=datetime.now(timezone.utc))
             print(f"  ➕ NEW: {channel_title} ({channel_id})")
         else:
             if isinstance(tracked[channel_id], str):
                 tracked[channel_id] = {"title": channel_title, "added_at": datetime.now(timezone.utc).isoformat()}
             tracked[channel_id]["title"] = channel_title
             tracked[channel_id]["last_seen_at"] = datetime.now(timezone.utc).isoformat()
+            # Complete a recent first-discovery handoff, without backfilling
+            # arbitrary older channels or rewriting their registration time.
+            handoff_added += add_candidates(
+                tracked[channel_id], source_videos.get(channel_id),
+                now=datetime.now(timezone.utc))
+
+    # Expire handoff IDs automatically; these are short-lived scan hints.
+    for info in tracked.values():
+        if isinstance(info, dict) and 'discovery_videos' in info:
+            active = active_candidates(info)
+            if active:
+                info['discovery_videos'] = active
+            else:
+                del info['discovery_videos']
 
     # Also prune any already-tracked excluded channels (in case rule changed)
     already_tracked_excluded = []
@@ -156,6 +188,7 @@ if __name__ == "__main__":
 
     print(f"\n✅ Discovery complete")
     print(f"   New channels added: {new_count}")
+    print(f"   Discovery source video IDs saved: {handoff_added}")
     print(f"   Excluded/skipped channels: {skipped_count}")
     print(f"   Stale channels pruned: {len(to_remove)}")
     print(f"   Total tracked: {len(tracked)}")
