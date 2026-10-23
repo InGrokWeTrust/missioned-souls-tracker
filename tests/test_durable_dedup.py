@@ -83,6 +83,15 @@ class RemoteHistoryTests(unittest.TestCase):
 
 
 class ReactionDedupTests(unittest.TestCase):
+    def setUp(self):
+        # Queue persistence must not leak state between offline test cases.
+        self._bookmark_dir = tempfile.TemporaryDirectory()
+        self._bookmark_patch = patch.object(
+            reaction, "LAST_RUN_FILE", str(Path(self._bookmark_dir.name) / "last_run.json"))
+        self._bookmark_patch.start()
+        self.addCleanup(self._bookmark_patch.stop)
+        self.addCleanup(self._bookmark_dir.cleanup)
+
     def test_old_and_v2_bookmark_timestamp_supported(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "last_run.json"
