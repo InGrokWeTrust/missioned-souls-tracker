@@ -269,7 +269,7 @@ def fetch_channel_videos(channel_id, channel_title):
     return videos
 
 
-def get_reactions_with_stats():
+def get_reactions_with_stats(*, held=None):
     run_start = datetime.now(timezone.utc)
     print(f"🔍 Checking {CHANNEL_NAME} reactions from tracked channels...")
     print(f"⏰ Run started at: {run_start.strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
@@ -299,6 +299,54 @@ def get_reactions_with_stats():
         if not reaction_videos:
             silent_channels.append(channel_title)
 
+    # Preserve the original 5-upload scan. Discovery and deferred releases
+    # contribute exact IDs that can have fallen outside that window.
+    normal_matches = len(candidates)
+    scanned_count = normal_matches + no_ms_count
+    by_id = {v['video_id']: v for v in candidates}
+    source_ids = set()
+    for cid, vid, published in handoff_for_scan(tracked, now=run_start):
+        if cid not in tracked or is_excluded_channel(cid):
+            continue
+        source_ids.add(vid)
+        if vid in by_id:
+            by_id[vid]['discovery_handoff'] = True
+            continue
+        info = tracked[cid]
+        entry = {
+            'video_id': vid, 'channel_id': cid,
+            'channel': info.get('title', cid) if isinstance(info, dict) else str(info),
+            'title': '', 'published_at': published,
+            'url': f"https://youtu.be/{vid}", 'thumbnail': None,
+            'live_broadcast_content': 'none', 'live_streaming_details': None,
+            'discovery_handoff': True,
+        }
+        candidates.append(entry)
+        by_id[vid] = entry
+
+    for entry in held or []:
+        cid, vid = entry['channel_id'], entry['video_id']
+        if cid not in tracked or is_excluded_channel(cid):
+            continue
+        if vid in by_id:
+            by_id[vid]['deferred'] = True
+            continue
+        info = tracked[cid]
+        record = {
+            'video_id': vid, 'channel_id': cid,
+            'channel': info.get('title', cid) if isinstance(info, dict) else str(info),
+            'title': '', 'published_at': entry['published_at'],
+            'url': f"https://youtu.be/{vid}", 'thumbnail': None,
+            'live_broadcast_content': 'none', 'live_streaming_details': None,
+            'deferred': True,
+        }
+        candidates.append(record)
+        by_id[vid] = record
+    if source_ids:
+        print(f"🔗 Discovery video handoff: {len(source_ids)} source IDs to verify")
+    if held:
+        print(f"📦 Deferred VOD rechecks: {len(held)} held IDs")
+
     if silent_channels:
         print(f"⏭️  Channels with no MS reactions in last {MAX_VIDEOS_PER_CHANNEL}:")
         for ch in silent_channels:
@@ -307,8 +355,8 @@ def get_reactions_with_stats():
 
     print(f"📊 Stage 1 — Channel scan:")
     print(f"   Channels checked         : {len(tracked)}")
-    print(f"   Videos scanned           : {len(candidates) + no_ms_count}")
-    print(f"   MS keyword matches       : {len(candidates)}")
+    print(f"   Videos scanned           : {scanned_count}")
+    print(f"   MS keyword matches       : {normal_matches}")
     print(f"   No MS mention (skipped)  : {no_ms_count}\n")
 
     if not candidates:
@@ -320,16 +368,18 @@ def get_reactions_with_stats():
     stats_dict = {}
     duration_dict = {}
     live_details_dict = {}
+    details_dict = {}
 
     for i in range(0, len(video_ids), 50):
         chunk = video_ids[i:i+50]
         stats_response = youtube.videos().list(
-            part="statistics,contentDetails,liveStreamingDetails",
+            part="snippet,statistics,contentDetails,liveStreamingDetails,status",
             id=",".join(chunk)
         ).execute()
 
         for item in stats_response.get('items', []):
             vid_id = item['id']
+            details_dict[vid_id] = item
             stats = item.get('statistics', {})
             stats_dict[vid_id] = {
                 'view_count': int(stats.get('viewCount', 0)),
@@ -349,6 +399,34 @@ def get_reactions_with_stats():
 
     for video in candidates:
         vid_id = video['video_id']
+        detail = details_dict.get(vid_id, {})
+        snippet = detail.get('snippet') or {}
+        privacy = (detail.get('status') or {}).get('privacyStatus')
+        confirmed = (snippet.get('channelId') == video['channel_id']
+                     and privacy == 'public'
+                     and isinstance(snippet.get('title'), str)
+                     and bool(snippet.get('publishedAt')))
+        # Independent confirmation of the specific source uploader is mandatory
+        # for Discovery IDs and older held videos. Never trust placeholders.
+        if not confirmed and (video.get('discovery_handoff') or video.get('deferred')):
+            print(f"⏭️ Exact-ID candidate {vid_id} not publicly verified; retry later")
+            continue
+        if confirmed:
+            video['title'] = snippet['title']
+            video['published_at'] = snippet['publishedAt']
+            video['channel'] = snippet.get('channelTitle') or video['channel']
+            video['live_broadcast_content'] = snippet.get(
+                'liveBroadcastContent', video.get('live_broadcast_content', 'none'))
+            video['thumbnail'] = select_thumbnail(
+                snippet.get('thumbnails'), vid_id, fallback=video.get('thumbnail'))
+        else:
+            video['thumbnail'] = select_thumbnail(
+                None, vid_id, fallback=video.get('thumbnail'))
+        video['metadata_confirmed'] = confirmed
+        # The original title-only criterion applies to every ID, including
+        # newly discovered and deferred records. No strict classifier.
+        if not is_missioned_souls_reaction(video.get('title', '')):
+            continue
         vid_stats = stats_dict.get(vid_id, {})
         video['view_count'] = vid_stats.get('view_count', 0)
         video['like_count'] = vid_stats.get('like_count', 0)
