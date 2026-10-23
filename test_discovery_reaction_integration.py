@@ -42,12 +42,13 @@ class DiscoveryIntegrationTests(unittest.TestCase):
             ]},
         ]
         with patch.object(discovery, "youtube", client):
-            found = discovery.discover_channels(rotation_slot=0)
+            found = discovery.discover_channels()
         self.assertEqual(found, {
             NEW: "The Mr. J Show",
             "other-reactor": "New Reaction Channel",
         })
         self.assertEqual(client.search.return_value.list.call_count, 2)
+        self.assertEqual(client.search.return_value.list.call_args_list[1].kwargs["pageToken"], "second")
 
         # Feed discovery's newly registered uploader into first scanner state.
         registered = {cid: REG for cid in found}
