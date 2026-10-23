@@ -64,6 +64,7 @@ def discover_channels(*, include_videos=False):
 
     discovered = {}
     source_videos = {}
+    source_video_ids = set()
     page_token = None
     for page, (search_term, query_page) in enumerate(discovery_queries(CHANNEL_NAME, DISCOVERY_PAGES)):
         # Each distinct query starts with a fresh page token. The extra targeted
@@ -91,7 +92,8 @@ def discover_channels(*, include_videos=False):
                 discovered[channel_id] = channel_title
                 if include_videos:
                     vid = (item.get("id") or {}).get("videoId")
-                    if vid:
+                    if vid and (channel_id, vid) not in source_video_ids:
+                        source_video_ids.add((channel_id, vid))
                         source_videos.setdefault(channel_id, []).append({
                             "video_id":vid, "published_at":snippet.get("publishedAt")
                         })
