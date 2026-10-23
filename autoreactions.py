@@ -465,6 +465,12 @@ def send_to_discord(videos, max_to_send=5, run_start=None, seen_ids=None):
     if not videos:
         print("⚠️ No new videos to send.")
         return []
+    # Final safety net for direct callers: no premature broadcast alerts
+    # and never construct a Discord card with a missing/invalid image.
+    for video in videos[:max_to_send]:
+        if not is_published_vod(video) or is_short_or_too_short(video):
+            raise RuntimeError("Unpublished/live/Short video cannot be delivered as a VOD")
+    require_thumbnails(videos[:max_to_send])
     if seen_ids is None:
         seen_ids = set()
     delivered = []
@@ -490,7 +496,7 @@ def send_to_discord(videos, max_to_send=5, run_start=None, seen_ids=None):
             "title": title,
             "url": video['url'],
             "color": 0xe53935 if video.get('live_broadcast_content') == 'live' else 0x1e88e5,
-            "image": {"url": video.get('thumbnail')} if video.get('thumbnail') else None,
+            "image": {"url": video['thumbnail']},
             "fields": [
                 {"name": "Channel", "value": video['channel'], "inline": True},
                 {"name": "Views", "value": f"{video.get('view_count', 0):,}", "inline": True},
@@ -525,8 +531,7 @@ def send_to_discord(videos, max_to_send=5, run_start=None, seen_ids=None):
 # ===================== MAIN =====================
 def run():
     print("🚀 Missioned Souls Reaction Tracker Started\n")
-    # Read both confirmed-delivery ledgers *before* any YouTube or Discord call.
-    # An unavailable ledger causes a safe failure rather than duplicate posts.
+    # Fail closed before YouTube/Discord if delivery ledgers are unavailable.
     reaction_ids = read_ids("reactions")
     live_ids = read_ids("live")
     already_delivered = reaction_ids | live_ids
@@ -534,47 +539,81 @@ def run():
           f"{len(live_ids)} live IDs")
 
     last_published = load_last_run()
+    original_held = load_held_videos()
+    # An old bookmark may contain newly excluded or already-delivered IDs.
+    held = {v['video_id']: v for v in original_held
+            if not is_excluded_channel(v['channel_id'])
+            and v['video_id'] not in already_delivered}
     print(f"📅 Last run timestamp: {last_published[:10] if last_published else 'No bookmark — will be set this run'}")
-    videos, run_start = get_reactions_with_stats()
+    videos, run_start = get_reactions_with_stats(held=list(held.values()))
     videos = [v for v in videos if not is_excluded_channel(v.get('channel_id'))]
 
     if not last_published:
-        # Missing legacy bookmark: seed the cutoff without replaying uploads.
+        # Original bootstrap policy: no historical upload is resent.
         if videos:
-            newest_timestamp = max(v['published_at'] for v in videos)
-            save_last_run(newest_timestamp)
-            print(f"📌 Initial bookmark set without Discord delivery: {newest_timestamp}")
-        else:
-            print("ℹ️ No videos found — bookmark not set")
+            newest = max(v['published_at'] for v in videos)
+            save_last_run(newest)
+            print(f"📌 Initial bookmark set without Discord delivery: {newest}")
+        if len(held) != len(original_held):
+            save_held_videos(held)
         print("\n🎉 All done!")
         return []
 
-    unseen = []
-    seen_this_run = set()
-    for v in videos:
-        vid = v["video_id"]
-        if vid in already_delivered or vid in seen_this_run:
+    eligible = []
+    seen_in_scan = set()
+    for video in videos:
+        vid = video['video_id']
+        if vid in already_delivered or vid in seen_in_scan:
             continue
-        seen_this_run.add(vid)
-        if FORCE_SEND_ALL or v["published_at"] > last_published:
-            unseen.append(v)
-    unseen.sort(key=lambda v: (v["published_at"], v["video_id"]))
-    print(f"🆕 {len(unseen)} eligible unseen reaction videos "
-          f"(previously delivered IDs always excluded)")
+        seen_in_scan.add(vid)
+        # Source video-ID handoff is independently verified in videos.list
+        # and may predate the original timestamp when its channel was added.
+        allowed = (FORCE_SEND_ALL or video['published_at'] > last_published
+                   or video.get('discovery_handoff') or vid in held)
+        if not allowed:
+            continue
 
-    # Send oldest eligible videos first, so a capped batch or webhook failure
-    # cannot push the timestamp past still-undelivered videos.
-    batch = unseen[:MAX_TO_SEND]
-    if not batch:
-        print("ℹ️ No undelivered reactions — bookmark unchanged")
+        if not is_published_vod(video):
+            held[vid] = {'channel_id': video['channel_id'], 'video_id': vid,
+                         'published_at': video['published_at']}
+            print(f"⏳ Waiting for publication/end of stream: {vid}")
+            continue
+        if not valid_thumbnail(video.get('thumbnail'), vid):
+            held[vid] = {'channel_id': video['channel_id'], 'video_id': vid,
+                         'published_at': video['published_at']}
+            print(f"🖼️ Waiting for an official video thumbnail: {vid}")
+            continue
+        eligible.append(video)
+
+    eligible.sort(key=lambda v: (v['published_at'], v['video_id']))
+    print(f"🆕 {len(eligible)} eligible unseen published reaction VODs")
+    print(f"📦 {len(held)} held pending publication/thumbnail")
+
+    # Persist waiting video IDs *before* posting anything; if the video falls
+    # outside the newest five uploads next run, it must still be retried.
+    if list(held.values()) != original_held:
+        save_held_videos(held)
+
+    chosen = eligible[:MAX_TO_SEND]
+    if not chosen:
+        print("ℹ️ No ready reactions — bookmark unchanged")
         return []
+
     delivered = send_to_discord(
-        batch, max_to_send=MAX_TO_SEND, run_start=run_start,
+        chosen, max_to_send=MAX_TO_SEND, run_start=run_start,
         seen_ids=already_delivered)
+    # Durable delivered-ID history is updated immediately after each webhook.
+    # Remove released held IDs only once delivery is independently confirmed.
+    changed = False
+    for video in delivered:
+        if held.pop(video['video_id'], None) is not None:
+            changed = True
+    if changed:
+        save_held_videos(held)
     if delivered:
-        newest_timestamp = max(v["published_at"] for v in delivered)
-        if newest_timestamp > last_published:
-            save_last_run(newest_timestamp)
+        newest = max(v['published_at'] for v in delivered)
+        if newest > last_published:
+            save_last_run(newest)
         print(f"📌 {len(delivered)} newly sent IDs saved durably")
     print("\n🎉 All done!")
     return delivered
