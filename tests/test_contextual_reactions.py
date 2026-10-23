@@ -22,6 +22,21 @@ class ContextualDeliveryTests(unittest.TestCase):
         self.assertTrue(clear_reaction_title(item))
         self.assertTrue(is_safe_reaction_candidate(item))
 
+    def test_explicit_compound_reaction_hashtag_is_recognized(self):
+        # Metadata taken from an audit candidate, but no replay of old uploads.
+        sample = {
+            "title": "MISSIONED SOULS, HATE MYSELF #MissionedSouls "
+                     "#IHateMyselfForLovingYou #MissionedSoulsReaction",
+            "channel": "RJS_Reactions",
+            "description": "",
+        }
+        self.assertTrue(clear_reaction_title(sample))
+        self.assertTrue(is_safe_reaction_candidate(sample))
+        sample["published_at"] = "2026-10-21T00:00:00Z"
+        self.assertFalse(recent_enough_for_first_expanded_match(
+            sample, now=datetime(2026, 10, 23, 4, 45, tzinfo=timezone.utc)
+        ))
+
     def test_promotional_check_out_and_self_performed_cover_are_rejected(self):
         for desc in (
             "Check out my channel! Missioned Souls performs Highway Star.",
