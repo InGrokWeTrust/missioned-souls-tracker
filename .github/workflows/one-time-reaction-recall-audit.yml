@@ -1,0 +1,29 @@
+name: One-time reaction search recall audit
+
+on:
+  push:
+    branches: [audit/reaction-recall-20261023]
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-recall-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install normal tracker dependencies
+        run: pip install -r requirements.txt
+      - name: Fetch durable history branch (read only)
+        run: git fetch origin notification-history:refs/remotes/origin/notification-history
+      - name: Audit recent uploads and search recall (no writes or Discord)
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          DRY_RUN: 'true'
+        run: python audit_reaction_recall_20261023.py
