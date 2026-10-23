@@ -266,6 +266,7 @@ def get_reactions_with_stats():
     handoff = handoff_for_scan(tracked, now=run_start)
     known_ids = {v["video_id"] for v in candidates}
     discovered_ids = set()
+    added_handoff_ids = 0
     for cid, vid, published in handoff:
         if cid not in scanned_channel_ids:
             # Never record scans as complete for channels whose playlist call failed.
@@ -274,6 +275,7 @@ def get_reactions_with_stats():
         if vid in known_ids:
             continue
         info = tracked[cid]
+        added_handoff_ids += 1
         candidates.append({
             "video_id": vid, "channel_id": cid,
             "channel": info.get("title", cid) if isinstance(info, dict) else str(info),
@@ -283,8 +285,8 @@ def get_reactions_with_stats():
             "live_streaming_details":None,
         })
         known_ids.add(vid)
-    print(f"🔗 Discovery handoff: {len(discovered_ids)} IDs checked "
-          f"({len(discovered_ids)} deduplicated against channel scan).")
+    print(f"🔗 Discovery handoff: {len(discovered_ids)} video IDs, "
+          f"{added_handoff_ids} recovered from outside the newest-upload scan.")
     if failed_channels:
         print(f"::warning::{len(failed_channels)} channels failed to scan and will be retried next run.")
     if silent_channels:
