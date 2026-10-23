@@ -1,14 +1,15 @@
 name: One-time reaction search recall audit
 
 on:
-  push:
-    branches: [audit/reaction-recall-20261023]
+  pull_request:
+    types: [synchronize]
 
 permissions:
   contents: read
 
 jobs:
   read-only-recall-audit:
+    if: github.head_ref == 'audit/reaction-recall-20261023' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
