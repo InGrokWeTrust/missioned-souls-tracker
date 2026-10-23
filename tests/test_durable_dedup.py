@@ -27,7 +27,8 @@ def vod(vid, stamp):
         "published_at": stamp, "url": "https://youtu.be/" + vid,
         "thumbnail": "https://i.ytimg.com/vi/" + vid + "/hqdefault.jpg",
         "view_count": 3, "like_count": 1, "comment_count": 0,
-        "live_broadcast_content": "none",
+        "live_broadcast_content": "none", "metadata_confirmed": True,
+        "duration_sec": 600, "live_streaming_details": None,
     }
 
 
