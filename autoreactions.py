@@ -8,6 +8,9 @@ from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from notification_history import read_ids, save_ids
 from channel_exclusions import is_excluded_channel
+from discovery_video_handoff import handoff_for_scan
+from thumbnail_policy import select_thumbnail, valid_thumbnail, require_thumbnails
+from video_release_policy import is_published_vod
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -31,34 +34,80 @@ AUCKLAND_TZ = ZoneInfo("Pacific/Auckland")
 youtube = build('youtube', 'v3', developerKey=API_KEY)
 
 
-def load_last_run():
-    """Read the legacy timestamp bookmark; refuse corrupt state."""
+# The legacy timestamp remains the cutoff. Only uploads held for
+# publication/thumbnail availability require a small persistent retry record.
+MAX_HELD_VODS = 200
+
+
+def _read_bookmark():
     try:
         with open(LAST_RUN_FILE, 'r', encoding='utf-8') as f:
-            state = json.load(f)
+            data = json.load(f)
     except FileNotFoundError:
-        return None
-    if not isinstance(state, dict):
+        return {}
+    if not isinstance(data, dict):
         raise ValueError("Invalid last-run bookmark (expected object)")
-    value = state.get('last_published_at')
+    value = data.get('last_published_at')
     if value is not None and (not isinstance(value, str) or not value):
         raise ValueError("Invalid last_published_at in bookmark")
-    return value
+    return data
 
 
-def save_last_run(published_at):
-    """Atomically write the original bookmark only after confirmed delivery."""
+def load_last_run():
+    return _read_bookmark().get('last_published_at')
+
+
+def load_held_videos():
+    """Read only explicitly deferred uploads, never inferred old reactions."""
+    values = _read_bookmark().get('held_videos', [])
+    if not isinstance(values, list) or len(values) > MAX_HELD_VODS:
+        raise ValueError("Invalid held-video bookmark")
+    out = []
+    seen = set()
+    for entry in values:
+        if not isinstance(entry, dict):
+            raise ValueError("Invalid held-video record")
+        cid, vid, stamp = (entry.get('channel_id'), entry.get('video_id'),
+                           entry.get('published_at'))
+        if not all(isinstance(v, str) and v for v in (cid, vid, stamp)):
+            raise ValueError("Invalid held-video identity")
+        if vid not in seen:
+            out.append({'channel_id': cid, 'video_id': vid,
+                        'published_at': stamp})
+            seen.add(vid)
+    return out
+
+
+def _save_bookmark(data):
+    """Atomic bookmark update; never lose held IDs when timestamp advances."""
     temporary = LAST_RUN_FILE + ".tmp"
     try:
         with open(temporary, 'w', encoding='utf-8') as f:
-            json.dump({"last_published_at": published_at}, f, indent=2)
+            json.dump(data, f, indent=2)
             f.flush()
             os.fsync(f.fileno())
         os.replace(temporary, LAST_RUN_FILE)
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)
+
+
+def save_last_run(published_at):
+    """Save original timestamp while retaining deferred releases."""
+    data = _read_bookmark()
+    data['last_published_at'] = published_at
+    _save_bookmark(data)
     print(f"💾 Updated {LAST_RUN_FILE} → {published_at[:10]}")
+
+
+def save_held_videos(held):
+    """Hold only unpublished or missing-thumbnail videos for retry."""
+    if len(held) > MAX_HELD_VODS:
+        raise RuntimeError("Held-video limit reached; refusing to lose an upload")
+    data = _read_bookmark()
+    data['held_videos'] = list(held.values())
+    _save_bookmark(data)
+    print(f"💾 Retained {len(held)} waiting VODs for publication/thumbnail retry")
 
 
 def load_tracked_channels():
