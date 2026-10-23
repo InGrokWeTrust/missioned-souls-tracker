@@ -57,6 +57,71 @@ _QUESTION_TITLE = re.compile(
 )
 
 
+
+# Some genuine reactors use a personal observation as the title instead of
+# "reaction". Example: "HER SOLO WAS CRAZY !! | ... BY MISSIONED SOULS".
+# The opening description can independently establish that the creator is
+# watching the band rather than uploading their own performance.
+_FIRST_PERSON_VIEWING = re.compile(
+    r"\b(?:i|we)\s+(?:(?:am|are|'m|'re)\s+)?"
+    r"(?:checking\s+out|check(?:ing)?\s+out|watch(?:ing)?|listen(?:ing)?\s+to|"
+    r"react(?:ing)?\s+to)\b",
+    re.IGNORECASE,
+)
+_COMMENTARY_TITLE = re.compile(
+    r"\b(?:i|we|my|our)\b"
+    r"|\b(?:crazy|insane|shocked|speechless|unbelievable|amazing|"
+    r"incredible|mind\s+blown|goosebumps|wow|whoa|blew\s+me\s+away)\b",
+    re.IGNORECASE,
+)
+_SELF_PERFORMED = re.compile(
+    r"\b(?:our|my)\s+(?:own\s+)?(?:cover|performance|version)\b"
+    r"|\b(?:we|i)\s+(?:performed|recorded|played|covered)\s+(?:this|the|it)\b"
+    r"|\b(?:performed|sung|recorded|played)\s+by\s+(?:me|us)\b",
+    re.IGNORECASE,
+)
+
+
+def creator_describes_watching_subject(video, *, subject="Missioned Souls"):
+    """Require an explicit first-person viewing claim near the named subject.
+
+    A generic "check out my channel" link or a detached #MissionedSouls tag
+    never qualifies. This is metadata evidence, not video-content proof.
+    """
+    description = video.get("description", "")
+    if not isinstance(description, str) or not isinstance(subject, str):
+        return False
+    intro = description[:600]
+    if _SELF_PERFORMED.search(intro):
+        return False
+    mentions = [m.start() for m in re.finditer(re.escape(subject), intro, re.IGNORECASE)]
+    if not mentions:
+        return False
+    for viewing in _FIRST_PERSON_VIEWING.finditer(intro):
+        if any(0 <= mention - viewing.end() <= 175 for mention in mentions):
+            return True
+    return False
+
+
+def contextual_reaction_evidence(video, *, subject="Missioned Souls"):
+    """Accept an explicit viewing claim for the named subject, never a band tag alone.
+
+    Band-in-title cases require a genuine first-person watching statement in
+    the video description. Song-only title cases additionally require
+    commentary in the title or a reaction-labelled uploader.
+    """
+    title = video.get("title", "")
+    if not isinstance(title, str) or _EXCLUDE.search(title):
+        return False
+    if not creator_describes_watching_subject(video, subject=subject):
+        return False
+    if subject.lower() in title.lower():
+        return True
+    channel = video.get("channel") or video.get("channel_title") or ""
+    return (bool(_COMMENTARY_TITLE.search(title))
+            or (isinstance(channel, str) and bool(_REACTION_CHANNEL.search(channel))))
+
+
 def clear_reaction_title(video, *, subject="Missioned Souls"):
     """Require clear title evidence, or multiple independent contextual signals.
 
@@ -71,12 +136,15 @@ def clear_reaction_title(video, *, subject="Missioned Souls"):
         return False
     description = video.get("description", "")
     if subject.lower() not in title.lower():
-        return subject_reaction_search_hit(video, subject=subject)
+        return (subject_reaction_search_hit(video, subject=subject)
+                or contextual_reaction_evidence(video, subject=subject))
     if _EXCLUDE.search(title):
         return False
     if "paper dove" in title.lower() and "#missionedsouls" in title.lower():
         return False
     if _REACTION.search(title):
+        return True
+    if contextual_reaction_evidence(video, subject=subject):
         return True
     # "Is MISSIONED SOULS Black Velvet As Good As the Original?" is a
     # confirmed reaction, but says neither "reacts" nor "reaction" in title.
