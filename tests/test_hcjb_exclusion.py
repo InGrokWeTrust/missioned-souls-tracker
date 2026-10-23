@@ -68,8 +68,10 @@ class HCJBExclusionTests(unittest.TestCase):
         with patch.object(discovery, "youtube", fake):
             found = discovery.discover_channels()
         self.assertEqual(found, {GOOD: "NeVre Music Reviews"})
-        self.assertEqual(fake.search.return_value.list.call_args.kwargs["q"],
+        self.assertEqual(fake.search.return_value.list.call_args_list[0].kwargs["q"],
                          '"Missioned Souls"')
+        self.assertEqual(fake.search.return_value.list.call_args_list[1].kwargs["q"],
+                         '"Missioned Soul"')
 
     def test_discovery_prunes_hcjb_from_existing_registry(self):
         with tempfile.TemporaryDirectory() as folder:
