@@ -75,7 +75,7 @@ _COMMENTARY_TITLE = re.compile(
     re.IGNORECASE,
 )
 _SELF_PERFORMED = re.compile(
-    r"\b(?:our|my)\s+(?:own\s+)?(?:cover|performance|version)\b"
+    r"\b(?:our|my)\s+(?:(?:own|original|live)\s+)?(?:cover|performance|version)\b"
     r"|\b(?:we|i)\s+(?:performed|recorded|played|covered)\s+(?:this|the|it)\b"
     r"|\b(?:performed|sung|recorded|played)\s+by\s+(?:me|us)\b",
     re.IGNORECASE,
