@@ -62,28 +62,31 @@ def save_tracked_channels(channels):
     print(f"💾 Saved {len(channels)} tracked channels to {TRACKED_CHANNELS_FILE}")
 
 
-def discover_channels(*, include_videos=False, rotation_slot=None):
+def discover_channels(*, include_videos=False):
     print(f"🔍 Discovering new reactor channels for {CHANNEL_NAME}...\n")
 
     discovered = {}
     source_videos = {}
     source_video_ids = set()
-    # Keep the broad Missioned Souls query on EVERY run. Rotate the second
-    # request among plain reaction keywords, not restrictive combined filters.
-    # A discovery run still makes no more than DISCOVERY_PAGES requests.
-    if rotation_slot is None:
-        rotation_slot = int(datetime.now(timezone.utc).timestamp()) // 7200
+    # Original discovery strategy: search the band name only, and paginate
+    # up to DISCOVERY_PAGES (default 2) within the existing API call budget.
+    # Preserve later channel screening and video-ID handoff independently.
+    page_token = None
     api_calls = 0
-    for search_term, _ in discovery_queries(
-            CHANNEL_NAME, DISCOVERY_PAGES, rotation_slot=rotation_slot):
+    for search_term, page in discovery_queries(CHANNEL_NAME, DISCOVERY_PAGES):
+        if page > 0 and not page_token:
+            break
         arguments = {
             "part": "snippet", "q": search_term,
             "type": "video", "maxResults": 50, "order": "date"
         }
+        if page_token:
+            arguments["pageToken"] = page_token
         response = youtube.search().list(**arguments).execute()
         api_calls += 1
         items = response.get("items", [])
-        print(f"  Search {api_calls} ({search_term!r}): found {len(items)} candidate videos")
+        print(f"  Page {page + 1} ({search_term!r}): found {len(items)} candidate videos")
+        page_token = response.get("nextPageToken")
         for item in items:
             snippet = item.get("snippet", {})
             channel_id = snippet.get("channelId")
