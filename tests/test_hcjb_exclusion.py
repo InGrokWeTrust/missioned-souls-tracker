@@ -116,6 +116,23 @@ class HCJBExclusionTests(unittest.TestCase):
             "items": [search_item(HCJB),
                       search_item(GOOD, "Other Reactor", "Missioned Souls live reaction")]
         }
+        # Search results must now be reconfirmed against live metadata.
+        fake.videos.return_value.list.return_value.execute.return_value = {
+            "items": [{
+                "id": "test-video",
+                "snippet": {
+                    "channelId": GOOD,
+                    "channelTitle": "Other Reactor",
+                    "title": "Missioned Souls live reaction",
+                    "liveBroadcastContent": "live",
+                    "thumbnails": {"medium": {
+                        "url": "https://i.ytimg.com/vi/test-video/hqdefault.jpg"}},
+                },
+                "liveStreamingDetails": {
+                    "actualStartTime": "2026-10-23T08:00:00Z",
+                },
+            }]
+        }
         with patch.object(live, "youtube", fake):
             found = live.find_active_live_streams()
         self.assertEqual(len(found), 1)
