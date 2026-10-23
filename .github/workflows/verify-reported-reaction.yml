@@ -1,6 +1,8 @@
 name: Read-only missed reaction metadata check
 
 on:
+  pull_request:
+    types: [synchronize]
   push:
     branches:
       - fix/bounded-reaction-discovery-20261023
@@ -10,6 +12,7 @@ permissions:
 
 jobs:
   verify-reaction:
+    if: github.event_name == 'push' || (github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'fix/bounded-reaction-discovery-20261023')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
