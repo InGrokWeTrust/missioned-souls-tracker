@@ -2,6 +2,12 @@ name: YouTube Reaction Tracker
 
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Preview eligible alerts only; never send to Discord or modify state"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -16,6 +22,8 @@ concurrency:
 jobs:
   track:
     runs-on: ubuntu-latest
+    env:
+      DRY_RUN: ${{ (inputs.dry_run && 'true') || vars.DRY_RUN || 'false' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -56,13 +64,24 @@ jobs:
           FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
           LAST_RUN_FILE: ${{ vars.LAST_RUN_FILE }}
           TRACKED_CHANNELS_FILE: tracked_channels.json
-        run: python autoreactions.py
+        shell: bash
+        run: |
+          set -o pipefail
+          python autoreactions.py 2>&1 | tee reaction-tracker-output.log
 
       - name: Upload last_run.json for next run
-        if: always()
+        if: ${{ always() && env.DRY_RUN != 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: last-run-state
           path: last_run.json
           retention-days: 7
           if-no-files-found: error
+
+      - name: Report diagnosed production failure to dedicated health webhook
+        if: ${{ failure() && github.ref == 'refs/heads/main' && env.DRY_RUN != 'true' }}
+        env:
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          GITHUB_WORKFLOW: ${{ github.workflow }}
+          ALERT_LOG_FILE: reaction-tracker-output.log
+        run: python report_failure.py

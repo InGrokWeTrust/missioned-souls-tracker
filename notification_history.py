@@ -74,6 +74,10 @@ def read_ids(kind):
 
 def save_ids(kind, ids):
     """Persist a growing union using GitHub's SHA compare-and-swap."""
+    # Defense in depth: even accidental direct calls must not mutate
+    # the confirmed-delivery ledger in a dry-run workflow.
+    if os.getenv("DRY_RUN", "false").strip().lower() == "true":
+        raise RuntimeError("DRY RUN: durable history writes are disabled")
     if not HISTORY_ENABLED:
         raise RuntimeError("Durable notification history must be enabled")
     incoming = _ids(ids)

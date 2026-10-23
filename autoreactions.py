@@ -21,6 +21,7 @@ CHANNEL_NAME = os.environ.get("CHANNEL_NAME", "Missioned Souls")
 MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND", "10"))
 MAX_VIDEOS_PER_CHANNEL = int(os.environ.get("MAX_VIDEOS_PER_CHANNEL", "5"))
 FORCE_SEND_ALL = os.environ.get("FORCE_SEND_ALL", "false").lower() == "true"
+DRY_RUN = os.environ.get("DRY_RUN", "false").strip().lower() == "true"
 LAST_RUN_FILE = os.environ.get("LAST_RUN_FILE", "last_run.json")
 TRACKED_CHANNELS_FILE = os.environ.get("TRACKED_CHANNELS_FILE", "tracked_channels.json")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
@@ -103,6 +104,9 @@ def load_pending_videos():
 
 def _save_bookmark(data):
     """Atomic bookmark update; preserve both pending and held IDs."""
+    if DRY_RUN:
+        print("🧪 DRY RUN: bookmark write suppressed")
+        return
     temporary = LAST_RUN_FILE + ".tmp"
     try:
         with open(temporary, 'w', encoding='utf-8') as f:
@@ -500,6 +504,9 @@ def get_reactions_with_stats(*, held=None):
 
 def send_to_discord(videos, max_to_send=5, run_start=None, seen_ids=None):
     """Send and durably record each accepted webhook, before the next send."""
+    if DRY_RUN:
+        print(f"🧪 DRY RUN: Discord webhook suppressed; {min(max_to_send, len(videos))} would be sent")
+        return []
     # Final protection even if callers bypass the normal channel scan.
     videos = [v for v in videos if not is_excluded_channel(v.get('channel_id'))]
     if not videos:
@@ -594,6 +601,8 @@ def run():
     print(f"📅 Last run timestamp: "
           f"{last_published[:10] if last_published else 'No bookmark — will be set this run'}")
     print(f"📬 Restored unsent queue: {len(pending)} ready, {len(held)} waiting")
+    if DRY_RUN:
+        print("🧪 DRY RUN: YouTube scanning enabled; Discord and all state writes disabled")
     # Reconfirm exact pending IDs alongside waiting and discovery source IDs
     # even if a newer burst of uploads pushes those IDs beyond the last five.
     retry_ids = list(held.values()) + list(pending.values())
@@ -601,6 +610,10 @@ def run():
     videos = [v for v in videos if not is_excluded_channel(v.get('channel_id'))]
 
     if not last_published:
+        if DRY_RUN:
+            print("🧪 DRY RUN: initial bookmark would be seeded without Discord delivery")
+            print("🧪 DRY RUN: no bookmark or durable history writes")
+            return []
         # Preserve original first-run bootstrap: seed a cutoff but never
         # replay an unknown set of existing historical uploads.
         if videos:
@@ -648,13 +661,20 @@ def run():
     # Persist the ENTIRE ready queue before the first Discord webhook. This
     # also preserves unsent batch overflow when MAX_TO_SEND is reached.
     if (list(held.values()) != original_held
-            or list(pending.values()) != original_pending):
+            or list(pending.values()) != original_pending) and not DRY_RUN:
         save_notification_queue(held, pending)
 
     chosen = sorted(ready.values(), key=lambda v: (
         v['published_at'], v['video_id']))[:MAX_TO_SEND]
     print(f"🆕 {len(ready)} ready unpublished-to-Discord VODs; "
           f"{len(pending)} total queued, {len(held)} held")
+    if DRY_RUN:
+        for video in chosen:
+            print(f"🧪 WOULD SEND: {video['video_id']} | {video['title'][:80]}")
+        print(f"🧪 DRY RUN: {len(chosen)} would send, "
+              f"{max(0, len(ready) - len(chosen))} ready beyond batch cap; "
+              f"{len(held)} held; no Discord messages or state writes")
+        return []
     if not chosen:
         print("ℹ️ No ready VODs to notify — unsent queue retained")
         return []
