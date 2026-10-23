@@ -176,9 +176,14 @@ class PreserveInactiveChannelTests(unittest.TestCase):
             discovered, source = discovery.discover_channels(include_videos=True)
         self.assertEqual(discovered, {})
         self.assertEqual(source, {})
-        fake_youtube.search.return_value.list.assert_called_once_with(
-            part="snippet", q='"Missioned Souls"',
-            type="video", maxResults=50, order="date")
+        self.assertEqual(fake_youtube.search.return_value.list.call_count, 2)
+        plural, singular = fake_youtube.search.return_value.list.call_args_list
+        for call in (plural, singular):
+            self.assertEqual(call.kwargs["type"], "video")
+            self.assertEqual(call.kwargs["maxResults"], 50)
+            self.assertEqual(call.kwargs["order"], "date")
+        self.assertEqual(plural.kwargs["q"], '"Missioned Souls"')
+        self.assertEqual(singular.kwargs["q"], '"Missioned Soul"')
 
 
 if __name__ == "__main__":
