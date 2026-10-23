@@ -18,6 +18,8 @@ on:
       - 'tests/test_pending_reaction_queue.py'
       - 'tests/test_preserve_inactive_channels.py'
       - 'tests/test_two_page_discovery.py'
+      - 'reaction_name_policy.py'
+      - 'tests/test_singular_name_discovery.py'
       - 'report_failure.py'
       - 'tests/test_report_failure.py'
       - 'tests/test_dry_run_safety.py'
