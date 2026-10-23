@@ -10,6 +10,7 @@ on:
       - 'discover_channels.py'
       - 'tracked_channels.json'
       - 'tests/test_hcjb_exclusion.py'
+      - 'tests/test_shorts_filter.py'
       - 'tests/test_durable_dedup.py'
       - '.github/workflows/youtube-tracker.yml'
       - '.github/workflows/check_live_streams.yml'
