@@ -42,7 +42,7 @@ class DiscoveryIntegrationTests(unittest.TestCase):
             ]},
         ]
         with patch.object(discovery, "youtube", client):
-            found = discovery.discover_channels(targeted=False)
+            found = discovery.discover_channels(rotation_slot=0)
         self.assertEqual(found, {
             NEW: "The Mr. J Show",
             "other-reactor": "New Reaction Channel",

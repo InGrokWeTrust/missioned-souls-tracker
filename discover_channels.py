@@ -6,7 +6,9 @@ from channel_exclusions import is_excluded_channel
 from reaction_channel_policy import is_official_artist_channel
 from discovery_video_handoff import add_candidates, active_candidates
 from discovery_search_plan import discovery_queries
-from new_channel_reaction_evidence import subject_reaction_search_hit
+from new_channel_reaction_evidence import (
+    subject_reaction_search_hit, contextual_reaction_evidence
+)
 
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
@@ -60,43 +62,42 @@ def save_tracked_channels(channels):
     print(f"💾 Saved {len(channels)} tracked channels to {TRACKED_CHANNELS_FILE}")
 
 
-def discover_channels(*, include_videos=False, targeted=None):
+def discover_channels(*, include_videos=False, rotation_slot=None):
     print(f"🔍 Discovering new reactor channels for {CHANNEL_NAME}...\n")
 
     discovered = {}
     source_videos = {}
     source_video_ids = set()
-    # Rotate the second request each 2-hour slot: broad page 2 or a targeted
-    # reaction query. No increase to the configured search API call budget.
-    if targeted is None:
-        targeted = bool((datetime.now(timezone.utc).hour // 2) % 2)
-    page_token = None
+    # Keep the broad Missioned Souls query on EVERY run. Rotate the second
+    # request among plain reaction keywords, not restrictive combined filters.
+    # A discovery run still makes no more than DISCOVERY_PAGES requests.
+    if rotation_slot is None:
+        rotation_slot = int(datetime.now(timezone.utc).timestamp()) // 7200
     api_calls = 0
-    for page, (search_term, query_page) in enumerate(
-            discovery_queries(CHANNEL_NAME, DISCOVERY_PAGES, targeted=targeted)):
-        # Each distinct query starts with a fresh page token. The extra targeted
-        # page is capped to keep YouTube search quota predictable.
-        if query_page == 0:
-            page_token = None
-        if query_page > 0 and not page_token:
-            continue
+    for search_term, _ in discovery_queries(
+            CHANNEL_NAME, DISCOVERY_PAGES, rotation_slot=rotation_slot):
         arguments = {
             "part": "snippet", "q": search_term,
             "type": "video", "maxResults": 50, "order": "date"
         }
-        if page_token:
-            arguments["pageToken"] = page_token
         response = youtube.search().list(**arguments).execute()
         api_calls += 1
         items = response.get("items", [])
-        print(f"  Search {page + 1} ({search_term!r}): found {len(items)} candidate videos")
+        print(f"  Search {api_calls} ({search_term!r}): found {len(items)} candidate videos")
         for item in items:
             snippet = item.get("snippet", {})
             channel_id = snippet.get("channelId")
             channel_title = snippet.get("channelTitle", "")
             if (channel_id and channel_title and not is_excluded_channel(channel_id)
                     and not is_official_artist_channel(channel_id)
-                    and subject_reaction_search_hit(snippet, subject=CHANNEL_NAME)):
+                    and (
+                        subject_reaction_search_hit(snippet, subject=CHANNEL_NAME)
+                        or contextual_reaction_evidence({
+                            "title": snippet.get("title", ""),
+                            "description": snippet.get("description", ""),
+                            "channel": channel_title,
+                        }, subject=CHANNEL_NAME)
+                    )):
                 discovered[channel_id] = channel_title
                 if include_videos:
                     vid = (item.get("id") or {}).get("videoId")
@@ -105,7 +106,6 @@ def discover_channels(*, include_videos=False, targeted=None):
                         source_videos.setdefault(channel_id, []).append({
                             "video_id":vid, "published_at":snippet.get("publishedAt")
                         })
-        page_token = response.get("nextPageToken")
 
     print(f"✅ Discovered {len(discovered)} unique channels with {api_calls} search requests")
     return (discovered, source_videos) if include_videos else discovered

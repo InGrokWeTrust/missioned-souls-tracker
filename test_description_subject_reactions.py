@@ -128,7 +128,7 @@ class DescriptionSubjectTests(unittest.TestCase):
         with patch.object(discovery, "youtube", api), patch.object(
             discovery, "DISCOVERY_PAGES", 2
         ):
-            channels, videos = discovery.discover_channels(include_videos=True, targeted=True)
+            channels, videos = discovery.discover_channels(include_videos=True, rotation_slot=0)
         self.assertEqual(channels, {CHANNEL: "Test Reactor"})
         self.assertEqual([v["video_id"] for v in videos[CHANNEL]], [VIDEO_ID])
         self.assertEqual(api.search.return_value.list.call_count, 2)
