@@ -2,6 +2,7 @@ import os
 import json
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
+from channel_exclusions import is_excluded_channel
 
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
@@ -72,6 +73,9 @@ def discover_channels():
         snippet = item['snippet']
         channel_id = snippet['channelId']
         channel_title = snippet['channelTitle']
+        if is_excluded_channel(channel_id):
+            print(f"  🚫 Skipping excluded channel ID: {channel_id}")
+            continue
         discovered[channel_id] = channel_title
 
     return discovered
@@ -91,7 +95,7 @@ if __name__ == "__main__":
     skipped_count = 0
     for channel_id, channel_title in discovered.items():
         # Apply exclusion rule first
-        if not should_track_channel(channel_title):
+        if is_excluded_channel(channel_id) or not should_track_channel(channel_title):
             if channel_id in tracked:
                 print(f"  🗑️  Removing excluded channel: {channel_title} ({channel_id})")
                 del tracked[channel_id]
@@ -121,7 +125,7 @@ if __name__ == "__main__":
         if not isinstance(info, dict):
             continue
         title = info.get("title", "")
-        if not should_track_channel(title):
+        if is_excluded_channel(cid) or not should_track_channel(title):
             already_tracked_excluded.append((cid, title))
 
     for cid, title in already_tracked_excluded:
