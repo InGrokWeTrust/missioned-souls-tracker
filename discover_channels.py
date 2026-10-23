@@ -6,6 +6,7 @@ from channel_exclusions import is_excluded_channel
 from reaction_channel_policy import is_official_artist_channel
 from discovery_video_handoff import add_candidates, active_candidates
 from discovery_search_plan import discovery_queries
+from new_channel_reaction_evidence import subject_reaction_search_hit
 
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
@@ -59,14 +60,20 @@ def save_tracked_channels(channels):
     print(f"💾 Saved {len(channels)} tracked channels to {TRACKED_CHANNELS_FILE}")
 
 
-def discover_channels(*, include_videos=False):
+def discover_channels(*, include_videos=False, targeted=None):
     print(f"🔍 Discovering new reactor channels for {CHANNEL_NAME}...\n")
 
     discovered = {}
     source_videos = {}
     source_video_ids = set()
+    # Rotate the second request each 2-hour slot: broad page 2 or a targeted
+    # reaction query. No increase to the configured search API call budget.
+    if targeted is None:
+        targeted = bool((datetime.now(timezone.utc).hour // 2) % 2)
     page_token = None
-    for page, (search_term, query_page) in enumerate(discovery_queries(CHANNEL_NAME, DISCOVERY_PAGES)):
+    api_calls = 0
+    for page, (search_term, query_page) in enumerate(
+            discovery_queries(CHANNEL_NAME, DISCOVERY_PAGES, targeted=targeted)):
         # Each distinct query starts with a fresh page token. The extra targeted
         # page is capped to keep YouTube search quota predictable.
         if query_page == 0:
@@ -80,6 +87,7 @@ def discover_channels(*, include_videos=False):
         if page_token:
             arguments["pageToken"] = page_token
         response = youtube.search().list(**arguments).execute()
+        api_calls += 1
         items = response.get("items", [])
         print(f"  Search {page + 1} ({search_term!r}): found {len(items)} candidate videos")
         for item in items:
@@ -88,7 +96,7 @@ def discover_channels(*, include_videos=False):
             channel_title = snippet.get("channelTitle", "")
             if (channel_id and channel_title and not is_excluded_channel(channel_id)
                     and not is_official_artist_channel(channel_id)
-                    and CHANNEL_NAME.lower() in snippet.get("title", "").lower()):
+                    and subject_reaction_search_hit(snippet, subject=CHANNEL_NAME)):
                 discovered[channel_id] = channel_title
                 if include_videos:
                     vid = (item.get("id") or {}).get("videoId")
@@ -98,11 +106,8 @@ def discover_channels(*, include_videos=False):
                             "video_id":vid, "published_at":snippet.get("publishedAt")
                         })
         page_token = response.get("nextPageToken")
-        # If a broad query ends early, still try the targeted reaction query.
-        if not page_token and query_page + 1 < DISCOVERY_PAGES:
-            continue
 
-    print(f"✅ Discovered {len(discovered)} unique channels from {page + 1} search page(s)")
+    print(f"✅ Discovered {len(discovered)} unique channels with {api_calls} search requests")
     return (discovered, source_videos) if include_videos else discovered
 
 
