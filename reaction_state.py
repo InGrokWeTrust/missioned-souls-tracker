@@ -116,17 +116,20 @@ def _remember(state, video_id):
         del seen[:-MAX_SEEN_IDS]
 
 
-def plan_notifications(state, videos, tracked_channel_ids, *, now=None, channel_added_at=None):
+def plan_notifications(state, videos, tracked_channel_ids, *, now=None, channel_added_at=None,
+                       discovery_candidate_ids=None):
     """Queue recent unseen reactions, preserving pending items across scans.
 
     An explicit bootstrap seeds current uploads with no Discord output.
     Migrated timestamp-only bookmarks seed videos at/before the old cutoff.
-    New channels seed old uploads, but may safely queue up to two clear
-    reaction-title VODs published within two hours before discovery.
+    New channels seed old uploads, but can queue up to two clear generic
+    reaction VODs in the 2-hour window PLUS separately verified video IDs
+    explicitly logged by YouTube discovery within 24 hours of registration.
     """
     now = now or datetime.now(timezone.utc)
     cutoff = now - timedelta(days=LOOKBACK_DAYS)
     channel_added_at = channel_added_at or {}
+    discovery_candidate_ids = set(discovery_candidate_ids or ())
     known = set(state["known_channel_ids"])
     current = set(tracked_channel_ids)
     new_channels = current - known
@@ -163,11 +166,25 @@ def plan_notifications(state, videos, tracked_channel_ids, *, now=None, channel_
                 and first_scan_backfills.get(channel, 0) < NEW_CHANNEL_BACKFILL_MAX_PER_CHANNEL
                 and clear_reaction_title(video)
             )
+        # Search discovery itself found these *specific* IDs. They were
+        # independently revalidated as real reactions in autoreactions.py.
+        # Do not mark them seen just because more than two were uploaded.
+        # The 2-video cap remains for generic older playlist-only uploads.
+        explicit_discovery_reaction = (
+            first_seen_channel and not bootstrap and not migration
+            and vid in discovery_candidate_ids and registered_at
+            and published >= cutoff
+            and timedelta(0) <= _utc(registered_at) - published <= timedelta(hours=24)
+        )
         should_seed = (
             bootstrap
             or (migration and published <= old_cutoff)
             or (first_seen_channel and (
-                not registered_at or (published <= _utc(registered_at) and not backfill_eligible)
+                not registered_at or (
+                    published <= _utc(registered_at)
+                    and not backfill_eligible
+                    and not explicit_discovery_reaction
+                )
             ))
         )
         if should_seed:
