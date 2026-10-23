@@ -4,7 +4,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
+  actions: read
+
+# Serialize both notification workflows to avoid cross-run duplicate posts.
+concurrency:
+  group: missioned-souls-notifications-${{ github.ref }}
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   track:
@@ -27,13 +34,20 @@ jobs:
       - name: Download previous last_run.json
         uses: dawidd6/action-download-artifact@v3
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: youtube-tracker.yml
           name: last-run-state
           path: ./
+          branch: ${{ github.ref_name }}
+          workflow_conclusion: ''
+          search_artifacts: true
+          check_artifacts: true
           if_no_artifact_found: warn
 
       - name: Run YouTube reaction tracker
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HISTORY_ENABLED: "true"
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           CHANNEL_NAME: ${{ vars.CHANNEL_NAME }}
@@ -49,4 +63,5 @@ jobs:
         with:
           name: last-run-state
           path: last_run.json
-          retention-days: 1
+          retention-days: 7
+          if-no-files-found: error
