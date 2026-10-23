@@ -118,25 +118,21 @@ def main():
     # Search requests: five total; bounded, one-time only. Search is sampled
     # now and cannot prove what search returned during older scheduled runs.
     search_hits = defaultdict(set)
+    broad_page_token = None
     for label, q, page in QUERIES:
-        token = None
+        token = broad_page_token if page else None
         try:
-            if page:
-                first = response_items(youtube, "search", kwargs={
-                    "part": "snippet", "q": q, "type": "video",
-                    "maxResults": 50, "order": "date"
-                })
-                approximate_units += 100
-                token = first.get("nextPageToken")
-                if not token:
-                    counters[label+"_missing_page"] += 1
-                    continue
+            if page and not token:
+                counters[label+"_missing_page"] += 1
+                continue
             args = {"part":"snippet", "q":q, "type":"video",
                     "maxResults":50, "order":"date"}
             if token:
                 args["pageToken"] = token
             result = response_items(youtube, "search", kwargs=args)
             approximate_units += 100
+            if label == "broad_1":
+                broad_page_token = result.get("nextPageToken")
             for item in result.get("items", []):
                 vid = (item.get("id") or {}).get("videoId")
                 if vid:
