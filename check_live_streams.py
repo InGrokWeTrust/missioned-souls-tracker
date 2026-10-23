@@ -16,6 +16,7 @@ if not API_KEY:
 CHANNEL_NAME = os.environ.get("CHANNEL_NAME", "Missioned Souls")
 MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND", "6"))
 FORCE_SEND_ALL = os.environ.get("FORCE_SEND_ALL", "false").lower() == "true"
+DRY_RUN = os.environ.get("DRY_RUN", "false").strip().lower() == "true"
 LIVE_LAST_RUN_FILE = os.environ.get("LIVE_LAST_RUN_FILE", "live_last_run.json")
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 if not DISCORD_WEBHOOK_URL:
@@ -46,6 +47,9 @@ def load_state():
 
 def save_state(sent_ids):
     """Save the sent video IDs (capped) and current time."""
+    if DRY_RUN:
+        print("🧪 DRY RUN: live bookmark write suppressed")
+        return
     # Cap at MAX_STORED_IDS, keeping the most recent
     sent_ids = sent_ids[-MAX_STORED_IDS:]
     data = {
@@ -166,6 +170,9 @@ def find_active_live_streams():
 
 def send_to_discord(streams, run_start=None, seen_ids=None):
     """Send live alerts once and durably record each confirmed webhook."""
+    if DRY_RUN:
+        print(f"🧪 DRY RUN: Discord live webhook suppressed; {len(streams)} would be sent")
+        return []
     # Direct-caller safeguard against sending an excluded stream.
     streams = [s for s in streams if not is_excluded_channel(s.get('channel_id'))]
     if not streams:
@@ -222,6 +229,8 @@ def send_to_discord(streams, run_start=None, seen_ids=None):
 # ===================== MAIN =====================
 def run():
     print("🚀 Missioned Souls Live Stream Checker Started\n")
+    if DRY_RUN:
+        print("🧪 DRY RUN: YouTube scanning enabled; Discord and all state writes disabled")
     # Both ledgers matter: a published VOD must not be announced again as live,
     # and an already announced live must not later post as a reaction duplicate.
     reaction_ids = read_ids("reactions")
@@ -264,6 +273,13 @@ def run():
         if v not in ready_streams:
             print(f"🖼️ Waiting for live thumbnail: {v['video_id']}")
     chosen = ready_streams[:MAX_TO_SEND]
+    if DRY_RUN:
+        for stream in chosen:
+            print(f"🧪 WOULD SEND LIVE: {stream['video_id']} | {stream['title'][:80]}")
+        print(f"🧪 DRY RUN: {len(chosen)} would send, "
+              f"{max(0, len(ready_streams) - len(chosen))} beyond batch cap; "
+              "no Discord messages or state writes")
+        return []
     if chosen:
         delivered = send_to_discord(chosen, run_start=run_start,
                                     seen_ids=already_delivered)
