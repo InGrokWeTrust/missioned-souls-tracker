@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from googleapiclient.discovery import build
 from notification_history import read_ids, save_ids
 from channel_exclusions import is_excluded_channel
+from thumbnail_policy import select_thumbnail, valid_thumbnail, require_thumbnails
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -97,49 +98,69 @@ def format_published_time(published_at_iso):
 
 
 def find_active_live_streams():
-    """Search YouTube for active live streams mentioning Missioned Souls."""
-    print(f"🔍 Searching for ACTIVE live streams about {CHANNEL_NAME}...\n")
+    """Verify that each broad-title search result is actually live, not upcoming."""
+    print(f"🔍 Searching for ACTIVE live streams about {CHANNEL_NAME}...\\n")
 
     response = youtube.search().list(
-        part="snippet",
-        q=f'"{CHANNEL_NAME}"',
-        type="video",
-        eventType="live",
-        maxResults=50,
-        order="date"
+        part="snippet", q=f'"{CHANNEL_NAME}"',
+        type="video", eventType="live", maxResults=50, order="date"
     ).execute()
-
     items = response.get('items', [])
-    print(f"📊 YouTube returned {len(items)} live streams\n")
+    print(f"📊 YouTube returned {len(items)} live streams\\n")
 
-    streams = []
+    matches = {}
     for item in items:
-        snippet = item['snippet']
-        video_id = item['id'].get('videoId')
-        if not video_id:
+        snippet = item.get('snippet') or {}
+        vid = (item.get('id') or {}).get('videoId')
+        if not vid:
             continue
         if is_excluded_channel(snippet.get('channelId')):
             print(f"  🚫 Skipping excluded HCJB channel: {snippet.get('channelId')}")
             continue
-
-        title = snippet['title']
-        # Double-check title actually mentions Missioned Souls
-        if CHANNEL_NAME.lower() not in title.lower():
-            print(f"  ⏭️  [title mismatch] {snippet['channelTitle'][:24]:24} | {title[:55]}")
+        if CHANNEL_NAME.lower() not in snippet.get('title', '').lower():
+            print(f"  ⏭️ [title mismatch] {snippet.get('title', '')[:55]}")
             continue
+        matches[vid] = item
+    if not matches:
+        print("ℹ️ No qualifying live streams returned by search.")
+        return []
 
+    confirmed = youtube.videos().list(
+        part="snippet,liveStreamingDetails", id=",".join(matches)
+    ).execute()
+
+    streams = []
+    for detail in confirmed.get('items', []):
+        vid = detail.get('id')
+        if vid not in matches:
+            continue
+        snippet = detail.get('snippet') or {}
+        original = matches[vid]['snippet']
+        cid = snippet.get('channelId')
+        if not cid or cid != original.get('channelId') or is_excluded_channel(cid):
+            continue
+        title = snippet.get('title', '')
+        if CHANNEL_NAME.lower() not in title.lower():
+            continue
+        details = detail.get('liveStreamingDetails') or {}
+        broadcast = snippet.get('liveBroadcastContent', 'none')
+        active = ((broadcast == 'live' or bool(details.get('actualStartTime')))
+                  and not details.get('actualEndTime') and broadcast != 'upcoming')
+        if not active:
+            print(f"  ⏭️ Not currently live: {vid} ({broadcast})")
+            continue
+        thumbnail = select_thumbnail(
+            snippet.get('thumbnails'), vid,
+            fallback=select_thumbnail(original.get('thumbnails'), vid))
         streams.append({
-            'title': title,
-            'video_id': video_id,
-            'channel': snippet['channelTitle'],
-            'channel_id': snippet.get('channelId'),
-            'published_at': snippet['publishedAt'],
-            'url': f"https://youtu.be/{video_id}",
-            'thumbnail': snippet.get('thumbnails', {}).get('medium', {}).get('url'),
-            'live_broadcast_content': snippet.get('liveBroadcastContent', 'live')
+            'title': title, 'video_id': vid, 'channel_id': cid,
+            'channel': snippet.get('channelTitle') or original.get('channelTitle', ''),
+            'published_at': details.get('actualStartTime') or original.get('publishedAt'),
+            'url': f"https://youtu.be/{vid}",
+            'thumbnail': thumbnail,
+            'live_broadcast_content': 'live',
         })
-
-    print(f"\n✅ {len(streams)} live streams match (title contains '{CHANNEL_NAME}')")
+    print(f"\\n✅ {len(streams)} genuinely active live streams confirmed")
     return streams
 
 
@@ -150,6 +171,7 @@ def send_to_discord(streams, run_start=None, seen_ids=None):
     if not streams:
         print("⚠️ No live streams to send.")
         return []
+    require_thumbnails(streams)
     if seen_ids is None:
         seen_ids = set()
     delivered = []
@@ -170,7 +192,7 @@ def send_to_discord(streams, run_start=None, seen_ids=None):
             "title": title,
             "url": stream['url'],
             "color": 0xe53935,  # red for live
-            "image": {"url": stream.get('thumbnail')} if stream.get('thumbnail') else None,
+            "image": {"url": stream['thumbnail']},
             "fields": [
                 {"name": "Channel", "value": stream['channel'], "inline": True},
                 {"name": "Started", "value": posted_value, "inline": True},
@@ -234,7 +256,14 @@ def run():
           f"FORCE_SEND_ALL never bypasses confirmed delivery history)")
 
     # Process earliest first, and never mark unattempted/failed webhook IDs.
-    chosen = new_streams[:MAX_TO_SEND]
+    # No text-only live alerts. A missing thumbnail stays eligible for a
+    # later active-stream scan; it is NOT recorded as delivered.
+    ready_streams = [v for v in new_streams
+                     if valid_thumbnail(v.get('thumbnail'), v['video_id'])]
+    for v in new_streams:
+        if v not in ready_streams:
+            print(f"🖼️ Waiting for live thumbnail: {v['video_id']}")
+    chosen = ready_streams[:MAX_TO_SEND]
     if chosen:
         delivered = send_to_discord(chosen, run_start=run_start,
                                     seen_ids=already_delivered)
