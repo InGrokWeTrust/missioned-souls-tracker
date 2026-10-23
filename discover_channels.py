@@ -95,7 +95,37 @@ def discover_channels(*, include_videos=False):
     return (discovered, source_videos) if include_videos else discovered
 
 
-if __name__ == "__main__":
+def mark_search_dormancy(tracked, *, now=None):
+    """Annotate search absence without removing tracked upload sources.
+
+    last_seen_at is the most recent Discovery search appearance, not the
+    channel's latest upload. A channel missing from the rolling search
+    results must remain available to the independent upload tracker.
+    """
+    now = now or datetime.now(timezone.utc)
+    dormant_count = 0
+    for info in tracked.values():
+        if not isinstance(info, dict):
+            continue
+        last_seen_str = info.get("last_seen_at")
+        if not last_seen_str:
+            continue
+        try:
+            last_seen = datetime.fromisoformat(last_seen_str.replace("Z", "+00:00"))
+            if last_seen.tzinfo is None:
+                last_seen = last_seen.replace(tzinfo=timezone.utc)
+        except (AttributeError, TypeError, ValueError):
+            # Unknown/legacy dates cannot justify deleting a reactor.
+            print("  ⚠️  Invalid last-seen timestamp; preserving channel")
+            continue
+        info["dormant"] = (now - last_seen).days > CHANNEL_INACTIVITY_DAYS
+        if info["dormant"]:
+            dormant_count += 1
+    print(f"🛡️ {dormant_count} channels absent from recent searches (still tracked).")
+    return dormant_count
+
+
+def run_discovery():
     print("🚀 Channel Discovery Started\n")
 
     tracked, last_run = load_tracked_channels()
@@ -165,31 +195,19 @@ if __name__ == "__main__":
         del tracked[cid]
         skipped_count += 1
 
-    # Prune stale channels
-    now = datetime.now(timezone.utc)
-    to_remove = []
-    for cid, info in tracked.items():
-        if isinstance(info, str):
-            continue
-        last_seen_str = info.get("last_seen_at")
-        if not last_seen_str:
-            continue
-        last_seen = datetime.fromisoformat(last_seen_str.replace('Z', '+00:00'))
-        days_idle = (now - last_seen).days
-        if days_idle > CHANNEL_INACTIVITY_DAYS:
-            to_remove.append(cid)
-
-    for cid in to_remove:
-        title = tracked[cid].get("title", cid) if isinstance(tracked[cid], dict) else tracked[cid]
-        print(f"  🗑️  Pruning stale channel: {title} ({cid})")
-        del tracked[cid]
-
+    # A crowded or changing search window is not evidence of inactivity.
+    # Retain all established channels so their uploads remain scanned.
+    dormant_count = mark_search_dormancy(tracked)
     save_tracked_channels(tracked)
 
     print(f"\n✅ Discovery complete")
     print(f"   New channels added: {new_count}")
     print(f"   Discovery source video IDs saved: {handoff_added}")
     print(f"   Excluded/skipped channels: {skipped_count}")
-    print(f"   Stale channels pruned: {len(to_remove)}")
+    print(f"   Search-dormant channels retained: {dormant_count}")
     print(f"   Total tracked: {len(tracked)}")
     print("\n🎉 All done!")
+
+
+if __name__ == "__main__":
+    run_discovery()
