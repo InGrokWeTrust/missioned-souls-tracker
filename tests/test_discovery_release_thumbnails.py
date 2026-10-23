@@ -95,10 +95,12 @@ class DiscoveryHandoffTests(unittest.TestCase):
             found, source = discovery.discover_channels(include_videos=True)
         self.assertEqual(found, {CID: "The Mr. J Show"})
         self.assertEqual(source[CID][0]["video_id"], VID)
-        args = fake.search.return_value.list.call_args.kwargs
-        self.assertEqual(args["q"], '"Missioned Souls"')
-        self.assertNotIn("pageToken", args)
-        self.assertEqual(fake.search.return_value.list.call_count, 1)
+        calls = fake.search.return_value.list.call_args_list
+        self.assertEqual(calls[0].kwargs["q"], '"Missioned Souls"')
+        self.assertEqual(calls[1].kwargs["q"], '"Missioned Soul"')
+        self.assertNotIn("pageToken", calls[0].kwargs)
+        self.assertNotIn("pageToken", calls[1].kwargs)
+        self.assertEqual(fake.search.return_value.list.call_count, 2)
 
     def test_description_only_hit_discovers_channel_but_does_not_force_video(self):
         fake = MagicMock()
