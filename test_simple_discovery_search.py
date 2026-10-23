@@ -29,31 +29,40 @@ def result(title, description="", video_id=VIDEO_ID):
 
 
 class SimpleDiscoveryTests(unittest.TestCase):
-    def test_queries_do_not_require_every_reaction_keyword(self):
-        for slot, word in enumerate(("reaction", "react", "reactor", "reacting")):
-            api = MagicMock()
-            api.search.return_value.list.return_value.execute.side_effect = [
-                {"items": [result("MISSIONED SOULS - HIGHWAY STAR")]},
-                {"items": [result("MISSIONED SOULS - HIGHWAY STAR")]},
-            ]
-            with patch.object(discovery, "youtube", api), patch.object(
-                discovery, "DISCOVERY_PAGES", 2
-            ):
-                channels, videos = discovery.discover_channels(
-                    include_videos=True, rotation_slot=slot
-                )
-            self.assertEqual(channels, {CHANNEL: "New Music Reaction Channel"})
-            self.assertEqual([v["video_id"] for v in videos[CHANNEL]], [VIDEO_ID])
-            calls = api.search.return_value.list.call_args_list
-            self.assertEqual(len(calls), 2)
-            self.assertEqual(calls[0].kwargs["q"], '"Missioned Souls"')
-            self.assertEqual(calls[1].kwargs["q"], f'"Missioned Souls" {word}')
-            self.assertTrue(all("pageToken" not in call.kwargs for call in calls))
+    def test_broad_pagination_keeps_deduplicated_discovery_handoff(self):
+        api = MagicMock()
+        api.search.return_value.list.return_value.execute.side_effect = [
+            {"items": [result("MISSIONED SOULS - HIGHWAY STAR")],
+             "nextPageToken": "page-2"},
+            {"items": [result("MISSIONED SOULS - HIGHWAY STAR")]},
+        ]
+        with patch.object(discovery, "youtube", api), patch.object(
+            discovery, "DISCOVERY_PAGES", 2
+        ):
+            channels, videos = discovery.discover_channels(include_videos=True)
+        self.assertEqual(channels, {CHANNEL: "New Music Reaction Channel"})
+        self.assertEqual([v["video_id"] for v in videos[CHANNEL]], [VIDEO_ID])
+        calls = api.search.return_value.list.call_args_list
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0].kwargs["q"], '"Missioned Souls"')
+        self.assertEqual(calls[1].kwargs["q"], '"Missioned Souls"')
+        self.assertNotIn("pageToken", calls[0].kwargs)
+        self.assertEqual(calls[1].kwargs["pageToken"], "page-2")
+
+    def test_no_second_request_when_first_page_has_no_next_token(self):
+        api = MagicMock()
+        api.search.return_value.list.return_value.execute.return_value = {
+            "items": [result("MISSIONED SOULS - HIGHWAY STAR")]}
+        with patch.object(discovery, "youtube", api), patch.object(
+            discovery, "DISCOVERY_PAGES", 2
+        ):
+            discovery.discover_channels()
+        self.assertEqual(api.search.return_value.list.call_count, 1)
 
     def test_song_only_title_with_subject_watching_description_is_handed_off(self):
         api = MagicMock()
         api.search.return_value.list.return_value.execute.side_effect = [
-            {"items": []},
+            {"items": [], "nextPageToken": "page-2"},
             {"items": [result(
                 "HER SOLO WAS CRAZY !! | HIGHWAY STAR",
                 "Today we are checking out this family rock band Missioned Souls playing Highway Star.",
@@ -63,7 +72,7 @@ class SimpleDiscoveryTests(unittest.TestCase):
             discovery, "DISCOVERY_PAGES", 2
         ):
             channels, videos = discovery.discover_channels(
-                include_videos=True, rotation_slot=0
+                include_videos=True
             )
         self.assertEqual(channels, {CHANNEL: "New Music Reaction Channel"})
         self.assertEqual([x["video_id"] for x in videos[CHANNEL]], [VIDEO_ID])
@@ -80,7 +89,7 @@ class SimpleDiscoveryTests(unittest.TestCase):
             )]
         }
         with patch.object(discovery, "youtube", api):
-            self.assertEqual(discovery.discover_channels(rotation_slot=2), {})
+            self.assertEqual(discovery.discover_channels(), {})
 
 
 if __name__ == "__main__":
