@@ -23,7 +23,7 @@ class WorkflowSafetyTests(unittest.TestCase):
         for path in (TRACKER, LIVE):
             with self.subTest(workflow=path.name):
                 source = path.read_text(encoding="utf-8")
-                self.assertIn("if: \${{ always() && env.DRY_RUN != 'true' }}", source)
+                self.assertIn("if: ${{ always() && env.DRY_RUN != 'true' }}", source)
                 self.assertIn("uses: actions/upload-artifact@v4", source)
 
     def test_dry_run_cannot_trigger_error_health_message(self):
@@ -46,7 +46,7 @@ class WorkflowSafetyTests(unittest.TestCase):
         for path in (TRACKER, LIVE):
             with self.subTest(workflow=path.name):
                 source = path.read_text(encoding="utf-8")
-                self.assertIn("ALERT_WEBHOOK_URL: \${{ secrets.ALERT_WEBHOOK_URL }}", source)
+                self.assertIn("ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}", source)
                 self.assertIn("run: python report_failure.py", source)
 
 
