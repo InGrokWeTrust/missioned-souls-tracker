@@ -90,6 +90,22 @@ class DescriptionSubjectTests(unittest.TestCase):
         )[0], 0)
         self.assertEqual(state["pending"], [])
 
+    def test_expanded_reaction_does_not_replay_historical_uploads(self):
+        example = {
+            "title": "Is MISSIONED SOULS Black Velvet As Good As the Original?",
+            "channel": "LEE REACTS - INFINITE REACTIONS ",
+            "description": "#music #reaction",
+            "published_at": "2026-10-23T02:15:16Z",
+        }
+        now = datetime(2026, 10, 23, 3, 50, tzinfo=timezone.utc)
+        self.assertTrue(tracker.recent_enough_for_first_expanded_match(example, now=now))
+        old = {**example, "published_at": "2026-10-19T02:15:16Z"}
+        self.assertFalse(tracker.recent_enough_for_first_expanded_match(old, now=now))
+        legacy = {**old, "title": "MISSIONED SOULS Black Velvet REACTION"}
+        self.assertTrue(tracker.recent_enough_for_first_expanded_match(legacy, now=now))
+        # Accepted pending videos are retried through separate reconfirmation.
+        # Do not use the first-discovery 24h cutoff for pending delivery.
+
     def test_no_false_promotion_of_unrelated_reaction(self):
         self.assertFalse(clear_reaction_title({
             "title": "Boston Long Time Reaction",
