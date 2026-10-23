@@ -5,6 +5,7 @@ from googleapiclient.discovery import build
 from channel_exclusions import is_excluded_channel
 from reaction_channel_policy import is_official_artist_channel
 from discovery_video_handoff import add_candidates, active_candidates
+from discovery_search_plan import discovery_queries
 
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
@@ -64,16 +65,20 @@ def discover_channels(*, include_videos=False):
     discovered = {}
     source_videos = {}
     page_token = None
-    for page in range(DISCOVERY_PAGES):
+    for page, (search_term, query_page) in enumerate(discovery_queries(CHANNEL_NAME, DISCOVERY_PAGES)):
+        # Each distinct query starts with a fresh page token. The extra targeted
+        # page is capped to keep YouTube search quota predictable.
+        if query_page == 0:
+            page_token = None
         arguments = {
-            "part": "snippet", "q": f'"{CHANNEL_NAME}"',
+            "part": "snippet", "q": search_term,
             "type": "video", "maxResults": 50, "order": "date"
         }
         if page_token:
             arguments["pageToken"] = page_token
         response = youtube.search().list(**arguments).execute()
         items = response.get("items", [])
-        print(f"  Page {page + 1}: found {len(items)} candidate videos")
+        print(f"  Search {page + 1} ({search_term!r}): found {len(items)} candidate videos")
         for item in items:
             snippet = item.get("snippet", {})
             channel_id = snippet.get("channelId")
@@ -89,10 +94,11 @@ def discover_channels(*, include_videos=False):
                             "video_id":vid, "published_at":snippet.get("publishedAt")
                         })
         page_token = response.get("nextPageToken")
-        if not page_token:
-            break
+        # If a broad query ends early, still try the targeted reaction query.
+        if not page_token and query_page + 1 < DISCOVERY_PAGES:
+            continue
 
-    print(f"✅ Discovered {len(discovered)} unique channels from {page + 1} page(s)")
+    print(f"✅ Discovered {len(discovered)} unique channels from {page + 1} search page(s)")
     return (discovered, source_videos) if include_videos else discovered
 
 
