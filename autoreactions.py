@@ -11,6 +11,7 @@ from channel_exclusions import is_excluded_channel
 from discovery_video_handoff import handoff_for_scan
 from thumbnail_policy import select_thumbnail, valid_thumbnail, require_thumbnails
 from video_release_policy import is_published_vod
+from reaction_name_policy import title_mentions_band
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -181,8 +182,8 @@ def parse_duration(duration_str):
 
 
 def is_missioned_souls_reaction(title):
-    """Return True if the title mentions Missioned Souls (case-insensitive)."""
-    return CHANNEL_NAME.lower() in title.lower()
+    """Match singular or plural Missioned Soul(s) as whole words."""
+    return title_mentions_band(title, channel_name=CHANNEL_NAME)
 
 
 def is_archived_livestream(video):
