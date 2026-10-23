@@ -7,6 +7,9 @@ No secrets, state writes, API requests or Discord traffic.
 import os
 import unittest
 from unittest.mock import MagicMock, patch
+from datetime import datetime, timezone
+from reaction_state import plan_notifications, acknowledge
+from tests.test_delivery import blank_state
 
 os.environ.setdefault("YOUTUBE_API_KEY", "offline-test-key")
 os.environ.setdefault("DISCORD_WEBHOOK_URL", "https://example.invalid/test")
@@ -41,6 +44,51 @@ class DescriptionSubjectTests(unittest.TestCase):
         self.assertTrue(tracker.is_safe_reaction_candidate({
             **video, "video_id": VIDEO_ID, "channel_id": CHANNEL
         }))
+
+    def test_real_reported_reaction_metadata_is_accepted(self):
+        # These fields were retrieved by a read-only videos.list request.
+        actual = {
+            "video_id": VIDEO_ID,
+            "title": "Is MISSIONED SOULS Black Velvet As Good As the Original?",
+            "channel": "LEE REACTS - INFINITE REACTIONS ",
+            "channel_id": "UCDDLs7WUrN288iktGODa0yw",
+            "description": "#music #reaction\\n\\nSupport me on patreon",
+        }
+        self.assertTrue(clear_reaction_title(actual))
+        self.assertTrue(tracker.is_safe_reaction_candidate(actual))
+        for weakened in [
+            {**actual, "channel": "Random Cover Channel"},
+            {**actual, "description": "A music cover discussion without reaction tags"},
+            {**actual, "title": "MISSIONED SOULS Black Velvet Studio Cover"},
+        ]:
+            self.assertFalse(clear_reaction_title(weakened))
+
+    def test_reported_reaction_queued_once_without_historical_backfill(self):
+        reaction = {
+            "video_id": VIDEO_ID,
+            "title": "Is MISSIONED SOULS Black Velvet As Good As the Original?",
+            "channel": "LEE REACTS - INFINITE REACTIONS ",
+            "channel_id": "UCDDLs7WUrN288iktGODa0yw",
+            "description": "#music #reaction",
+            "published_at": "2026-10-23T02:15:16Z",
+            "url": "https://youtu.be/" + VIDEO_ID,
+            "thumbnail": "https://i.ytimg.com/vi/" + VIDEO_ID + "/hqdefault.jpg",
+        }
+        state = blank_state()
+        now = datetime(2026, 10, 23, 3, 50, tzinfo=timezone.utc)
+        channel_id = reaction["channel_id"]
+        registration = {channel_id: "2026-10-23T03:47:00Z"}
+        self.assertEqual(plan_notifications(
+            state, [reaction], {channel_id}, now=now, channel_added_at=registration,
+            discovery_candidate_ids={VIDEO_ID},
+        )[0], 1)
+        self.assertEqual([v["video_id"] for v in state["pending"]], [VIDEO_ID])
+        acknowledge(state, reaction)
+        self.assertEqual(plan_notifications(
+            state, [reaction], {channel_id}, now=now, channel_added_at=registration,
+            discovery_candidate_ids={VIDEO_ID},
+        )[0], 0)
+        self.assertEqual(state["pending"], [])
 
     def test_no_false_promotion_of_unrelated_reaction(self):
         self.assertFalse(clear_reaction_title({
