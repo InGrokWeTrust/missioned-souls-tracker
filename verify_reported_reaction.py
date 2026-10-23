@@ -48,7 +48,7 @@ def main():
     published = snippet.get("publishedAt", "")
     duration = (item.get("contentDetails") or {}).get("duration", "")
     thumbnail = bool((snippet.get("thumbnails") or {}).get("high"))
-    evidence = {"title": title, "description": description}
+    evidence = {"title": title, "description": description, "channel": snippet.get("channelTitle", "")}
     with open("tracked_channels.json", encoding="utf-8") as f:
         tracked = (json.load(f).get("channels") or {})
     published_age_hours = None
