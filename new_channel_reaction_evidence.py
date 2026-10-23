@@ -110,3 +110,27 @@ def is_strong_reaction_candidate(video, *, subject="Missioned Souls"):
     qualify, but even strong metadata is not proof of video contents.
     """
     return clear_reaction_title(video, subject=subject)
+
+def requires_expanded_evidence(video, *, subject="Missioned Souls"):
+    """Identify newly accepted title formats, to cap first-time historical catch-up.
+
+    Previously accepted reaction-title and multi-hashtag cases keep their
+    established queuing rules. Only new description/question-style paths are
+    subject to the stricter recent-upload window.
+    """
+    if not clear_reaction_title(video, subject=subject):
+        return False
+    title = video.get("title", "")
+    description = video.get("description", "")
+    if subject.lower() not in title.lower():
+        return True
+    if _REACTION.search(title):
+        return False
+    if not isinstance(description, str):
+        return True
+    tags = set(re.findall(r"(?<![a-z0-9])#[a-z0-9]+", description.lower()))
+    legacy_tags = {
+        "#reaction", "#reactionvideo", "#musicianreacts", "#musicreaction",
+        "#firsttimehearing", "#reactingtomusic", "#firsttimereaction", "#firstreaction",
+    }
+    return len(tags & legacy_tags) < 2
