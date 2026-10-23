@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from notification_history import read_ids, save_ids
+from channel_exclusions import is_excluded_channel
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -64,7 +65,11 @@ def load_tracked_channels():
     try:
         with open(TRACKED_CHANNELS_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
-            return data.get('channels', {})
+            channels = data.get('channels', {})
+            # Defense in depth: even an older tracked_channels.json cannot
+            # permit an excluded uploader to reach Discord.
+            return {cid: info for cid, info in channels.items()
+                    if not is_excluded_channel(cid)}
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
@@ -330,6 +335,8 @@ def get_reactions_with_stats():
 
 def send_to_discord(videos, max_to_send=5, run_start=None, seen_ids=None):
     """Send and durably record each accepted webhook, before the next send."""
+    # Final protection even if callers bypass the normal channel scan.
+    videos = [v for v in videos if not is_excluded_channel(v.get('channel_id'))]
     if not videos:
         print("⚠️ No new videos to send.")
         return []
@@ -404,6 +411,7 @@ def run():
     last_published = load_last_run()
     print(f"📅 Last run timestamp: {last_published[:10] if last_published else 'No bookmark — will be set this run'}")
     videos, run_start = get_reactions_with_stats()
+    videos = [v for v in videos if not is_excluded_channel(v.get('channel_id'))]
 
     if not last_published:
         # Missing legacy bookmark: seed the cutoff without replaying uploads.
