@@ -36,7 +36,7 @@ def hit(channel, vid, title, name="Reaction Channel"):
 
 def youtube_pages(*pages):
     fake = MagicMock()
-    fake.search.return_value.list.return_value.execute.side_effect = list(pages)
+    fake.search.return_value.list.return_value.execute.side_effect = list(pages) + [{"items": []}]
     return fake
 
 
@@ -53,8 +53,8 @@ class TwoPageDiscoveryTests(unittest.TestCase):
             found, sources = discovery.discover_channels(include_videos=True)
         self.assertEqual(set(found), {FIRST, SECOND})
         self.assertEqual([x["video_id"] for x in sources[SECOND]], ["BBBBBBBBBBB"])
-        self.assertEqual(fake.search.return_value.list.call_count, 2)
-        first_call, second_call = fake.search.return_value.list.call_args_list
+        self.assertEqual(fake.search.return_value.list.call_count, 3)
+        first_call, second_call, singular_call = fake.search.return_value.list.call_args_list
         for call in (first_call, second_call):
             self.assertEqual(call.kwargs["q"], '"Missioned Souls"')
             self.assertEqual(call.kwargs["type"], "video")
@@ -62,6 +62,8 @@ class TwoPageDiscoveryTests(unittest.TestCase):
             self.assertEqual(call.kwargs["order"], "date")
         self.assertNotIn("pageToken", first_call.kwargs)
         self.assertEqual(second_call.kwargs["pageToken"], "NEXT_TOKEN")
+        self.assertEqual(singular_call.kwargs["q"], '"Missioned Soul"')
+        self.assertNotIn("pageToken", singular_call.kwargs)
 
     def test_no_next_page_token_avoids_unneeded_quota_request(self):
         fake = youtube_pages({"items": [hit(FIRST, "AAAAAAAAAAA", "Missioned Souls review")]})
@@ -69,7 +71,9 @@ class TwoPageDiscoveryTests(unittest.TestCase):
             discovery, "DISCOVERY_PAGES", 2):
             result = discovery.discover_channels()
         self.assertIn(FIRST, result)
-        fake.search.return_value.list.assert_called_once()
+        self.assertEqual(fake.search.return_value.list.call_count, 2)
+        self.assertEqual(fake.search.return_value.list.call_args_list[1].kwargs["q"],
+                         '"Missioned Soul"')
 
     def test_optional_single_page_fallback(self):
         fake = youtube_pages({"items": [], "nextPageToken": "MORE_AVAILABLE"})
@@ -77,7 +81,9 @@ class TwoPageDiscoveryTests(unittest.TestCase):
             discovery, "DISCOVERY_PAGES", 1):
             result = discovery.discover_channels()
         self.assertEqual(result, {})
-        fake.search.return_value.list.assert_called_once()
+        self.assertEqual(fake.search.return_value.list.call_count, 2)
+        self.assertEqual(fake.search.return_value.list.call_args_list[1].kwargs["q"],
+                         '"Missioned Soul"')
 
     def test_second_page_channel_not_restricted_by_reaction_keywords(self):
         fake = youtube_pages(
