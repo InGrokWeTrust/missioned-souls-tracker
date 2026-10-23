@@ -20,7 +20,7 @@ from tests.test_delivery import blank_state
 NOW = datetime(2026, 10, 22, 20, 0, tzinfo=timezone.utc)
 CHANNEL = "UCTR_PSXLloLzLMBVxnt_kLQ"
 ADDED = "2026-10-22T19:01:20Z"
-IDS = ["Zb7Xn%07d" % x for x in range(1, 9)]
+IDS = ["Zb7Xn%06d" % x for x in range(1, 9)]
 
 
 def search_item(vid, channel=CHANNEL, title="Missioned Souls studio cover",
@@ -73,7 +73,7 @@ class DiscoveryHandoffTests(unittest.TestCase):
         self.assertEqual(len(active_candidates(info,now=NOW)),5)
 
     def test_bound_limit_and_expire_without_reopening_older_channels(self):
-        ids=[{"video_id":f"Zb7Xn{i:07d}",
+        ids=[{"video_id":f"Zb7Xn{i:06d}",
               "published_at":"2026-10-22T18:10:50Z"} for i in range(20)]
         new={"added_at":ADDED}
         self.assertEqual(add_candidates(new,ids,now=NOW),PER_CHANNEL_LIMIT)
