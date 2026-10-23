@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from googleapiclient.discovery import build
 from channel_exclusions import is_excluded_channel
 from discovery_video_handoff import add_candidates, active_candidates
+from reaction_name_policy import title_mentions_band, discovery_queries
 
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
@@ -15,6 +16,8 @@ CHANNEL_INACTIVITY_DAYS = int(os.environ.get("CHANNEL_INACTIVITY_DAYS", "60"))
 # At most one additional search.list request (1 Search Queries unit) per run.
 # DISCOVERY_PAGES=1 is a rollback switch if daily search quota becomes tight.
 DISCOVERY_PAGES = max(1, min(2, int(os.environ.get("DISCOVERY_PAGES") or "2")))
+# One independent singular-name page; disable explicitly only if quota is tight.
+DISCOVERY_INCLUDE_SINGULAR = os.environ.get("DISCOVERY_INCLUDE_SINGULAR", "true").lower() == "true"
 
 # Exclusion rule: any channel with these keywords is skipped,
 # unless it also matches an allowed exception.
@@ -59,67 +62,72 @@ def save_tracked_channels(channels):
 
 
 def discover_channels(*, include_videos=False):
-    """Search up to two pages using the ORIGINAL broad band-name query.
+    """Keep two original broad plural pages and add one singular-name page.
 
-    Do not narrow discovery using reaction keywords or metadata classifiers.
-    Record precise qualifying video IDs for the existing new-channel handoff.
+    No reaction-keyword classifier: candidates must still pass exact-ID
+    YouTube verification in the notification tracker before Discord sending.
     """
-    print(f"🔍 Discovering new reactor channels for {CHANNEL_NAME}...\n")
+    print(f"🔍 Discovering new reactor channels for {CHANNEL_NAME}...\\n")
 
     discovered = {}
     source_videos = {}
     seen_source_ids = set()
-    page_token = None
     api_calls = 0
     results_scanned = 0
 
-    for page in range(DISCOVERY_PAGES):
-        # First page has no pageToken; the second requires YouTube's token.
-        arguments = {
-            "part": "snippet",
-            "q": f'"{CHANNEL_NAME}"',
-            "type": "video",
-            "maxResults": 50,
-            "order": "date",
-        }
-        if page_token:
-            arguments["pageToken"] = page_token
-        response = youtube.search().list(**arguments).execute()
-        api_calls += 1
-        items = response.get("items", [])
-        results_scanned += len(items)
-        print(f"  Page {page + 1}: {len(items)} search results")
+    # Pagination tokens are local to each query. Never reuse a plural token
+    # for the singular search, which gets only its own first page.
+    for query, page_limit in discovery_queries(
+            CHANNEL_NAME, plural_pages=DISCOVERY_PAGES,
+            include_singular=DISCOVERY_INCLUDE_SINGULAR):
+        page_token = None
+        for page in range(page_limit):
+            arguments = {
+                "part": "snippet",
+                "q": query,
+                "type": "video",
+                "maxResults": 50,
+                "order": "date",
+            }
+            if page_token:
+                arguments["pageToken"] = page_token
+            response = youtube.search().list(**arguments).execute()
+            api_calls += 1
+            items = response.get("items", [])
+            results_scanned += len(items)
+            print(f"  Query {query} page {page + 1}: {len(items)} search results")
 
-        for item in items:
-            snippet = item.get('snippet', {})
-            channel_id = snippet.get('channelId')
-            channel_title = snippet.get('channelTitle', '')
-            if not channel_id or not channel_title:
-                continue
-            if is_excluded_channel(channel_id):
-                print(f"  🚫 Skipping excluded channel ID: {channel_id}")
-                continue
-            discovered[channel_id] = channel_title
-            # The unchanged broad-title condition applies to source videos,
-            # NOT to deciding whether a channel may be discovered.
-            if CHANNEL_NAME.lower() in snippet.get('title', '').lower():
-                video_id = (item.get('id') or {}).get('videoId')
-                key = (channel_id, video_id)
-                if (video_id and snippet.get('publishedAt')
-                        and key not in seen_source_ids):
-                    seen_source_ids.add(key)
-                    source_videos.setdefault(channel_id, []).append({
-                        'video_id': video_id,
-                        'published_at': snippet['publishedAt'],
-                    })
+            for item in items:
+                snippet = item.get('snippet', {})
+                channel_id = snippet.get('channelId')
+                channel_title = snippet.get('channelTitle', '')
+                if not channel_id or not channel_title:
+                    continue
+                if is_excluded_channel(channel_id):
+                    print(f"  🚫 Skipping excluded channel ID: {channel_id}")
+                    continue
+                discovered[channel_id] = channel_title
+                # Accept either whole singular or plural band name.
+                # No reaction-specific keywords or classifier.
+                if title_mentions_band(snippet.get('title', ''), channel_name=CHANNEL_NAME):
+                    video_id = (item.get('id') or {}).get('videoId')
+                    key = (channel_id, video_id)
+                    if (video_id and snippet.get('publishedAt')
+                            and key not in seen_source_ids):
+                        seen_source_ids.add(key)
+                        source_videos.setdefault(channel_id, []).append({
+                            'video_id': video_id,
+                            'published_at': snippet['publishedAt'],
+                        })
 
-        page_token = response.get("nextPageToken")
-        if not page_token:
-            break
+            page_token = response.get("nextPageToken")
+            if not page_token:
+                break
 
-    print(f"📊 Discovery searched {api_calls} page(s), "
+    print(f"📊 Discovery used {api_calls} search request(s), "
           f"{results_scanned} results, {len(discovered)} unique channels")
     return (discovered, source_videos) if include_videos else discovered
+
 
 def mark_search_dormancy(tracked, *, now=None):
     """Annotate search absence without removing tracked upload sources.
