@@ -163,6 +163,40 @@ class ReactionDedupTests(unittest.TestCase):
         self.assertEqual(marks, ["2026-10-23T05:00:00Z"])
         post.assert_not_called()
 
+    def test_failed_durable_write_stops_without_advancing_bookmark(self):
+        with patch.object(reaction, "read_ids", return_value=set()), patch.object(
+            reaction, "load_last_run", return_value="2026-10-23T00:00:00Z"
+        ), patch.object(reaction, "get_reactions_with_stats", return_value=([
+            vod("new", "2026-10-23T02:00:00Z")], datetime.now(timezone.utc))
+        ), patch.object(reaction.requests, "post",
+                         return_value=SimpleNamespace(status_code=204)
+        ), patch.object(reaction, "save_ids",
+                        side_effect=RuntimeError("ledger write unavailable")
+        ), patch.object(reaction, "save_last_run") as bookmark:
+            with self.assertRaisesRegex(RuntimeError, "ledger write unavailable"):
+                reaction.run()
+            bookmark.assert_not_called()
+
+    def test_capped_batch_delivers_oldest_first_without_losing_newer(self):
+        ledger = set()
+        cutoff = ["2026-10-23T00:00:00Z"]
+        videos = [vod("first", "2026-10-23T01:00:00Z"),
+                  vod("second", "2026-10-23T02:00:00Z")]
+        with patch.object(reaction, "read_ids", side_effect=lambda kind: set(ledger)), patch.object(
+            reaction, "save_ids", side_effect=lambda kind, new: ledger.update(new)
+        ), patch.object(reaction, "get_reactions_with_stats",
+                        return_value=(videos, datetime.now(timezone.utc))
+        ), patch.object(reaction, "load_last_run", side_effect=lambda: cutoff[0]
+        ), patch.object(reaction, "save_last_run",
+                        side_effect=lambda v: cutoff.__setitem__(0, v)
+        ), patch.object(reaction, "MAX_TO_SEND", 1), patch.object(
+            reaction.requests, "post", return_value=SimpleNamespace(status_code=204)
+        ) as post, patch.object(reaction.time, "sleep", return_value=None):
+            self.assertEqual([v["video_id"] for v in reaction.run()], ["first"])
+            self.assertEqual([v["video_id"] for v in reaction.run()], ["second"])
+            self.assertEqual(post.call_count, 2)
+            self.assertEqual(cutoff[0], "2026-10-23T02:00:00Z")
+
     def test_force_send_all_still_respects_confirmed_history(self):
         with patch.object(reaction, "read_ids", side_effect=[{"old"}, set()]), patch.object(
             reaction, "load_last_run", return_value="2026-10-23T05:00:00Z"
