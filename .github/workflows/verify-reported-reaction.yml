@@ -1,0 +1,23 @@
+name: Read-only missed reaction metadata check
+
+on:
+  push:
+    branches:
+      - fix/bounded-reaction-discovery-20261023
+
+permissions:
+  contents: read
+
+jobs:
+  verify-reaction:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: One YouTube videos.list request; no Discord or state writes
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: python verify_reported_reaction.py
