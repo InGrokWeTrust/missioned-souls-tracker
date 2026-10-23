@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
 from thumbnail_policy import select_thumbnail, require_thumbnails
+from discovery_video_handoff import handoff_for_scan
 from channel_exclusions import is_excluded_channel
 from reaction_channel_policy import is_official_artist_channel
 from verified_nitro_reactions import is_verified_nitro_reaction
@@ -258,6 +259,32 @@ def get_reactions_with_stats():
         if not reaction_videos:
             silent_channels.append(channel_title)
 
+    # Include the precise video IDs that caused first-time channel discovery.
+    # A reactor can upload >5 videos before our next normal scan, so playlist
+    # scanning alone is insufficient. These candidates go through the SAME
+    # videos.list, reaction classifier, VOD, thumbnail and dedup gates.
+    handoff = handoff_for_scan(tracked, now=run_start)
+    known_ids = {v["video_id"] for v in candidates}
+    discovered_ids = set()
+    for cid, vid, published in handoff:
+        if cid not in scanned_channel_ids:
+            # Never record scans as complete for channels whose playlist call failed.
+            continue
+        discovered_ids.add(vid)
+        if vid in known_ids:
+            continue
+        info = tracked[cid]
+        candidates.append({
+            "video_id": vid, "channel_id": cid,
+            "channel": info.get("title", cid) if isinstance(info, dict) else str(info),
+            "title": "(awaiting YouTube discovery video verification)",
+            "published_at": published, "url":f"https://youtu.be/{vid}",
+            "thumbnail":None, "live_broadcast_content":"none",
+            "live_streaming_details":None,
+        })
+        known_ids.add(vid)
+    print(f"🔗 Discovery handoff: {len(discovered_ids)} IDs checked "
+          f"({len(discovered_ids)} deduplicated against channel scan).")
     if failed_channels:
         print(f"::warning::{len(failed_channels)} channels failed to scan and will be retried next run.")
     if silent_channels:
@@ -287,17 +314,19 @@ def get_reactions_with_stats():
     thumbnails_dict = {}
     broadcast_status_dict = {}
     confirmed_ids = set()
+    full_details = {}
 
     for i in range(0, len(video_ids), 50):
         chunk = video_ids[i:i+50]
         stats_response = youtube.videos().list(
-            part="statistics,contentDetails,liveStreamingDetails,snippet",
+            part="statistics,contentDetails,liveStreamingDetails,snippet,status",
             id=",".join(chunk)
         ).execute()
 
         for item in stats_response.get('items', []):
             vid_id = item['id']
             confirmed_ids.add(vid_id)
+            full_details[vid_id] = item
             descriptions_dict[vid_id] = item.get('snippet', {}).get('description', '')
             thumbnails_dict[vid_id] = item.get('snippet', {}).get('thumbnails')
             stats = item.get('statistics', {})
@@ -320,6 +349,25 @@ def get_reactions_with_stats():
 
     for video in candidates:
         vid_id = video['video_id']
+        if vid_id in discovered_ids:
+            # Discovery search alone proves only that YouTube indexed a video,
+            # NOT that it is an actual reaction, published, or from this uploader.
+            detail = full_details.get(vid_id, {})
+            snippet = detail.get("snippet") or {}
+            privacy = (detail.get("status") or {}).get("privacyStatus")
+            if (snippet.get("channelId") != video["channel_id"]
+                    or privacy != "public"
+                    or not isinstance(snippet.get("title"), str)
+                    or not snippet.get("publishedAt")):
+                print(f"⏭️ Discovery candidate {vid_id} not fully verified; withholding.")
+                continue
+            video["title"] = snippet["title"]
+            video["channel"] = snippet.get("channelTitle") or video["channel"]
+            video["published_at"] = snippet["publishedAt"]
+            if not is_missioned_souls_reaction(
+                video["title"], video_id=vid_id, channel_id=video["channel_id"]
+            ):
+                continue
         vid_stats = stats_dict.get(vid_id, {})
         video['view_count'] = vid_stats.get('view_count', 0)
         video['like_count'] = vid_stats.get('like_count', 0)
@@ -513,7 +561,7 @@ def send_to_discord(videos, max_to_send=5, run_start=None, on_success=None):
 
 
 def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=None,
-                channel_added_at=None):
+                channel_added_at=None, discovery_candidate_ids=None):
     """Persist the queue BEFORE delivery and after each confirmed notification."""
     allow_bootstrap = os.environ.get("BOOTSTRAP_STATE_IF_MISSING", "false").lower() == "true"
     state = load_state(LAST_RUN_FILE, allow_bootstrap=allow_bootstrap)
@@ -550,7 +598,11 @@ def run_tracker(videos, tracked_channel_ids, *, force_send_all=False, run_start=
             state['seen_video_ids'].append(vid)
     state['pending'] = [v for v in state['pending'] if v['video_id'] not in historical_ids]
     plan_notifications(state, videos, tracked_channel_ids, now=run_start,
-                       channel_added_at=channel_added_at)
+                       channel_added_at=channel_added_at,
+                       discovery_candidate_ids={
+                           v["video_id"] for v in videos
+                           if v["video_id"] in set(discovery_candidate_ids or ())
+                       })
     # Only confirmed archived/livestream IDs are removed; ordinary reactions are unaffected.
     reconcile_live_notifications(state, live_ids)
     if not DRY_RUN:
@@ -632,6 +684,10 @@ if __name__ == "__main__":
         cid: info.get('added_at') for cid, info in channels.items()
         if isinstance(info, dict) and info.get('added_at')
     }
+    handoff_ids = {
+        video_id for _, video_id, _ in handoff_for_scan(channels, now=run_start)
+    }
     run_tracker(videos, scanned_ids, force_send_all=FORCE_SEND_ALL,
-                run_start=run_start, channel_added_at=channel_added_at)
+                run_start=run_start, channel_added_at=channel_added_at,
+                discovery_candidate_ids=handoff_ids)
     print("\n🎉 All done!")
