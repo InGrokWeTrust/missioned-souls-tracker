@@ -100,8 +100,8 @@ def is_archived_livestream(video):
 def is_short_or_too_short(video):
     title_lower = video.get('title', '').lower()
 
-    # 1. Filter explicit #short / #shorts hashtags (highest priority)
-    if '#short' in title_lower or 'shorts' in title_lower:
+    # 1. Prefer explicit Shorts labels; generic words in unrelated titles should not match.
+    if re.search(r"#shorts?\b|\bshorts\b", title_lower):
         return True
 
     # 2. Keep ALL livestreams — active, upcoming, or archived
@@ -126,10 +126,8 @@ def classify_filter_reason(video):
     """Return a short reason string for why a video was filtered."""
     title_lower = video.get('title', '').lower()
 
-    if '#short' in title_lower:
-        return "has #short"
-    if 'shorts' in title_lower:
-        return "has 'shorts'"
+    if re.search(r"#shorts?\b|\bshorts\b", title_lower):
+        return "marked as Short"
 
     duration = video.get('duration_sec', 0)
     if duration > 0 and duration < 120:
