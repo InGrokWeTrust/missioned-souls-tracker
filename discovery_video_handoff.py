@@ -95,5 +95,5 @@ def handoff_for_scan(tracked, *, now=None):
         for entry in active_candidates(info, now=now):
             if len(found) >= MAX_HANDOFF_IDS_PER_SCAN:
                 return found
-            found.append((channel_id, entry["video_id"]))
+            found.append((channel_id, entry["video_id"], entry["published_at"]))
     return found
