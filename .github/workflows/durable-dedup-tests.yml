@@ -1,4 +1,4 @@
-name: Durable video-ID regression tests
+name: Tracker safety regression tests
 
 on:
   pull_request:
@@ -6,6 +6,10 @@ on:
       - 'autoreactions.py'
       - 'check_live_streams.py'
       - 'notification_history.py'
+      - 'channel_exclusions.py'
+      - 'discover_channels.py'
+      - 'tracked_channels.json'
+      - 'tests/test_hcjb_exclusion.py'
       - 'tests/test_durable_dedup.py'
       - '.github/workflows/youtube-tracker.yml'
       - '.github/workflows/check_live_streams.yml'
@@ -25,9 +29,9 @@ jobs:
           python-version: '3.11'
       - name: Install offline test dependencies
         run: pip install -r requirements.txt
-      - name: Verify durable video ID dedup without any production secrets or webhooks
+      - name: Verify dedup and HCJB exclusion without production credentials or webhooks
         env:
           YOUTUBE_API_KEY: offline-test-key
           DISCORD_WEBHOOK_URL: https://example.invalid/no-webhook
           HISTORY_ENABLED: "true"
-        run: python -m unittest discover -s tests -p 'test_durable_dedup.py' -v
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
