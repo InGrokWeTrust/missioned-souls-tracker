@@ -17,6 +17,7 @@ on:
       - 'tests/test_discovery_release_thumbnails.py'
       - 'tests/test_pending_reaction_queue.py'
       - 'tests/test_preserve_inactive_channels.py'
+      - 'tests/test_two_page_discovery.py'
       - 'tests/test_durable_dedup.py'
       - '.github/workflows/youtube-tracker.yml'
       - '.github/workflows/check_live_streams.yml'
