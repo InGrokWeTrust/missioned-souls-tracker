@@ -462,6 +462,7 @@ def reconfirm_older_pending_vods(pending, scanned_ids, *, now=None, limit=50):
                     or is_strong_reaction_candidate({
                         "title": current_title,
                         "description": snippet.get("description", ""),
+                        "channel": snippet.get("channelTitle", ""),
                     }, subject=CHANNEL_NAME))):
             continue
         privacy = (item.get("status") or {}).get("privacyStatus")
@@ -470,6 +471,7 @@ def reconfirm_older_pending_vods(pending, scanned_ids, *, now=None, limit=50):
         fresh = {
             "title": current_title,
             "description": snippet.get("description", ""),
+            "channel": snippet.get("channelTitle", ""),
             "channel_id": snippet.get("channelId"),
             "thumbnail": select_thumbnail(snippet.get("thumbnails"), vid,
                                           fallback=queued_video.get("thumbnail")),
