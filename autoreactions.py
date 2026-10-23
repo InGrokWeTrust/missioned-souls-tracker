@@ -3,7 +3,7 @@ import time
 import json
 import re
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
@@ -12,7 +12,9 @@ from discovery_video_handoff import handoff_for_scan
 from channel_exclusions import is_excluded_channel
 from reaction_channel_policy import is_official_artist_channel
 from verified_nitro_reactions import is_verified_nitro_reaction
-from new_channel_reaction_evidence import is_strong_reaction_candidate, plausible_reaction_title
+from new_channel_reaction_evidence import (
+    is_strong_reaction_candidate, plausible_reaction_title, requires_expanded_evidence
+)
 from video_release_policy import is_published_vod
 from notification_history import save_ids as save_durable_ids
 from reaction_state import (StateError, load_state, save_state, plan_notifications,
@@ -90,6 +92,25 @@ def is_safe_reaction_candidate(video):
     if is_strong_reaction_candidate(video, subject=CHANNEL_NAME):
         return True
     return is_verified_nitro_reaction(video)
+
+
+def recent_enough_for_first_expanded_match(video, *, now=None):
+    """Prevent a newly broadened classifier from replaying an old VOD catalog.
+
+    Already queued videos remain eligible for delivery retries even after the
+    24-hour first-discovery window; this guard runs only on fresh scans.
+    """
+    if not requires_expanded_evidence(video, subject=CHANNEL_NAME):
+        return True
+    now = now or datetime.now(timezone.utc)
+    try:
+        published = datetime.fromisoformat(video["published_at"].replace("Z", "+00:00"))
+        if published.tzinfo is None:
+            return False
+        age = now - published.astimezone(timezone.utc)
+        return timedelta(0) <= age <= timedelta(hours=24)
+    except (ValueError, AttributeError, KeyError, TypeError, OverflowError):
+        return False
 
 
 def is_archived_livestream(video):
@@ -389,6 +410,8 @@ def get_reactions_with_stats():
             filtered_log.append((video, "upcoming, live, or unconfirmed VOD"))
         elif not is_safe_reaction_candidate(video):
             filtered_log.append((video, "unconfirmed reaction: title/metadata lacks strong evidence"))
+        elif not recent_enough_for_first_expanded_match(video, now=run_start):
+            filtered_log.append((video, "expanded reaction match is outside 24h initial window"))
         elif is_short_or_too_short(video):
             reason = classify_filter_reason(video)
             filtered_log.append((video, reason))
