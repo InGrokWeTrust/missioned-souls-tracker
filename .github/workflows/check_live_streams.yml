@@ -4,13 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  actions: read
-
-concurrency:
-  group: missioned-souls-notifications-${{ github.ref }}
-  cancel-in-progress: false
-  queue: max
+  contents: read
 
 jobs:
   check:
@@ -33,27 +27,10 @@ jobs:
       - name: Download previous live_last_run.json
         uses: dawidd6/action-download-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
           workflow: check_live_streams.yml
           name: live-last-run-state
           path: ./
-          branch: ${{ github.ref_name }}
-          workflow_conclusion: ''
-          search_artifacts: true
-          check_artifacts: true
           if_no_artifact_found: warn
-
-      - name: Recover missing state artifacts from GitHub API if needed
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python restore_missing_state.py live
-
-      - name: Restore and persist durable live notification history before scanning
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HISTORY_ENABLED: "true"
-          DRY_RUN: ${{ vars.DRY_RUN }}
-        run: python notification_history.py hydrate live live_last_run.json
 
       - name: Run live stream checker
         env:
@@ -62,29 +39,12 @@ jobs:
           CHANNEL_NAME: ${{ vars.CHANNEL_NAME }}
           MAX_TO_SEND: ${{ vars.MAX_TO_SEND }}
           FORCE_SEND_ALL: ${{ vars.FORCE_SEND_ALL }}
-          DRY_RUN: ${{ vars.DRY_RUN }}
-          HISTORY_ENABLED: "true"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LIVE_LAST_RUN_FILE: live_last_run.json
-          BOOTSTRAP_STATE_IF_MISSING: ${{ vars.BOOTSTRAP_STATE_IF_MISSING }}
-        shell: bash
-        run: |
-          set -o pipefail
-          python check_live_streams.py 2>&1 | tee live-checker-output.log
+        run: python check_live_streams.py
 
       - name: Upload live_last_run.json for next run
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: live-last-run-state
           path: live_last_run.json
-          retention-days: 7
-          if-no-files-found: error
-
-      - name: Alert on production failure
-        if: ${{ failure() && github.ref == 'refs/heads/main' }}
-        env:
-          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL || secrets.DISCORD_WEBHOOK_URL }}
-          GITHUB_WORKFLOW: ${{ github.workflow }}
-          ALERT_LOG_FILE: live-checker-output.log
-        run: python report_failure.py
+          retention-days: 1
