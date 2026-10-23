@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
+from thumbnail_policy import select_thumbnail, require_thumbnails
 from notification_history import save_ids as save_durable_ids
 from channel_exclusions import is_excluded_channel
 
@@ -184,8 +185,9 @@ def find_active_live_streams():
             "channel": snippet.get("channelTitle", original.get("channelTitle", "")),
             "published_at": live.get("actualStartTime") or original["publishedAt"],
             "url": f"https://youtu.be/{video_id}",
-            "thumbnail": snippet.get("thumbnails", {}).get("medium", {}).get("url")
-                or original.get("thumbnails", {}).get("medium", {}).get("url"),
+            "thumbnail": select_thumbnail(
+                snippet.get("thumbnails"), video_id,
+                fallback=select_thumbnail(original.get("thumbnails"), video_id)),
             "live_broadcast_content": "live"
         })
 
@@ -211,6 +213,8 @@ def send_to_discord(streams, run_start=None, on_success=None):
         print("⚠️ No live streams to send.")
         return []
 
+    # Never turn a valid live alert into a text-only notification.
+    require_thumbnails(streams)
     delivered = []
 
     print(f"\n📨 Sending {len(streams)} live stream(s) to Discord...\n")
@@ -225,7 +229,7 @@ def send_to_discord(streams, run_start=None, on_success=None):
             "title": title,
             "url": stream['url'],
             "color": 0xe53935,  # red for live
-            "image": {"url": stream.get('thumbnail')} if stream.get('thumbnail') else None,
+            "image": {"url": stream['thumbnail']},
             "fields": [
                 {"name": "Channel", "value": stream['channel'], "inline": True},
                 {"name": "Started", "value": posted_value, "inline": True},

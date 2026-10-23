@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from webhook_delivery import post_webhook
+from thumbnail_policy import select_thumbnail, require_thumbnails
 from channel_exclusions import is_excluded_channel
 from reaction_channel_policy import is_official_artist_channel
 from verified_nitro_reactions import is_verified_nitro_reaction
@@ -210,7 +211,7 @@ def fetch_channel_videos(channel_id, channel_title):
             'channel_id': channel_id,
             'published_at': content.get('videoPublishedAt') or snippet.get('publishedAt'),
             'url': f"https://youtu.be/{video_id}",
-            'thumbnail': snippet.get('thumbnails', {}).get('medium', {}).get('url'),
+            'thumbnail': select_thumbnail(snippet.get('thumbnails'), video_id),
             'live_broadcast_content': snippet.get('liveBroadcastContent', 'none'),
             'live_streaming_details': None  # filled in later
         })
@@ -283,6 +284,7 @@ def get_reactions_with_stats():
     duration_dict = {}
     live_details_dict = {}
     descriptions_dict = {}
+    thumbnails_dict = {}
     broadcast_status_dict = {}
     confirmed_ids = set()
 
@@ -297,6 +299,7 @@ def get_reactions_with_stats():
             vid_id = item['id']
             confirmed_ids.add(vid_id)
             descriptions_dict[vid_id] = item.get('snippet', {}).get('description', '')
+            thumbnails_dict[vid_id] = item.get('snippet', {}).get('thumbnails')
             stats = item.get('statistics', {})
             broadcast_status_dict[vid_id] = item.get('snippet', {}).get('liveBroadcastContent', 'none')
             stats_dict[vid_id] = {
@@ -325,6 +328,8 @@ def get_reactions_with_stats():
         video['metadata_confirmed'] = vid_id in confirmed_ids
         video['live_streaming_details'] = live_details_dict.get(vid_id)
         video['description'] = descriptions_dict.get(vid_id, '')
+        video['thumbnail'] = select_thumbnail(
+            thumbnails_dict.get(vid_id), vid_id, fallback=video.get('thumbnail'))
         video['live_broadcast_content'] = broadcast_status_dict.get(
             vid_id, video.get('live_broadcast_content', 'none'))
         video['age_at_run'] = humanize_ago(video['published_at'], run_start)
@@ -411,6 +416,8 @@ def reconfirm_older_pending_vods(pending, scanned_ids, *, now=None, limit=50):
             "title": current_title,
             "description": snippet.get("description", ""),
             "channel_id": snippet.get("channelId"),
+            "thumbnail": select_thumbnail(snippet.get("thumbnails"), vid,
+                                          fallback=queued_video.get("thumbnail")),
             "metadata_confirmed": True,
             "live_broadcast_content": snippet.get("liveBroadcastContent"),
             "live_streaming_details": item.get("liveStreamingDetails"),
@@ -423,6 +430,7 @@ def reconfirm_older_pending_vods(pending, scanned_ids, *, now=None, limit=50):
             queued_video.update({
                 "title": fresh["title"],
                 "description": fresh["description"],
+                "thumbnail": fresh["thumbnail"],
                 "live_broadcast_content": fresh["live_broadcast_content"],
                 "live_streaming_details": fresh["live_streaming_details"],
                 "metadata_confirmed": True,
@@ -454,6 +462,9 @@ def send_to_discord(videos, max_to_send=5, run_start=None, on_success=None):
         print("⚠️ No new videos to send.")
         return []
 
+    # Missing thumbnails must NOT create text-only Discord cards. This check
+    # happens before any webhook, after the pending state has been persisted.
+    require_thumbnails(videos[:max_to_send])
     delivered = []
 
     print(f"\n📨 Sending {min(max_to_send, len(videos))} new reactions to Discord...\n")
@@ -472,7 +483,7 @@ def send_to_discord(videos, max_to_send=5, run_start=None, on_success=None):
             "title": title,
             "url": video['url'],
             "color": 0xe53935 if video.get('live_broadcast_content') == 'live' else 0x1e88e5,
-            "image": {"url": video.get('thumbnail')} if video.get('thumbnail') else None,
+            "image": {"url": video['thumbnail']},
             "fields": [
                 {"name": "Channel", "value": video['channel'], "inline": True},
                 {"name": "Views", "value": f"{video.get('view_count', 0):,}", "inline": True},

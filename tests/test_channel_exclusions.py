@@ -22,6 +22,7 @@ def item(id,channel,when="2026-10-22T09:00:00Z"):
     return dict(video_id=id,channel_id=channel,title="Missioned Souls Reaction",
                 published_at=when,channel="Fake Channel",
                 url="https://youtu.be/"+id,
+                thumbnail="https://i.ytimg.com/vi/"+id+"/mqdefault.jpg",
                 live_broadcast_content="none",live_streaming_details=None,
                 metadata_confirmed=True)
 
