@@ -144,6 +144,14 @@ def clear_reaction_title(video, *, subject="Missioned Souls"):
         return False
     if _REACTION.search(title):
         return True
+    # Explicit band+reaction compound hashtags are otherwise missed by the
+    # word-boundary matcher: #MissionedSoulsReaction is a strong title signal.
+    compound_subject = re.sub(r"[^a-z0-9]", "", subject.lower())
+    if compound_subject and re.search(
+        rf"(?<![a-z0-9])#{re.escape(compound_subject)}(?:reactions?|reacts?|reacting)\b",
+        title, re.IGNORECASE,
+    ):
+        return True
     if contextual_reaction_evidence(video, subject=subject):
         return True
     # "Is MISSIONED SOULS Black Velvet As Good As the Original?" is a
