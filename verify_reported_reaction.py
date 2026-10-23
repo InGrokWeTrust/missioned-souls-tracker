@@ -62,6 +62,7 @@ def main():
     result = {
         "video_id": VIDEO_ID,
         "title": title,
+        "description_opening": description[:500],
         "channel_title": snippet.get("channelTitle"),
         "channel_id": channel_id,
         "already_tracked": channel_id in tracked,
