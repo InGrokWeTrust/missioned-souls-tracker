@@ -5,6 +5,7 @@ import requests
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
 from notification_history import read_ids, save_ids
+from channel_exclusions import is_excluded_channel
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -117,6 +118,9 @@ def find_active_live_streams():
         video_id = item['id'].get('videoId')
         if not video_id:
             continue
+        if is_excluded_channel(snippet.get('channelId')):
+            print(f"  🚫 Skipping excluded HCJB channel: {snippet.get('channelId')}")
+            continue
 
         title = snippet['title']
         # Double-check title actually mentions Missioned Souls
@@ -128,6 +132,7 @@ def find_active_live_streams():
             'title': title,
             'video_id': video_id,
             'channel': snippet['channelTitle'],
+            'channel_id': snippet.get('channelId'),
             'published_at': snippet['publishedAt'],
             'url': f"https://youtu.be/{video_id}",
             'thumbnail': snippet.get('thumbnails', {}).get('medium', {}).get('url'),
@@ -140,6 +145,8 @@ def find_active_live_streams():
 
 def send_to_discord(streams, run_start=None, seen_ids=None):
     """Send live alerts once and durably record each confirmed webhook."""
+    # Direct-caller safeguard against sending an excluded stream.
+    streams = [s for s in streams if not is_excluded_channel(s.get('channel_id'))]
     if not streams:
         print("⚠️ No live streams to send.")
         return []
@@ -208,6 +215,7 @@ def run():
     print(f"📋 Previously sent IDs: {len(already_delivered)}\n")
 
     streams = find_active_live_streams()
+    streams = [s for s in streams if not is_excluded_channel(s.get('channel_id'))]
     if not streams:
         print("ℹ️ No active Missioned Souls live streams found.")
         save_state(sent_ids)
