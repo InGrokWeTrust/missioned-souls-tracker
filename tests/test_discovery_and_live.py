@@ -30,13 +30,14 @@ class DiscoveryAndLiveTests(unittest.TestCase):
         one = {"items": [result(1)], "nextPageToken": "next-token"}
         two = {"items": [result(2)], "nextPageToken": None}
         search = MagicMock()
-        search.list.return_value.execute.side_effect = [one, two]
+        search.list.return_value.execute.side_effect = [one, two, {"items": []}]
         with patch.object(discovery, "youtube") as yt, patch.object(discovery, "DISCOVERY_PAGES", 2):
             yt.search.return_value = search
             found = discovery.discover_channels()
         self.assertEqual(set(found), {"UC-1", "UC-2"})
-        self.assertEqual(search.list.call_count, 2)
-        self.assertEqual(search.list.call_args.kwargs["pageToken"], "next-token")
+        self.assertEqual(search.list.call_count, 3)
+        self.assertEqual(search.list.call_args_list[1].kwargs["pageToken"], "next-token")
+        self.assertNotIn("pageToken", search.list.call_args.kwargs)
 
     def test_unrelated_search_titles_not_added(self):
         with patch.object(discovery, "youtube") as yt:
