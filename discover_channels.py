@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from googleapiclient.discovery import build
 from channel_exclusions import is_excluded_channel
 from reaction_channel_policy import is_official_artist_channel
+from discovery_video_handoff import add_candidates, active_candidates
 
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
@@ -57,10 +58,11 @@ def save_tracked_channels(channels):
     print(f"💾 Saved {len(channels)} tracked channels to {TRACKED_CHANNELS_FILE}")
 
 
-def discover_channels():
+def discover_channels(*, include_videos=False):
     print(f"🔍 Discovering new reactor channels for {CHANNEL_NAME}...\n")
 
     discovered = {}
+    source_videos = {}
     page_token = None
     for page in range(DISCOVERY_PAGES):
         arguments = {
@@ -80,12 +82,18 @@ def discover_channels():
                     and not is_official_artist_channel(channel_id)
                     and CHANNEL_NAME.lower() in snippet.get("title", "").lower()):
                 discovered[channel_id] = channel_title
+                if include_videos:
+                    vid = (item.get("id") or {}).get("videoId")
+                    if vid:
+                        source_videos.setdefault(channel_id, []).append({
+                            "video_id":vid, "published_at":snippet.get("publishedAt")
+                        })
         page_token = response.get("nextPageToken")
         if not page_token:
             break
 
     print(f"✅ Discovered {len(discovered)} unique channels from {page + 1} page(s)")
-    return discovered
+    return (discovered, source_videos) if include_videos else discovered
 
 
 if __name__ == "__main__":
@@ -96,9 +104,10 @@ if __name__ == "__main__":
     if last_run:
         print(f"📅 Last discovery: {last_run}")
 
-    discovered = discover_channels()
+    discovered, source_videos = discover_channels(include_videos=True)
 
     new_count = 0
+    queued_discovery_ids = 0
     skipped_count = 0
     for channel_id, channel_title in discovered.items():
         if is_excluded_channel(channel_id) or is_official_artist_channel(channel_id):
@@ -128,12 +137,30 @@ if __name__ == "__main__":
                 "last_seen_at": datetime.now(timezone.utc).isoformat()
             }
             new_count += 1
+            queued_discovery_ids += add_candidates(
+                tracked[channel_id], source_videos.get(channel_id), now=datetime.now(timezone.utc)
+            )
             print(f"  ➕ NEW: {channel_title} ({channel_id})")
         else:
             if isinstance(tracked[channel_id], str):
                 tracked[channel_id] = {"title": channel_title, "added_at": datetime.now(timezone.utc).isoformat()}
             tracked[channel_id]["title"] = channel_title
             tracked[channel_id]["last_seen_at"] = datetime.now(timezone.utc).isoformat()
+            # Finish collecting up to 12 recent video IDs on a newly added
+            # channel, but never reopen historical backfill for old channels.
+            queued_discovery_ids += add_candidates(
+                tracked[channel_id], source_videos.get(channel_id), now=datetime.now(timezone.utc)
+            )
+
+    # Expired handoff IDs are removed from the committed registry. The tracker
+    # rechecks these exact IDs while fresh without losing local pending state.
+    for info in tracked.values():
+        if isinstance(info, dict) and "discovery_videos" in info:
+            recent = active_candidates(info)
+            if recent:
+                info["discovery_videos"] = recent
+            else:
+                del info["discovery_videos"]
 
     # Also prune any already-tracked excluded channels (in case rule changed)
     already_tracked_excluded = []
@@ -176,6 +203,7 @@ if __name__ == "__main__":
 
     print(f"\n✅ Discovery complete")
     print(f"   New channels added: {new_count}")
+    print(f"   New discovery video IDs saved: {queued_discovery_ids}")
     print(f"   Excluded/skipped channels: {skipped_count}")
     print(f"   Search-dormant channels retained: {dormant_count}")
     print(f"   Total tracked: {len(tracked)}")

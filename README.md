@@ -11,8 +11,10 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 | Script | Frequency | Purpose |
 |---|---|---|
 | `autoreactions.py` | Every 30 min | Scans tracked uploads, queues reactions by video ID, retries deliveries |
-| `discover_channels.py` | Every 2 hours | Paginates recent results, retains quiet reactors and updates the tracked list |
+| `discover_channels.py` | Every 2 hours | Paginates recent results, saves new reactors **and the exact video IDs behind discovery**, and maintains tracked channels |
 | `check_live_streams.py` | Every 2 hours | Confirms currently active Missioned Souls streams and saves sent IDs |
+
+**Discovery-to-reaction handoff:** Video IDs behind new-channel search hits are stored as untrusted candidates. The next scheduled reaction run checks these IDs through ordinary YouTube metadata and safe delivery rules, rather than merely marking the first five old uploads as seen.
 
 **Discord output:**
 - New reactions: posted with title, channel, views, likes, comments, and "Posted: HH:MM (Xm ago)"
@@ -94,7 +96,7 @@ Content-Type: application/json
 
 - Searches YouTube for recent videos mentioning **Missioned Souls**
 - Extracts unique channel IDs from results
-- Adds new channels to `tracked_channels.json`
+- Adds new channels to `tracked_channels.json`, storing up to **12 video IDs that caused discovery** when published within the preceding 24 hours. The ID handoff is retained for up to 48 hours
 - Excludes vlog channels (except **Cherman Vlogs**)
 - Marks channels absent from discovery for 60+ days as `dormant` but keeps them tracked; missing search results are not proof of inactivity
 - Commits `tracked_channels.json` back to the repo
@@ -103,6 +105,7 @@ Content-Type: application/json
 
 - Loads `tracked_channels.json`
 - For each channel, fetches the 5 newest videos via `playlistItems.list`
+- Also checks bounded **discovery-handoff video IDs** directly with the existing batched `videos.list` call, even if the videos already fell outside the newest five uploads
 - Filters titles to those containing **"Missioned Souls"**
 - Filters out shorts (`#short`, `#shorts`, `"shorts"`, duration < 120s)
 - Fetches stats + duration + `liveStreamingDetails` in one batch `videos.list` call
@@ -112,6 +115,7 @@ Content-Type: application/json
 - Saves state before sending and after each confirmed Discord delivery; failed sends remain queued
 - Excludes live/upcoming alerts (handled by the live checker), and uses the live checker artifact to suppress already-announced archived streams
 - Keeps a seven-day lookback for newly discovered old uploads; pending items are not subject to that cutoff
+- Uses a conservative two-video backfill for generic first-scan videos, **plus up to 12 independently verified explicit search-discovery IDs**. A search match alone never authorises posting; every video passes publication, reaction evidence, uploader, thumbnail, and duplicate checks
 
 ### 3. Live Streams (`check_live_streams.py`)
 
@@ -147,7 +151,7 @@ YouTube Data API v3 gives **10,000 units/day**.
 | Decision | Rationale |
 |---|---|
 | **Playlist-based tracking** (not search-based) | 100% reliable for tracked channels; catches VODs of streams |
-| **No backfill for new channels** | First scan of a new channel seeds its existing visible uploads by ID, preventing Discord spam |
+| **Bounded new-channel backfill** | Search-discovered video IDs are saved for the next reaction scan (up to 12 per channel within 24h); generic first-scan uploads still have a two-video backfill cap to prevent spam |
 | **Cherman Vlogs exception** | Only vlog channel to track; all other vlog channels excluded |
 | **Live stream detection via `liveStreamingDetails`** | Distinguishes currently active streams from scheduled/completed ones |
 | **ID-based dedup for live streams** | Handles scheduled streams with old publication timestamps and archived VOD overlap when live history is available |
@@ -192,7 +196,7 @@ YouTube Data API v3 gives **10,000 units/day**.
 
 ### If Discord Posts Are Missing
 - Check the pending queue and `seen_video_ids` in the saved reaction-state artifact; historical timestamps alone no longer decide delivery
-- Use `FORCE_SEND_ALL=true` for one run to resend the latest N
+- **Do not use `FORCE_SEND_ALL` as a general recovery mechanism:** it bypasses normal sending limits for demonstration/maintenance and can generate unexpected posts. Inspect candidate IDs, the pending queue, and durable delivered history first
 
 ---
 
@@ -234,7 +238,7 @@ Actions tab → Check Live Streams → Run workflow
 | Live stream detection latency | Up to 2 hours (based on cron schedule) |
 | Cross-workflow dedup | Uses the latest retained live sent-IDs artifact; if it expires, archived-stream dedup may be incomplete |
 | Exactly-once delivery | Unachievable across webhook and Actions artifact storage if GitHub stops after Discord accepts a message but before artifact upload |
-| Past videos from newly added channels | Not backfilled (by design) |
+| Older videos from newly added channels | Exact recent discovery hits can be queued after verification; videos outside the 24-hour discovery window, the 48-hour handoff retention, or the saved history remain excluded |
 | Vlog channels | Excluded except Cherman (hardcoded) |
 | Discovery pruning | Search-dormant channels remain tracked rather than being deleted automatically |
 
