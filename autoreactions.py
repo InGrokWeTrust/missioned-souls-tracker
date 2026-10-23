@@ -12,7 +12,7 @@ from discovery_video_handoff import handoff_for_scan
 from channel_exclusions import is_excluded_channel
 from reaction_channel_policy import is_official_artist_channel
 from verified_nitro_reactions import is_verified_nitro_reaction
-from new_channel_reaction_evidence import is_strong_reaction_candidate
+from new_channel_reaction_evidence import is_strong_reaction_candidate, plausible_reaction_title
 from video_release_policy import is_published_vod
 from notification_history import save_ids as save_durable_ids
 from reaction_state import (StateError, load_state, save_state, plan_notifications,
@@ -248,9 +248,9 @@ def get_reactions_with_stats():
             failed_channels.append(channel_title)
             continue
         scanned_channel_ids.add(channel_id)
-        reaction_videos = [v for v in videos if is_missioned_souls_reaction(
+        reaction_videos = [v for v in videos if (is_missioned_souls_reaction(
             v["title"], video_id=v["video_id"], channel_id=v["channel_id"]
-        )]
+        ) or plausible_reaction_title(v["title"], subject=CHANNEL_NAME))]
         no_ms_count += len(videos) - len(reaction_videos)
 
         for v in reaction_videos:
@@ -366,9 +366,10 @@ def get_reactions_with_stats():
             video["title"] = snippet["title"]
             video["channel"] = snippet.get("channelTitle") or video["channel"]
             video["published_at"] = snippet["publishedAt"]
-            if not is_missioned_souls_reaction(
+            video["description"] = snippet.get("description", "")
+            if not (is_missioned_souls_reaction(
                 video["title"], video_id=vid_id, channel_id=video["channel_id"]
-            ):
+            ) or is_strong_reaction_candidate(video, subject=CHANNEL_NAME)):
                 continue
         vid_stats = stats_dict.get(vid_id, {})
         video['view_count'] = vid_stats.get('view_count', 0)
@@ -456,8 +457,12 @@ def reconfirm_older_pending_vods(pending, scanned_ids, *, now=None, limit=50):
         if (not isinstance(current_title, str)
                 or snippet.get("channelId") != queued_video["channel_id"]
                 or is_excluded_channel(snippet.get("channelId"))
-                or not is_missioned_souls_reaction(
-                    current_title, video_id=vid, channel_id=snippet.get("channelId"))):
+                or not (is_missioned_souls_reaction(
+                    current_title, video_id=vid, channel_id=snippet.get("channelId"))
+                    or is_strong_reaction_candidate({
+                        "title": current_title,
+                        "description": snippet.get("description", ""),
+                    }, subject=CHANNEL_NAME))):
             continue
         privacy = (item.get("status") or {}).get("privacyStatus")
         if privacy is not None and privacy != "public":
