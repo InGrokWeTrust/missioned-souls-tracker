@@ -33,10 +33,10 @@ class DiscoveryAndLiveTests(unittest.TestCase):
         search.list.return_value.execute.side_effect = [one, two]
         with patch.object(discovery, "youtube") as yt, patch.object(discovery, "DISCOVERY_PAGES", 2):
             yt.search.return_value = search
-            found = discovery.discover_channels()
+            found = discovery.discover_channels(targeted=False)
         self.assertEqual(set(found), {"UC-1", "UC-2"})
         self.assertEqual(search.list.call_count, 2)
-        self.assertEqual(search.list.call_args.kwargs["pageToken"], "next-token")
+        self.assertEqual(search.list.call_args_list[1].kwargs["pageToken"], "next-token")
 
     def test_unrelated_search_titles_not_added(self):
         with patch.object(discovery, "youtube") as yt:
