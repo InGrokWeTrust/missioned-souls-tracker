@@ -70,6 +70,8 @@ def discover_channels(*, include_videos=False):
         # page is capped to keep YouTube search quota predictable.
         if query_page == 0:
             page_token = None
+        if query_page > 0 and not page_token:
+            continue
         arguments = {
             "part": "snippet", "q": search_term,
             "type": "video", "maxResults": 50, "order": "date"
