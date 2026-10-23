@@ -4,6 +4,7 @@ import json
 import requests
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
+from notification_history import read_ids, save_ids
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -137,14 +138,21 @@ def find_active_live_streams():
     return streams
 
 
-def send_to_discord(streams, run_start=None):
+def send_to_discord(streams, run_start=None, seen_ids=None):
+    """Send live alerts once and durably record each confirmed webhook."""
     if not streams:
         print("⚠️ No live streams to send.")
-        return
-
+        return []
+    if seen_ids is None:
+        seen_ids = set()
+    delivered = []
     print(f"\n📨 Sending {len(streams)} live stream(s) to Discord...\n")
 
     for stream in streams:
+        vid = stream["video_id"]
+        if vid in seen_ids:
+            print(f"⏭️ Already delivered: {vid}")
+            continue
         age = humanize_ago(stream['published_at'], run_start)
         published_str = format_published_time(stream['published_at'])
         posted_value = f"{published_str} ({age})" if published_str else age
@@ -170,58 +178,69 @@ def send_to_discord(streams, run_start=None):
 
         try:
             response = requests.post(DISCORD_WEBHOOK_URL, json=data, timeout=10)
-            if response.status_code == 204:
-                print(f"✅ Sent: [{posted_value}] {stream['title'][:60]}...")
-            else:
-                print(f"❌ Discord error {response.status_code}")
         except Exception as e:
-            print(f"❌ Failed to send: {e}")
+            raise RuntimeError(f"Discord live delivery failed for {vid}") from e
+        if response.status_code != 204:
+            raise RuntimeError(f"Discord live HTTP {response.status_code} for {vid}")
+        save_ids("live", [vid])
+        seen_ids.add(vid)
+        delivered.append(stream)
+        print(f"✅ Sent: [{posted_value}] {stream['title'][:60]}...")
         time.sleep(1.3)
+    return delivered
 
 
 # ===================== MAIN =====================
-if __name__ == "__main__":
+def run():
     print("🚀 Missioned Souls Live Stream Checker Started\n")
+    # Both ledgers matter: a published VOD must not be announced again as live,
+    # and an already announced live must not later post as a reaction duplicate.
+    reaction_ids = read_ids("reactions")
+    live_ids = read_ids("live")
+    already_delivered = reaction_ids | live_ids
 
     run_start = datetime.now(timezone.utc)
     print(f"⏰ Run started at: {run_start.strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
 
     sent_ids, last_check = load_state()
+    already_delivered.update(sent_ids)
     print(f"📅 Last check: {last_check[:19] if last_check else 'None (first run)'}")
-    print(f"📋 Previously sent IDs: {len(sent_ids)}\n")
+    print(f"📋 Previously sent IDs: {len(already_delivered)}\n")
 
     streams = find_active_live_streams()
-
     if not streams:
         print("ℹ️ No active Missioned Souls live streams found.")
-        # Still save state to update last_check
         save_state(sent_ids)
         print("\n🎉 All done!")
-        raise SystemExit(0)
+        return []
 
-    if FORCE_SEND_ALL:
-        new_streams = streams
-        print(f"🔄 Force mode: Sending all {len(new_streams)} streams")
-    else:
-        # Filter by video ID, not timestamp
-        new_streams = [s for s in streams if s['video_id'] not in sent_ids]
-        print(f"🆕 {len(new_streams)} new live streams (not previously sent)")
+    seen_in_scan = set()
+    new_streams = []
+    for stream in streams:
+        vid = stream['video_id']
+        if vid not in already_delivered and vid not in seen_in_scan:
+            new_streams.append(stream)
+            seen_in_scan.add(vid)
+    new_streams.sort(key=lambda v: (v['published_at'], v['video_id']))
+    print(f"🆕 {len(new_streams)} new live streams (durable IDs checked; "
+          f"FORCE_SEND_ALL never bypasses confirmed delivery history)")
 
-    if new_streams:
-        new_streams.sort(key=lambda x: x['published_at'], reverse=False)
-        top_streams = new_streams[-MAX_TO_SEND:] if len(new_streams) >= MAX_TO_SEND else new_streams
-        send_to_discord(top_streams, run_start=run_start)
-
-        # Record the IDs we just sent
-        for s in top_streams:
-            if s['video_id'] not in sent_ids:
-                sent_ids.append(s['video_id'])
-
+    # Process earliest first, and never mark unattempted/failed webhook IDs.
+    chosen = new_streams[:MAX_TO_SEND]
+    if chosen:
+        delivered = send_to_discord(chosen, run_start=run_start,
+                                    seen_ids=already_delivered)
+        for stream in delivered:
+            if stream['video_id'] not in sent_ids:
+                sent_ids.append(stream['video_id'])
         save_state(sent_ids)
-        print(f"📌 {len(sent_ids)} total IDs tracked")
-    else:
-        print("ℹ️ No new live streams – state unchanged")
-        # Still update last_check
-        save_state(sent_ids)
-
+        print(f"📌 {len(delivered)} new live alerts recorded")
+        return delivered
+    save_state(sent_ids)
+    print("ℹ️ No new live streams – state unchanged")
     print("\n🎉 All done!")
+    return []
+
+
+if __name__ == "__main__":
+    run()

@@ -1,0 +1,33 @@
+name: Durable video-ID regression tests
+
+on:
+  pull_request:
+    paths:
+      - 'autoreactions.py'
+      - 'check_live_streams.py'
+      - 'notification_history.py'
+      - 'tests/test_durable_dedup.py'
+      - '.github/workflows/youtube-tracker.yml'
+      - '.github/workflows/check_live_streams.yml'
+      - '.github/workflows/durable-dedup-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install offline test dependencies
+        run: pip install -r requirements.txt
+      - name: Verify durable video ID dedup without any production secrets or webhooks
+        env:
+          YOUTUBE_API_KEY: offline-test-key
+          DISCORD_WEBHOOK_URL: https://example.invalid/no-webhook
+          HISTORY_ENABLED: "true"
+        run: python -m unittest discover -s tests -p 'test_durable_dedup.py' -v

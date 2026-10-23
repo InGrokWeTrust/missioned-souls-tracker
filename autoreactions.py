@@ -6,6 +6,7 @@ import requests
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
+from notification_history import read_ids, save_ids
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -30,16 +31,32 @@ youtube = build('youtube', 'v3', developerKey=API_KEY)
 
 
 def load_last_run():
+    """Read the legacy timestamp bookmark; refuse corrupt state."""
     try:
         with open(LAST_RUN_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f).get('last_published_at')
-    except:
+            state = json.load(f)
+    except FileNotFoundError:
         return None
+    if not isinstance(state, dict):
+        raise ValueError("Invalid last-run bookmark (expected object)")
+    value = state.get('last_published_at')
+    if value is not None and (not isinstance(value, str) or not value):
+        raise ValueError("Invalid last_published_at in bookmark")
+    return value
 
 
 def save_last_run(published_at):
-    with open(LAST_RUN_FILE, 'w', encoding='utf-8') as f:
-        json.dump({"last_published_at": published_at}, f, indent=2)
+    """Atomically write the original bookmark only after confirmed delivery."""
+    temporary = LAST_RUN_FILE + ".tmp"
+    try:
+        with open(temporary, 'w', encoding='utf-8') as f:
+            json.dump({"last_published_at": published_at}, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporary, LAST_RUN_FILE)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
     print(f"💾 Updated {LAST_RUN_FILE} → {published_at[:10]}")
 
 
@@ -311,14 +328,22 @@ def get_reactions_with_stats():
     return all_videos, run_start
 
 
-def send_to_discord(videos, max_to_send=5, run_start=None):
+def send_to_discord(videos, max_to_send=5, run_start=None, seen_ids=None):
+    """Send and durably record each accepted webhook, before the next send."""
     if not videos:
         print("⚠️ No new videos to send.")
-        return
+        return []
+    if seen_ids is None:
+        seen_ids = set()
+    delivered = []
 
     print(f"\n📨 Sending {min(max_to_send, len(videos))} new reactions to Discord...\n")
 
     for video in videos[:max_to_send]:
+        vid = video['video_id']
+        if vid in seen_ids:
+            print(f"⏭️ Already delivered: {vid}")
+            continue
         title = video['title']
         if video.get('live_broadcast_content') == 'live':
             title = f"🔴 LIVE: {title}"
@@ -351,52 +376,76 @@ def send_to_discord(videos, max_to_send=5, run_start=None):
 
         try:
             response = requests.post(DISCORD_WEBHOOK_URL, json=data, timeout=10)
-            if response.status_code == 204:
-                print(f"✅ Sent: [{posted_value}] {title[:60]}...")
-            else:
-                print(f"❌ Discord error {response.status_code}")
         except Exception as e:
-            print(f"❌ Failed to send: {e}")
+            raise RuntimeError(f"Discord delivery failed for {vid}; bookmark unchanged") from e
+        if response.status_code != 204:
+            raise RuntimeError(f"Discord HTTP {response.status_code} for {vid}; bookmark unchanged")
+        # Durable history is the primary dedup source. If it cannot be written,
+        # stop immediately: never mark this notification as fully acknowledged.
+        save_ids("reactions", [vid])
+        seen_ids.add(vid)
+        delivered.append(video)
+        print(f"✅ Sent: [{posted_value}] {title[:60]}...")
         time.sleep(1.3)
+    return delivered
 
 
 # ===================== MAIN =====================
-if __name__ == "__main__":
+def run():
     print("🚀 Missioned Souls Reaction Tracker Started\n")
+    # Read both confirmed-delivery ledgers *before* any YouTube or Discord call.
+    # An unavailable ledger causes a safe failure rather than duplicate posts.
+    reaction_ids = read_ids("reactions")
+    live_ids = read_ids("live")
+    already_delivered = reaction_ids | live_ids
+    print(f"📋 Durable delivered history: {len(reaction_ids)} reactions, "
+          f"{len(live_ids)} live IDs")
 
     last_published = load_last_run()
     print(f"📅 Last run timestamp: {last_published[:10] if last_published else 'No bookmark — will be set this run'}")
-
     videos, run_start = get_reactions_with_stats()
 
     if not last_published:
+        # Missing legacy bookmark: seed the cutoff without replaying uploads.
         if videos:
-            newest_timestamp = videos[-1]['published_at']
+            newest_timestamp = max(v['published_at'] for v in videos)
             save_last_run(newest_timestamp)
-            print(f"📌 Initial bookmark set to: {newest_timestamp}")
+            print(f"📌 Initial bookmark set without Discord delivery: {newest_timestamp}")
         else:
             print("ℹ️ No videos found — bookmark not set")
         print("\n🎉 All done!")
-        raise SystemExit(0)
+        return []
 
-    if FORCE_SEND_ALL:
-        new_videos = videos
-        print(f"🔄 Force mode: Sending latest {len(new_videos)} videos")
-    else:
-        new_videos = [v for v in videos if v['published_at'] > last_published]
-        print(f"🆕 Found {len(new_videos)} new reactions since last run")
+    unseen = []
+    seen_this_run = set()
+    for v in videos:
+        vid = v["video_id"]
+        if vid in already_delivered or vid in seen_this_run:
+            continue
+        seen_this_run.add(vid)
+        if FORCE_SEND_ALL or v["published_at"] > last_published:
+            unseen.append(v)
+    unseen.sort(key=lambda v: (v["published_at"], v["video_id"]))
+    print(f"🆕 {len(unseen)} eligible unseen reaction videos "
+          f"(previously delivered IDs always excluded)")
 
-    new_videos.sort(key=lambda x: x['published_at'], reverse=False)
-
-    if new_videos:
-        top_videos = new_videos[-MAX_TO_SEND:] if len(new_videos) >= MAX_TO_SEND else new_videos
-        send_to_discord(top_videos, max_to_send=MAX_TO_SEND, run_start=run_start)
-
-        newest_timestamp = new_videos[-1]['published_at']
-        save_last_run(newest_timestamp)
-        print(f"📌 Bookmark updated to: {newest_timestamp}")
-    else:
-        send_to_discord([], max_to_send=MAX_TO_SEND)
-        print("ℹ️ No new videos – bookmark unchanged")
-
+    # Send oldest eligible videos first, so a capped batch or webhook failure
+    # cannot push the timestamp past still-undelivered videos.
+    batch = unseen[:MAX_TO_SEND]
+    if not batch:
+        print("ℹ️ No undelivered reactions — bookmark unchanged")
+        return []
+    delivered = send_to_discord(
+        batch, max_to_send=MAX_TO_SEND, run_start=run_start,
+        seen_ids=already_delivered)
+    if delivered:
+        newest_timestamp = max(v["published_at"] for v in delivered)
+        if newest_timestamp > last_published:
+            save_last_run(newest_timestamp)
+        print(f"📌 {len(delivered)} newly sent IDs saved durably")
     print("\n🎉 All done!")
+    return delivered
+
+
+if __name__ == "__main__":
+    run()
