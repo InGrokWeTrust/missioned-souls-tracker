@@ -23,8 +23,26 @@ jobs:
         run: pip install -r requirements.txt
       - name: Fetch durable history branch (read only)
         run: git fetch origin notification-history:refs/remotes/origin/notification-history
-      - name: Audit recent uploads and search recall (no writes or Discord)
+      - name: Inspect classification evidence for a few potential misses (one API call)
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           DRY_RUN: 'true'
-        run: python audit_reaction_recall_20261023.py
+        run: |
+          python - <<'PY'
+          import os, re, json
+          from googleapiclient.discovery import build
+          from new_channel_reaction_evidence import clear_reaction_title
+          ids = ["7F7-Lma-yu4","nkuD2K9hLSM","BINBOChFeDQ","JJLHKtFPtkk","vNyX3eQXB4o","6Eyo2b3sD3M"]
+          api = build("youtube", "v3", developerKey=os.environ["YOUTUBE_API_KEY"])
+          response = api.videos().list(part="snippet,contentDetails,status",id=",".join(ids)).execute()
+          for video in response.get("items", []):
+              sn = video["snippet"]
+              d = {"title":sn.get("title",""), "channel":sn.get("channelTitle",""),
+                   "description":sn.get("description","")}
+              print(json.dumps({
+                  "id":video["id"], "title":d["title"], "channel":d["channel"],
+                  "description_start":d["description"][:550],
+                  "hashtag_list":re.findall(r"(?<![a-z0-9])#[a-z0-9]+",d["description"].lower())[:25],
+                  "reacts_classified":clear_reaction_title(d)
+              },ensure_ascii=False))
+          PY
