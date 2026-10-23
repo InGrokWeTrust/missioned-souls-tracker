@@ -6,7 +6,9 @@ from channel_exclusions import is_excluded_channel
 from reaction_channel_policy import is_official_artist_channel
 from discovery_video_handoff import add_candidates, active_candidates
 from discovery_search_plan import discovery_queries
-from new_channel_reaction_evidence import subject_reaction_search_hit
+from new_channel_reaction_evidence import (
+    subject_reaction_search_hit, contextual_reaction_evidence
+)
 
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
@@ -88,7 +90,14 @@ def discover_channels(*, include_videos=False, rotation_slot=None):
             channel_title = snippet.get("channelTitle", "")
             if (channel_id and channel_title and not is_excluded_channel(channel_id)
                     and not is_official_artist_channel(channel_id)
-                    and subject_reaction_search_hit(snippet, subject=CHANNEL_NAME)):
+                    and (
+                        subject_reaction_search_hit(snippet, subject=CHANNEL_NAME)
+                        or contextual_reaction_evidence({
+                            "title": snippet.get("title", ""),
+                            "description": snippet.get("description", ""),
+                            "channel": channel_title,
+                        }, subject=CHANNEL_NAME)
+                    )):
                 discovered[channel_id] = channel_title
                 if include_videos:
                     vid = (item.get("id") or {}).get("videoId")
