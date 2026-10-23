@@ -26,17 +26,19 @@ def result(i, title="Missioned Souls reaction", channel="Reaction Lab"):
 
 
 class DiscoveryAndLiveTests(unittest.TestCase):
-    def test_two_pages_of_discovery(self):
+    def test_broad_plus_rotating_keyword_discovery(self):
         one = {"items": [result(1)], "nextPageToken": "next-token"}
         two = {"items": [result(2)], "nextPageToken": None}
         search = MagicMock()
         search.list.return_value.execute.side_effect = [one, two]
         with patch.object(discovery, "youtube") as yt, patch.object(discovery, "DISCOVERY_PAGES", 2):
             yt.search.return_value = search
-            found = discovery.discover_channels(targeted=False)
+            found = discovery.discover_channels(rotation_slot=0)
         self.assertEqual(set(found), {"UC-1", "UC-2"})
         self.assertEqual(search.list.call_count, 2)
-        self.assertEqual(search.list.call_args_list[1].kwargs["pageToken"], "next-token")
+        self.assertEqual(search.list.call_args_list[0].kwargs["q"], '"Missioned Souls"')
+        self.assertEqual(search.list.call_args_list[1].kwargs["q"], '"Missioned Souls" reaction')
+        self.assertNotIn("pageToken", search.list.call_args_list[1].kwargs)
 
     def test_unrelated_search_titles_not_added(self):
         with patch.object(discovery, "youtube") as yt:
