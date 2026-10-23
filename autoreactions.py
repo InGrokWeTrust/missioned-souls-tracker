@@ -34,9 +34,11 @@ AUCKLAND_TZ = ZoneInfo("Pacific/Auckland")
 youtube = build('youtube', 'v3', developerKey=API_KEY)
 
 
-# The legacy timestamp remains the cutoff. Only uploads held for
-# publication/thumbnail availability require a small persistent retry record.
+# Keep the legacy timestamp as a discovery cutoff. Exact video IDs persist
+# across capped batches, failures and changes in a channel's newest uploads.
+# This queue does not classify reactions or perform generic historical backfill.
 MAX_HELD_VODS = 200
+MAX_PENDING_VODS = 2000
 
 
 def _read_bookmark():
@@ -78,8 +80,29 @@ def load_held_videos():
     return out
 
 
+def load_pending_videos():
+    """Restore already-discovered, unsent VOD IDs for recheck after each run."""
+    values = _read_bookmark().get('pending_videos', [])
+    if not isinstance(values, list) or len(values) > MAX_PENDING_VODS:
+        raise ValueError("Invalid pending-video bookmark")
+    result, seen = [], set()
+    for entry in values:
+        if not isinstance(entry, dict):
+            raise ValueError("Invalid pending-video record")
+        cid, vid, stamp = (entry.get('channel_id'), entry.get('video_id'),
+                           entry.get('published_at'))
+        if not all(isinstance(v, str) and v for v in (cid, vid, stamp)):
+            raise ValueError("Invalid pending-video identity")
+        if vid in seen:
+            raise ValueError("Duplicate pending-video identity")
+        seen.add(vid)
+        result.append({'channel_id': cid, 'video_id': vid,
+                       'published_at': stamp})
+    return result
+
+
 def _save_bookmark(data):
-    """Atomic bookmark update; never lose held IDs when timestamp advances."""
+    """Atomic bookmark update; preserve both pending and held IDs."""
     temporary = LAST_RUN_FILE + ".tmp"
     try:
         with open(temporary, 'w', encoding='utf-8') as f:
@@ -108,6 +131,23 @@ def save_held_videos(held):
     data['held_videos'] = list(held.values())
     _save_bookmark(data)
     print(f"💾 Retained {len(held)} waiting VODs for publication/thumbnail retry")
+
+
+def save_notification_queue(held, pending):
+    """Atomically persist both kinds of unsent IDs before the first webhook.
+
+    A queue-capacity failure must happen before any Discord notifications,
+    never after a bookmark advances past another unsent video.
+    """
+    if len(held) > MAX_HELD_VODS or len(pending) > MAX_PENDING_VODS:
+        raise RuntimeError("Notification queue capacity reached; retaining saved state")
+    if set(held) & set(pending):
+        raise RuntimeError("A video cannot be both held and ready in the pending queue")
+    data = _read_bookmark()
+    data['held_videos'] = list(held.values())
+    data['pending_videos'] = list(pending.values())
+    _save_bookmark(data)
+    print(f"💾 Unsent queue saved: {len(pending)} ready, {len(held)} waiting")
 
 
 def load_tracked_channels():
@@ -531,7 +571,7 @@ def send_to_discord(videos, max_to_send=5, run_start=None, seen_ids=None):
 # ===================== MAIN =====================
 def run():
     print("🚀 Missioned Souls Reaction Tracker Started\n")
-    # Fail closed before YouTube/Discord if delivery ledgers are unavailable.
+    # An unavailable delivered-ID ledger must fail before any YouTube/Discord call.
     reaction_ids = read_ids("reactions")
     live_ids = read_ids("live")
     already_delivered = reaction_ids | live_ids
@@ -540,76 +580,96 @@ def run():
 
     last_published = load_last_run()
     original_held = load_held_videos()
-    # An old bookmark may contain newly excluded or already-delivered IDs.
-    held = {v['video_id']: v for v in original_held
-            if not is_excluded_channel(v['channel_id'])
-            and v['video_id'] not in already_delivered}
-    print(f"📅 Last run timestamp: {last_published[:10] if last_published else 'No bookmark — will be set this run'}")
-    videos, run_start = get_reactions_with_stats(held=list(held.values()))
+    original_pending = load_pending_videos()
+
+    # Previously delivered, excluded or invalidly retained IDs cannot be
+    # announced again even if saved in an older bookmark artifact.
+    def allowed(record):
+        return (not is_excluded_channel(record['channel_id'])
+                and record['video_id'] not in already_delivered)
+    held = {v['video_id']: v for v in original_held if allowed(v)}
+    pending = {v['video_id']: v for v in original_pending if allowed(v)
+               and v['video_id'] not in held}
+
+    print(f"📅 Last run timestamp: "
+          f"{last_published[:10] if last_published else 'No bookmark — will be set this run'}")
+    print(f"📬 Restored unsent queue: {len(pending)} ready, {len(held)} waiting")
+    # Reconfirm exact pending IDs alongside waiting and discovery source IDs
+    # even if a newer burst of uploads pushes those IDs beyond the last five.
+    retry_ids = list(held.values()) + list(pending.values())
+    videos, run_start = get_reactions_with_stats(held=retry_ids)
     videos = [v for v in videos if not is_excluded_channel(v.get('channel_id'))]
 
     if not last_published:
-        # Original bootstrap policy: no historical upload is resent.
+        # Preserve original first-run bootstrap: seed a cutoff but never
+        # replay an unknown set of existing historical uploads.
         if videos:
             newest = max(v['published_at'] for v in videos)
             save_last_run(newest)
             print(f"📌 Initial bookmark set without Discord delivery: {newest}")
-        if len(held) != len(original_held):
-            save_held_videos(held)
+        if len(held) != len(original_held) or len(pending) != len(original_pending):
+            save_notification_queue(held, pending)
         print("\n🎉 All done!")
         return []
 
-    eligible = []
-    seen_in_scan = set()
+    ready = {}
+    seen_this_scan = set()
     for video in videos:
         vid = video['video_id']
-        if vid in already_delivered or vid in seen_in_scan:
+        if vid in already_delivered or vid in seen_this_scan:
             continue
-        seen_in_scan.add(vid)
-        # Source video-ID handoff is independently verified in videos.list
-        # and may predate the original timestamp when its channel was added.
-        allowed = (FORCE_SEND_ALL or video['published_at'] > last_published
-                   or video.get('discovery_handoff') or vid in held)
-        if not allowed:
+        seen_this_scan.add(vid)
+        # Original title matching remains unchanged inside the scan.
+        # The IDs already queued or discovered are not discarded merely
+        # because their published timestamp precedes the advancing cutoff.
+        allowed_candidate = (FORCE_SEND_ALL or video['published_at'] > last_published
+                             or video.get('discovery_handoff')
+                             or vid in held or vid in pending)
+        if not allowed_candidate:
             continue
 
+        record = {'channel_id': video['channel_id'], 'video_id': vid,
+                  'published_at': video['published_at']}
         if not is_published_vod(video):
-            held[vid] = {'channel_id': video['channel_id'], 'video_id': vid,
-                         'published_at': video['published_at']}
+            held[vid] = record
+            pending.pop(vid, None)
             print(f"⏳ Waiting for publication/end of stream: {vid}")
             continue
         if not valid_thumbnail(video.get('thumbnail'), vid):
-            held[vid] = {'channel_id': video['channel_id'], 'video_id': vid,
-                         'published_at': video['published_at']}
+            held[vid] = record
+            pending.pop(vid, None)
             print(f"🖼️ Waiting for an official video thumbnail: {vid}")
             continue
-        eligible.append(video)
 
-    eligible.sort(key=lambda v: (v['published_at'], v['video_id']))
-    print(f"🆕 {len(eligible)} eligible unseen published reaction VODs")
-    print(f"📦 {len(held)} held pending publication/thumbnail")
+        held.pop(vid, None)
+        pending[vid] = record
+        ready[vid] = video
 
-    # Persist waiting video IDs *before* posting anything; if the video falls
-    # outside the newest five uploads next run, it must still be retried.
-    if list(held.values()) != original_held:
-        save_held_videos(held)
+    # Persist the ENTIRE ready queue before the first Discord webhook. This
+    # also preserves unsent batch overflow when MAX_TO_SEND is reached.
+    if (list(held.values()) != original_held
+            or list(pending.values()) != original_pending):
+        save_notification_queue(held, pending)
 
-    chosen = eligible[:MAX_TO_SEND]
+    chosen = sorted(ready.values(), key=lambda v: (
+        v['published_at'], v['video_id']))[:MAX_TO_SEND]
+    print(f"🆕 {len(ready)} ready unpublished-to-Discord VODs; "
+          f"{len(pending)} total queued, {len(held)} held")
     if not chosen:
-        print("ℹ️ No ready reactions — bookmark unchanged")
+        print("ℹ️ No ready VODs to notify — unsent queue retained")
         return []
 
+    # Durable remote IDs are appended after each confirmed HTTP 204. If a
+    # webhook or history write fails halfway through, the saved queue remains.
     delivered = send_to_discord(
         chosen, max_to_send=MAX_TO_SEND, run_start=run_start,
         seen_ids=already_delivered)
-    # Durable delivered-ID history is updated immediately after each webhook.
-    # Remove released held IDs only once delivery is independently confirmed.
-    changed = False
     for video in delivered:
-        if held.pop(video['video_id'], None) is not None:
-            changed = True
-    if changed:
-        save_held_videos(held)
+        pending.pop(video['video_id'], None)
+        held.pop(video['video_id'], None)
+        # Record queue progress as well as confirmed remote history.
+        save_notification_queue(held, pending)
+
     if delivered:
         newest = max(v['published_at'] for v in delivered)
         if newest > last_published:
@@ -617,7 +677,6 @@ def run():
         print(f"📌 {len(delivered)} newly sent IDs saved durably")
     print("\n🎉 All done!")
     return delivered
-
 
 if __name__ == "__main__":
     run()
