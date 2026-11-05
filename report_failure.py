@@ -88,6 +88,29 @@ def classify_error(log, workflow=""):
             "No historical videos should be replayed manually.",
         )
 
+    if ("unreconciled discord delivery attempt" in low or
+            "discord delivery outcome uncertain" in low or
+            "invalid unconfirmed discord delivery marker" in low):
+        return (
+            "Discord notification acknowledgement needs review",
+            "A Discord attempt may have succeeded without a confirmed "
+            "delivery record. Automated reposting is blocked. Review "
+            "the notification-history ledger, saved bookmark and Discord "
+            "message before resuming.",
+        )
+
+    if ("notification_history.py" in low and
+            any(status in low for status in (
+                "http error 500", "http error 502", "http error 503",
+                "http error 504", "httperror 500", "httperror 502",
+                "httperror 503", "httperror 504"))):
+        return (
+            "GitHub delivery-history service temporarily unavailable",
+            "GitHub could not acknowledge the notification-history write. "
+            "The tracker will recheck the ledger and retain an uncertain "
+            "Discord attempt for review if confirmation cannot be obtained.",
+        )
+
     if ("durable" in low and "history" in low and
             any(t in low for t in ("unavailable", "failed", "invalid",
                                    "missing", "unknown", "unable", "requires"))):

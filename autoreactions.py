@@ -120,6 +120,62 @@ def _save_bookmark(data):
             os.unlink(temporary)
 
 
+
+# Saved in the same bookmark artifact as pending/held videos. This marker
+# is written BEFORE attempting Discord, since HTTP timeouts and GitHub 5xx
+# can leave delivery status ambiguous.
+UNCERTAIN_DELIVERY_KEY = "unconfirmed_discord_video_id"
+
+
+def _unconfirmed_discord_video_id():
+    value = _read_bookmark().get(UNCERTAIN_DELIVERY_KEY)
+    if value is not None and (not isinstance(value, str)
+                              or not value or len(value) > 128):
+        raise ValueError("Invalid unconfirmed Discord delivery marker")
+    return value
+
+
+def mark_discord_attempt(video_id):
+    """Persist a single in-flight ID before the irreversible webhook POST."""
+    if DRY_RUN:
+        raise RuntimeError("DRY RUN: Discord delivery attempt is disabled")
+    if not isinstance(video_id, str) or not video_id or len(video_id) > 128:
+        raise ValueError("Invalid Discord delivery attempt ID")
+    data = _read_bookmark()
+    if data.get(UNCERTAIN_DELIVERY_KEY) is not None:
+        raise RuntimeError("Unreconciled Discord delivery attempt; refusing another POST")
+    data[UNCERTAIN_DELIVERY_KEY] = video_id
+    _save_bookmark(data)
+
+
+def clear_discord_attempt(video_id):
+    """Remove the marker only after durable acknowledgement or explicit rejection."""
+    data = _read_bookmark()
+    if data.get(UNCERTAIN_DELIVERY_KEY) != video_id:
+        raise RuntimeError("Discord delivery marker mismatch; refusing to clear")
+    del data[UNCERTAIN_DELIVERY_KEY]
+    _save_bookmark(data)
+
+
+def check_unconfirmed_discord_attempt(confirmed_ids):
+    """Fail closed unless the remote ledger proves the prior attempt was recorded.
+
+    A pre-POST marker is not proof that Discord accepted the message.
+    Never append it to the delivered ledger without independent evidence.
+    """
+    video_id = _unconfirmed_discord_video_id()
+    if video_id is None:
+        return
+    if video_id in confirmed_ids:
+        clear_discord_attempt(video_id)
+        print("✅ Previously uncertain Discord attempt confirmed by durable history")
+        return
+    raise RuntimeError(
+        "Unreconciled Discord delivery attempt: verify the Discord post and "
+        "confirmed-ID history before resuming automated notifications"
+    )
+
+
 def save_last_run(published_at):
     """Save original timestamp while retaining deferred releases."""
     data = _read_bookmark()
@@ -503,7 +559,8 @@ def get_reactions_with_stats(*, held=None):
     return all_videos, run_start
 
 
-def send_to_discord(videos, max_to_send=5, run_start=None, seen_ids=None):
+def send_to_discord(videos, max_to_send=5, run_start=None, seen_ids=None,
+                    before_post=None, after_confirmed=None, after_rejected=None):
     """Send and durably record each accepted webhook, before the next send."""
     if DRY_RUN:
         print(f"🧪 DRY RUN: Discord webhook suppressed; {min(max_to_send, len(videos))} would be sent")
@@ -560,15 +617,26 @@ def send_to_discord(videos, max_to_send=5, run_start=None, seen_ids=None):
             "embeds": [embed]
         }
 
+        # Persist the in-flight ID before POST so that HTTP timeouts and
+        # GitHub write failures cannot cause an unattended duplicate.
+        if before_post is not None:
+            before_post(vid)
         try:
             response = requests.post(DISCORD_WEBHOOK_URL, json=data, timeout=10)
         except Exception as e:
-            raise RuntimeError(f"Discord delivery failed for {vid}; bookmark unchanged") from e
+            # Outcome unknown: keep the attempt marker for manual review.
+            raise RuntimeError(f"Discord delivery outcome uncertain for {vid}") from e
         if response.status_code != 204:
+            # An explicit non-204 was rejected, so this attempt did not
+            # receive successful acknowledgement from Discord.
+            if after_rejected is not None:
+                after_rejected(vid)
             raise RuntimeError(f"Discord HTTP {response.status_code} for {vid}; bookmark unchanged")
-        # Durable history is the primary dedup source. If it cannot be written,
-        # stop immediately: never mark this notification as fully acknowledged.
+        # A successful Discord POST and a confirmed-ID GitHub write are
+        # separate operations. Retry only the GitHub write, NEVER the POST.
         save_ids("reactions", [vid])
+        if after_confirmed is not None:
+            after_confirmed(vid)
         seen_ids.add(vid)
         delivered.append(video)
         print(f"✅ Sent: [{posted_value}] {title[:60]}...")
@@ -583,6 +651,10 @@ def run():
     reaction_ids = read_ids("reactions")
     live_ids = read_ids("live")
     already_delivered = reaction_ids | live_ids
+    # Check the saved pre-POST attempt before searching or sending anything.
+    # If the ledger contains the ID, cleanup is automatic; otherwise do not
+    # guess whether Discord received it.
+    check_unconfirmed_discord_attempt(already_delivered)
     print(f"📋 Durable delivered history: {len(reaction_ids)} reactions, "
           f"{len(live_ids)} live IDs")
 
@@ -684,7 +756,9 @@ def run():
     # webhook or history write fails halfway through, the saved queue remains.
     delivered = send_to_discord(
         chosen, max_to_send=MAX_TO_SEND, run_start=run_start,
-        seen_ids=already_delivered)
+        seen_ids=already_delivered, before_post=mark_discord_attempt,
+        after_confirmed=clear_discord_attempt,
+        after_rejected=clear_discord_attempt)
     for video in delivered:
         pending.pop(video['video_id'], None)
         held.pop(video['video_id'], None)

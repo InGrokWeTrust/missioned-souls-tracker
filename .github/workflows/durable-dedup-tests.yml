@@ -25,6 +25,8 @@ on:
       - 'tests/test_dry_run_safety.py'
       - 'tests/test_dry_run_workflow_wiring.py'
       - 'tests/test_durable_dedup.py'
+      - 'tests/test_history_502_reconciliation.py'
+      - 'notification_history.py'
       - '.github/workflows/youtube-tracker.yml'
       - '.github/workflows/check_live_streams.yml'
       - '.github/workflows/durable-dedup-tests.yml'
