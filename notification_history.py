@@ -6,6 +6,7 @@ long-lived deduplication source and is never reset from a single artifact.
 import base64
 import json
 import os
+import time
 from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -72,35 +73,54 @@ def read_ids(kind):
     return set(remote)
 
 
+# A failed GitHub write can have committed despite an HTTP 5xx response.
+# Read the authoritative remote ledger again before retrying the PUT.
+RETRYABLE_HISTORY_STATUS = frozenset({500, 502, 503, 504})
+MAX_HISTORY_WRITE_ATTEMPTS = 5
+
+
 def save_ids(kind, ids):
-    """Persist a growing union using GitHub's SHA compare-and-swap."""
-    # Defense in depth: even accidental direct calls must not mutate
-    # the confirmed-delivery ledger in a dry-run workflow.
+    """Persist append-only IDs, reconciling ambiguous transient API failures.
+
+    A Discord webhook is NEVER retried here. Re-fetch remote history before
+    each PUT; if a previous write actually committed, accept that evidence.
+    Exhausted/transiently unreadable history still fails closed for the
+    caller's durable delivery-attempt marker.
+    """
     if os.getenv("DRY_RUN", "false").strip().lower() == "true":
         raise RuntimeError("DRY RUN: durable history writes are disabled")
     if not HISTORY_ENABLED:
         raise RuntimeError("Durable notification history must be enabled")
     incoming = _ids(ids)
-    for attempt in range(5):
-        remote, sha = _read_remote(kind)
-        combined = merge_ids(remote, incoming)
-        if combined == remote:
-            return combined
-        value = {"version": 1, "sent_video_ids": combined}
-        encoded = base64.b64encode((json.dumps(value, indent=2) + "\n").encode()).decode()
-        body = {
-            "message": "Record confirmed " + kind + " notifications",
-            "branch": HISTORY_BRANCH,
-            "sha": sha,
-            "content": encoded,
-        }
+    for attempt in range(MAX_HISTORY_WRITE_ATTEMPTS):
         try:
+            remote, sha = _read_remote(kind)
+            combined = merge_ids(remote, incoming)
+            if combined == remote:
+                if attempt:
+                    print("✅ Durable " + kind + " history already contains confirmed ID(s)")
+                return combined
+            value = {"version": 1, "sent_video_ids": combined}
+            encoded = base64.b64encode((json.dumps(value, indent=2) + "\n").encode()).decode()
+            body = {
+                "message": "Record confirmed " + kind + " notifications",
+                "branch": HISTORY_BRANCH,
+                "sha": sha,
+                "content": encoded,
+            }
             _api_request("PUT", "contents/" + KINDS[kind], body)
             print("💾 Durable " + kind + " history saved: " + str(len(combined)) + " IDs")
             return combined
         except HTTPError as error:
-            if error.code not in (409, 422) or attempt == 4:
+            code = error.code
+            if code not in (409, 422) and code not in RETRYABLE_HISTORY_STATUS:
                 raise
+            if attempt == MAX_HISTORY_WRITE_ATTEMPTS - 1:
+                raise
+            if code in RETRYABLE_HISTORY_STATUS:
+                delay = min(2 ** attempt, 4)
+                print(f"⚠️ Transient GitHub history HTTP {code}; rechecking ledger after {delay}s")
+                time.sleep(delay)
+            else:
+                print("⚠️ Concurrent GitHub history update; re-reading ledger")
     raise RuntimeError("Unable to reconcile durable history after retries")
-
-
