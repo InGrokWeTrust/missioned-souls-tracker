@@ -20,6 +20,7 @@ os.environ.setdefault("HISTORY_ENABLED", "true")
 
 import autoreactions as reaction
 import notification_history as history
+from report_failure import classify_error
 
 VID = "pwilr3k_zmU"
 STAMP = "2026-11-05T16:00:00Z"
@@ -217,6 +218,28 @@ class DiscordAttemptBookmarkTests(unittest.TestCase):
             self.assertEqual(reaction.run(), [])
             post.assert_not_called()
         self.assertNotIn("unconfirmed_discord_video_id", self.state())
+
+
+class SanitizedHistoryErrorTests(unittest.TestCase):
+    def test_replayed_502_trace_is_classified_as_github_history_not_youtube(self):
+        snippet = (
+            "Traceback (most recent call last):\n"
+            '  File "notification_history.py", line 98, in save_ids\n'
+            '    _api_request("PUT", "contents/history/reactions.json", body)\n'
+            "urllib.error.HTTPError: HTTP Error 502: Bad Gateway\n"
+        )
+        result = classify_error(snippet, "YouTube Reaction Tracker")
+        self.assertEqual(result[0], "GitHub delivery-history service temporarily unavailable")
+        self.assertNotIn("youtube", result[1].lower())
+
+    def test_unresolved_marker_explains_manual_review_not_retrying_webhook(self):
+        result = classify_error(
+            "RuntimeError: Unreconciled Discord delivery attempt: "
+            "verify the Discord post and confirmed-ID history",
+            "YouTube Reaction Tracker")
+        self.assertEqual(result[0], "Discord notification acknowledgement needs review")
+        self.assertIn("blocked", result[1].lower())
+        self.assertNotIn("github.com", result[1].lower())
 
 
 if __name__ == "__main__":
