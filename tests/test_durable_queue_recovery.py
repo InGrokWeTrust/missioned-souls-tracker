@@ -151,7 +151,7 @@ class DurableQueueTests(unittest.TestCase):
     def test_duplicate_cross_queue_video_ids_rejected_before_remote_write(self):
         self.seeded()
         before = len(self.fake.puts)
-        with self.assertRaisesRegex(ValueError, "Duplicate video ID"):
+        with self.assertRaisesRegex(RuntimeError, "both held and ready"):
             reaction.save_notification_queue({VID: queue_record(VID)},
                                              {VID: queue_record(VID)})
         self.assertEqual(len(self.fake.puts), before)
