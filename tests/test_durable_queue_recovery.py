@@ -195,6 +195,39 @@ class DurableQueueTests(unittest.TestCase):
         self.assertEqual(self.fake.puts, [])
         self.assertEqual(self.path.read_bytes(), before)
 
+    def test_dry_run_refuses_stale_local_snapshot_without_mutating_state(self):
+        self.seeded()
+        self.path.write_text(json.dumps(state(pending=[], held=[])), encoding="utf-8")
+        before = self.path.read_bytes()
+        commits = len(self.fake.puts)
+        with patch.object(reaction, "DRY_RUN", True), patch.dict(
+            os.environ, {"DRY_RUN": "true"}):
+            with self.assertRaisesRegex(RuntimeError, "differs from durable queue"):
+                reaction.restore_durable_queue()
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertEqual(len(self.fake.puts), commits)
+
+    def test_dry_run_refuses_missing_local_bookmark_after_remote_seed(self):
+        self.seeded()
+        self.path.unlink()
+        commits = len(self.fake.puts)
+        with patch.object(reaction, "DRY_RUN", True), patch.dict(
+            os.environ, {"DRY_RUN": "true"}):
+            with self.assertRaisesRegex(RuntimeError, "differs from durable queue"):
+                reaction.restore_durable_queue()
+        self.assertFalse(self.path.exists())
+        self.assertEqual(len(self.fake.puts), commits)
+
+    def test_dry_run_accepts_exact_local_remote_queue_parity(self):
+        self.seeded()
+        before = self.path.read_bytes()
+        commits = len(self.fake.puts)
+        with patch.object(reaction, "DRY_RUN", True), patch.dict(
+            os.environ, {"DRY_RUN": "true"}):
+            reaction.restore_durable_queue()
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertEqual(len(self.fake.puts), commits)
+
     def test_bounded_queue_enforced(self):
         bad = state(pending=[queue_record(f"vid-{i}") for i in range(2001)])
         with self.assertRaises(ValueError):
