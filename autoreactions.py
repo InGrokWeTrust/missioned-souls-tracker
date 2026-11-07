@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from notification_history import (read_ids, save_ids, reserve_delivery,
-                                  confirm_delivery, reject_delivery)
+                                  confirm_delivery, reject_delivery,
+                                  read_reaction_queue, save_reaction_queue)
 from channel_exclusions import is_excluded_channel
 from discovery_video_handoff import handoff_for_scan
 from thumbnail_policy import select_thumbnail, valid_thumbnail, require_thumbnails
@@ -62,6 +63,70 @@ def _read_bookmark():
     return data
 
 
+def _queue_snapshot(data):
+    """Only queue identities and coverage timestamps enter permanent history.
+
+    Local Discord attempt markers remain separate and never count as delivery.
+    """
+    return {
+        "version": 1,
+        "pending_videos": data.get("pending_videos", []),
+        "held_videos": data.get("held_videos", []),
+        "last_published_at": data.get("last_published_at"),
+        "last_complete_scan_at": data.get("last_complete_scan_at"),
+    }
+
+
+def _save_queue_and_bookmark(data):
+    """Commit remote queue BEFORE local artifact, timestamp, or Discord POST."""
+    if DRY_RUN:
+        return
+    save_reaction_queue(_queue_snapshot(data))
+    _save_bookmark(data)
+
+
+def restore_durable_queue():
+    """Recover the saved pending/held IDs even if the Actions artifact is gone.
+
+    First upgraded run must migrate a valid existing artifact. Once seeded,
+    the remote queue is authoritative and never reset from a missing/stale
+    artifact. Delivery history is read independently before this function.
+    """
+    remote = read_reaction_queue()
+    if remote is None:
+        # A missing artifact during migration is not a fresh installation.
+        # It could contain pending/unpublished video IDs: fail closed.
+        local = _read_bookmark()
+        if not local.get("last_published_at"):
+            raise RuntimeError(
+                "Durable reaction queue not initialized and original bookmark "
+                "unavailable; restore a validated artifact before retrying"
+            )
+        if not DRY_RUN:
+            save_reaction_queue(_queue_snapshot(local))
+            print("💾 Seeded durable reaction queue from existing bookmark")
+        return
+    if DRY_RUN:
+        print("🧪 DRY RUN: durable reaction queue inspected; bookmark unchanged")
+        return
+    # With remote state present, it is safe to rebuild a missing or corrupt
+    # local artifact. Remote unresolved delivery markers were checked first.
+    try:
+        local = _read_bookmark()
+    except (ValueError, json.JSONDecodeError, UnicodeError):
+        local = {}
+    merged = dict(local)
+    for key in ("pending_videos", "held_videos",
+                "last_published_at", "last_complete_scan_at"):
+        if remote.get(key) is None:
+            merged.pop(key, None)
+        else:
+            merged[key] = remote[key]
+    if merged != local:
+        _save_bookmark(merged)
+        print("📬 Recovered pending/held VODs and cutoffs from permanent GitHub history")
+
+
 def load_last_run():
     return _read_bookmark().get('last_published_at')
 
@@ -93,7 +158,7 @@ def save_complete_scan(run_start):
     if previous is not None and current < previous:
         raise RuntimeError("Complete-scan time moved backwards; refusing checkpoint")
     data["last_complete_scan_at"] = current.isoformat()
-    _save_bookmark(data)
+    _save_queue_and_bookmark(data)
     print("💾 Complete YouTube uploads scan checkpoint saved")
 
 
@@ -216,7 +281,7 @@ def save_last_run(published_at):
     """Save original timestamp while retaining deferred releases."""
     data = _read_bookmark()
     data['last_published_at'] = published_at
-    _save_bookmark(data)
+    _save_queue_and_bookmark(data)
     print(f"💾 Updated {LAST_RUN_FILE} → {published_at[:10]}")
 
 
@@ -226,7 +291,7 @@ def save_held_videos(held):
         raise RuntimeError("Held-video limit reached; refusing to lose an upload")
     data = _read_bookmark()
     data['held_videos'] = list(held.values())
-    _save_bookmark(data)
+    _save_queue_and_bookmark(data)
     print(f"💾 Retained {len(held)} waiting VODs for publication/thumbnail retry")
 
 
@@ -243,7 +308,7 @@ def save_notification_queue(held, pending):
     data = _read_bookmark()
     data['held_videos'] = list(held.values())
     data['pending_videos'] = list(pending.values())
-    _save_bookmark(data)
+    _save_queue_and_bookmark(data)
     print(f"💾 Unsent queue saved: {len(pending)} ready, {len(held)} waiting")
 
 
@@ -740,9 +805,11 @@ def run():
     reaction_ids = read_ids("reactions")
     live_ids = read_ids("live")
     already_delivered = reaction_ids | live_ids
-    # Check the saved pre-POST attempt before searching or sending anything.
-    # If the ledger contains the ID, cleanup is automatic; otherwise do not
-    # guess whether Discord received it.
+    # Permanent history must restore the queue BEFORE scanning. An unresolved
+    # GitHub pre-POST marker is already rejected by read_ids().
+    restore_durable_queue()
+    # If the remote ledger confirms an old local marker, clear it; otherwise
+    # fail closed and never guess whether a Discord POST succeeded.
     check_unconfirmed_discord_attempt(already_delivered)
     print(f"📋 Durable delivered history: {len(reaction_ids)} reactions, "
           f"{len(live_ids)} live IDs")
