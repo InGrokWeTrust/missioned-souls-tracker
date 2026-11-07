@@ -28,6 +28,7 @@ on:
       - 'tests/test_dry_run_workflow_wiring.py'
       - 'tests/test_durable_dedup.py'
       - 'tests/test_history_502_reconciliation.py'
+      - 'tests/test_durable_remote_delivery_gate.py'
       - 'tests/test_live_502_reconciliation.py'
       - 'tests/test_live_nz_timezone.py'
       - 'tests/test_incomplete_channel_scan.py'
