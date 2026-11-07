@@ -7,6 +7,7 @@ import json
 import os
 import tempfile
 import unittest
+from _mock_delivery import patch_sender_delivery
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -36,6 +37,7 @@ def video():
 
 class Live502ReconciliationTests(unittest.TestCase):
     def setUp(self):
+        patch_sender_delivery(self, live)
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.path = Path(temp.name) / "live_last_run.json"

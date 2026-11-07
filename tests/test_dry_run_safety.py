@@ -8,6 +8,7 @@ import json
 import os
 import tempfile
 import unittest
+from _mock_delivery import patch_sender_delivery
 from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
@@ -46,6 +47,7 @@ def sample(vid=VID, stamp="2026-10-23T08:00:00Z", broadcast="none"):
 
 class DryRunReactionTests(unittest.TestCase):
     def setUp(self):
+        patch_sender_delivery(self, reaction)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.bookmark = Path(self.tmp.name) / "last_run.json"
@@ -155,6 +157,7 @@ class DryRunReactionTests(unittest.TestCase):
 
 class DryRunLiveTests(unittest.TestCase):
     def setUp(self):
+        patch_sender_delivery(self, live)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.bookmark = Path(self.tmp.name) / "live_last_run.json"

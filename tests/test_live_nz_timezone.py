@@ -5,6 +5,7 @@ YouTube requests, or production state writes are made by this test suite.
 """
 import os
 import unittest
+from _mock_delivery import patch_sender_delivery
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -21,6 +22,9 @@ UTC_START = "2026-11-05T15:01:00Z"
 
 
 class LiveTimezoneTests(unittest.TestCase):
+    def setUp(self):
+        patch_sender_delivery(self, live)
+
     def test_november_daylight_saving_is_nzdt_plus_thirteen(self):
         self.assertEqual(live.format_published_time(UTC_START),
                          "4:01 AM NZDT")

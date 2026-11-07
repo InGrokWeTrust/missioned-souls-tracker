@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import unittest
+from _mock_delivery import patch_sender_delivery
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -84,6 +85,7 @@ class RemoteHistoryTests(unittest.TestCase):
 
 class ReactionDedupTests(unittest.TestCase):
     def setUp(self):
+        patch_sender_delivery(self, reaction)
         # Queue persistence must not leak state between offline test cases.
         self._bookmark_dir = tempfile.TemporaryDirectory()
         self._bookmark_patch = patch.object(
@@ -219,6 +221,9 @@ class ReactionDedupTests(unittest.TestCase):
 
 
 class LiveDedupTests(unittest.TestCase):
+    def setUp(self):
+        patch_sender_delivery(self, live)
+
     def test_cross_mode_dedup_and_confirmed_delivery(self):
         saved = {"reactions": {"already-reacted"}, "live": {"previously-live"}}
         ids = []

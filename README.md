@@ -116,6 +116,14 @@ Content-Type: application/json
 
 ---
 
+## 🔒 Durable Discord delivery attempts
+
+Both notification scripts write an optional `unconfirmed_discord_video_id` into their existing **version-1 GitHub history JSON** on the `notification-history` branch **before** sending a Discord webhook. The reservation is verified remotely first. After Discord returns HTTP 204, the ID is appended to confirmed history **in the same GitHub update that clears the reservation**. An explicit non-204 rejection clears the reservation without recording delivery. Timeout, runner termination and GitHub history failure leave the remote reservation unresolved and **block further automatic Discord notifications** in both workflows; neither a local JSON artifact nor a GitHub Actions job success is a substitute for delivery evidence.
+
+An unresolved durable marker is **not** proof that Discord accepted the alert. If the workflow halts with an unresolved attempt, inspect the exact YouTube video ID, the affected Discord channel messages, and the GitHub history commit before choosing a reviewed, manual reconciliation. Never delete a marker or add a confirmed video ID just to make a job pass. Do not rerun production jobs until the uncertainty is resolved.
+
+**Limit:** GitHub remote history protects against repeated webhooks after lost artifacts, but the pending reaction queue still lives in workflow artifacts. Losing an artifact may lose unsent queue state; this checkpoint does not claim complete recovery of every unpublished or queued VOD.
+
 ## 📊 Quota Usage
 
 YouTube Data API v3 gives **10,000 units/day**.

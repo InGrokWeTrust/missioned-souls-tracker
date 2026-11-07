@@ -7,6 +7,7 @@ import os
 import runpy
 import tempfile
 import unittest
+from _mock_delivery import patch_sender_delivery
 from pathlib import Path
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
@@ -40,6 +41,9 @@ def search_item(channel_id, channel_title="HCJB Music Reaction", title="Missione
 
 
 class HCJBExclusionTests(unittest.TestCase):
+    def setUp(self):
+        patch_sender_delivery(self, reactions, live)
+
     def test_exact_id_only_not_broad_title_keyword_ban(self):
         self.assertEqual(EXCLUDED_CHANNEL_IDS, frozenset({HCJB}))
         self.assertTrue(is_excluded_channel(HCJB))

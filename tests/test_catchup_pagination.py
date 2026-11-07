@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 import unittest
+from _mock_delivery import patch_sender_delivery
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -63,6 +64,7 @@ def page50():
 
 class CatchUpTests(unittest.TestCase):
     def setUp(self):
+        patch_sender_delivery(self, tracker)
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.bookmark = Path(tmp.name) / "last_run.json"

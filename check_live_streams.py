@@ -5,7 +5,8 @@ import requests
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
-from notification_history import read_ids, save_ids
+from notification_history import (read_ids, save_ids, reserve_delivery,
+                                  confirm_delivery, reject_delivery)
 from channel_exclusions import is_excluded_channel
 from thumbnail_policy import select_thumbnail, valid_thumbnail, require_thumbnails
 
@@ -289,7 +290,9 @@ def send_to_discord(streams, run_start=None, seen_ids=None):
             "embeds": [embed]
         }
 
-        # Protect the gap between Discord acceptance and GitHub history write.
+        # Confirm remote in-flight reservation before the webhook; local
+        # bookmark markers alone cannot survive lost runner artifacts.
+        reserve_delivery("live", vid)
         mark_live_discord_attempt(vid)
         try:
             response = requests.post(DISCORD_WEBHOOK_URL, json=data, timeout=10)
@@ -297,9 +300,10 @@ def send_to_discord(streams, run_start=None, seen_ids=None):
             # The Discord outcome is unknown: do not retry the webhook.
             raise RuntimeError(f"Discord delivery outcome uncertain for livestream {vid}") from e
         if response.status_code != 204:
+            reject_delivery("live", vid)
             clear_live_discord_attempt(vid)
             raise RuntimeError(f"Discord live HTTP {response.status_code} for {vid}")
-        save_ids("live", [vid])
+        confirm_delivery("live", vid)
         clear_live_discord_attempt(vid)
         seen_ids.add(vid)
         delivered.append(stream)

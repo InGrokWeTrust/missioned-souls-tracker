@@ -7,6 +7,7 @@ import json
 import os
 import tempfile
 import unittest
+from _mock_delivery import patch_sender_delivery
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -53,6 +54,7 @@ def details(obj):
 
 class ChannelScanCompletenessTests(unittest.TestCase):
     def setUp(self):
+        patch_sender_delivery(self, tracker)
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.bookmark = Path(temp.name) / "last_run.json"
