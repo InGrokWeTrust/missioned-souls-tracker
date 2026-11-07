@@ -370,7 +370,8 @@
     "P04wIFdmHv0",
     "5wkE_j0tCoU",
     "SGs7rCfaHWk",
-    "GCyaa1iEmQE"
+    "GCyaa1iEmQE",
+    "rt8azsGl56o"
   ],
   "reaction_queue": {
     "version": 1,
@@ -405,6 +406,5 @@
     ],
     "last_published_at": "2026-11-07T14:40:54Z",
     "last_complete_scan_at": "2026-11-07T16:01:17.156487+00:00"
-  },
-  "unconfirmed_discord_video_id": "rt8azsGl56o"
+  }
 }
