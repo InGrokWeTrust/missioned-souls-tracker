@@ -71,7 +71,7 @@ def _read_remote_document(kind):
     response = _api_request("GET", "contents/" + path)
     if response.get("type") != "file" or not response.get("sha"):
         raise ValueError("Durable history GitHub file is missing or invalid")
-    decoded = base64.b64decode(response["content"].replace("\\n", ""), validate=True)
+    decoded = base64.b64decode(response["content"].replace("\n", ""), validate=True)
     state = json.loads(decoded)
     if not isinstance(state, dict) or state.get("version") != 1:
         raise ValueError("Durable history has an unknown schema")
@@ -169,7 +169,7 @@ def _require_durable_writes():
 
 
 def _put_remote_document(kind, state, sha, action):
-    value = json.dumps(state, indent=2) + "\\n"
+    value = json.dumps(state, indent=2) + "\n"
     body = {
         "message": action + " " + kind + " Discord delivery",
         "branch": HISTORY_BRANCH,
