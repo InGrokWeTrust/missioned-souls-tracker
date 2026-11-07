@@ -172,6 +172,13 @@ class DurableQueueTests(unittest.TestCase):
         self.assertEqual(history.read_ids("reactions"), {VID})
         self.assertEqual(history.read_reaction_queue()["pending_videos"], [queue_record(VID)])
 
+    def test_legacy_confirmed_id_writer_preserves_durable_queue_metadata(self):
+        queued = self.seeded()
+        self.assertEqual(history.save_ids("reactions", ["legacySentA"]), ["legacySentA"])
+        self.assertEqual(history.read_ids("reactions"), {"legacySentA"})
+        self.assertEqual(history.read_reaction_queue(), queued)
+        self.assertEqual(self.fake.files["reactions"]["reaction_queue"], queued)
+
     def test_unresolved_remote_delivery_marker_blocks_queue_update(self):
         self.seeded()
         history.reserve_delivery("reactions", VID)
