@@ -20,7 +20,10 @@ if not API_KEY:
 
 CHANNEL_NAME = os.environ.get("CHANNEL_NAME", "Missioned Souls")
 MAX_TO_SEND = int(os.environ.get("MAX_TO_SEND", "10"))
-MAX_VIDEOS_PER_CHANNEL = int(os.environ.get("MAX_VIDEOS_PER_CHANNEL", "5"))
+# 50 uploads cost the same one API unit as five; the legacy config
+# cannot narrow the recovery window. An additional page is conditional.
+MAX_VIDEOS_PER_CHANNEL = 50
+MAX_UPLOAD_PAGES_PER_CHANNEL = 2
 FORCE_SEND_ALL = os.environ.get("FORCE_SEND_ALL", "false").lower() == "true"
 DRY_RUN = os.environ.get("DRY_RUN", "false").strip().lower() == "true"
 LAST_RUN_FILE = os.environ.get("LAST_RUN_FILE", "last_run.json")
@@ -59,6 +62,37 @@ def _read_bookmark():
 
 def load_last_run():
     return _read_bookmark().get('last_published_at')
+
+
+def _parse_utc_timestamp(value):
+    if not isinstance(value, str) or not value:
+        raise ValueError("Invalid UTC timestamp")
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise ValueError("Invalid UTC timestamp") from exc
+    if dt.tzinfo is None:
+        raise ValueError("UTC timestamp lacks timezone")
+    return dt.astimezone(timezone.utc)
+
+
+def load_complete_scan():
+    value = _read_bookmark().get("last_complete_scan_at")
+    return _parse_utc_timestamp(value) if value is not None else None
+
+
+def save_complete_scan(run_start):
+    """Store only a fully verified run's scan timestamp, never a partial one."""
+    if DRY_RUN:
+        return
+    data = _read_bookmark()
+    current = run_start.astimezone(timezone.utc)
+    previous = load_complete_scan()
+    if previous is not None and current < previous:
+        raise RuntimeError("Complete-scan time moved backwards; refusing checkpoint")
+    data["last_complete_scan_at"] = current.isoformat()
+    _save_bookmark(data)
+    print("💾 Complete YouTube uploads scan checkpoint saved")
 
 
 def load_held_videos():
@@ -334,59 +368,98 @@ def format_published_time(published_at_iso):
 
 
 def fetch_channel_videos(channel_id, channel_title):
-    """Fetch the newest N videos from a channel's uploads playlist."""
+    """Fetch 50 uploads for one quota unit; paginate only a recent burst."""
     uploads_playlist_id = "UU" + channel_id[2:]
-
-    try:
-        response = youtube.playlistItems().list(
-            part="snippet,contentDetails",
-            playlistId=uploads_playlist_id,
-            maxResults=MAX_VIDEOS_PER_CHANNEL
-        ).execute()
-    except Exception as exc:
-        # Returning [] conflates a failed scan with a genuinely empty channel.
-        # If another channel succeeds, the publication cutoff could advance
-        # past unseen videos. Fail the whole scan before queue/sending/cutoff.
-        # Do not echo the exception: its request URL may contain an API key.
-        status = getattr(getattr(exc, "resp", None), "status", None)
-        status_label = str(status) if isinstance(status, int) else "unknown"
-        raise RuntimeError(
-            f"Incomplete YouTube channel scan for {channel_id} "
-            f"({type(exc).__name__}, HTTP {status_label}); "
-            "notification delivery and publication cutoff withheld"
-        ) from None
-
-    # An explicit empty items list is valid. An invalid/missing list does
-    # not establish that the channel has no uploads.
-    if not isinstance(response, dict) or not isinstance(response.get('items'), list):
-        raise RuntimeError(
-            f"Incomplete YouTube channel scan for {channel_id} "
-            "(invalid uploads response); notification delivery and "
-            "publication cutoff withheld"
-        )
-
+    complete_scan = load_complete_scan()
     videos = []
-    for item in response.get('items', []):
-        snippet = item['snippet']
-        content = item.get('contentDetails', {})
-        video_id = content.get('videoId') or snippet.get('resourceId', {}).get('videoId')
-        if not video_id:
-            continue
+    seen_ids = set()
+    next_token = None
+    tokens_seen = set()
 
-        videos.append({
-            'title': snippet['title'],
-            'video_id': video_id,
-            'channel': channel_title,
-            'channel_id': channel_id,
-            'published_at': content.get('videoPublishedAt') or snippet.get('publishedAt'),
-            'url': f"https://youtu.be/{video_id}",
-            'thumbnail': snippet.get('thumbnails', {}).get('medium', {}).get('url'),
-            'live_broadcast_content': snippet.get('liveBroadcastContent', 'none'),
-            'live_streaming_details': None  # filled in later
-        })
+    for page in range(MAX_UPLOAD_PAGES_PER_CHANNEL):
+        args = {"part": "snippet,contentDetails",
+                "playlistId": uploads_playlist_id,
+                "maxResults": MAX_VIDEOS_PER_CHANNEL}
+        if next_token is not None:
+            args["pageToken"] = next_token
+        try:
+            response = youtube.playlistItems().list(**args).execute()
+        except Exception as exc:
+            # Never include raw exceptions: their API URLs may contain keys.
+            status = getattr(getattr(exc, "resp", None), "status", None)
+            code = str(status) if isinstance(status, int) else "unknown"
+            raise RuntimeError(
+                f"Incomplete YouTube channel scan for {channel_id} "
+                f"({type(exc).__name__}, HTTP {code}); cutoff withheld"
+            ) from None
+        if not isinstance(response, dict) or not isinstance(response.get("items"), list):
+            raise RuntimeError(
+                f"Incomplete YouTube channel scan for {channel_id} "
+                "(invalid uploads response); cutoff withheld"
+            )
+
+        items = response["items"]
+        token = response.get("nextPageToken")
+        if token is not None and (not isinstance(token, str) or not token):
+            raise RuntimeError(
+                f"Incomplete YouTube channel scan for {channel_id} "
+                "(invalid page token); cutoff withheld"
+            )
+        reached_anchor = False
+        for item in items:
+            if not isinstance(item, dict) or not isinstance(item.get("snippet"), dict):
+                raise RuntimeError(
+                    f"Incomplete YouTube channel scan for {channel_id} "
+                    "(invalid playlist item); cutoff withheld"
+                )
+            snippet = item["snippet"]
+            content = item.get("contentDetails") or {}
+            published = content.get("videoPublishedAt") or snippet.get("publishedAt")
+            if complete_scan is not None:
+                try:
+                    if _parse_utc_timestamp(published) <= complete_scan:
+                        reached_anchor = True
+                except ValueError:
+                    raise RuntimeError(
+                        f"Incomplete YouTube channel scan for {channel_id} "
+                        "(invalid publication timestamp); cutoff withheld"
+                    ) from None
+            video_id = content.get("videoId") or snippet.get("resourceId", {}).get("videoId")
+            if not video_id or video_id in seen_ids:
+                continue
+            seen_ids.add(video_id)
+            videos.append({
+                'title': snippet['title'],
+                'video_id': video_id,
+                'channel': channel_title,
+                'channel_id': channel_id,
+                'published_at': published,
+                'url': f"https://youtu.be/{video_id}",
+                'thumbnail': snippet.get('thumbnails', {}).get('medium', {}).get('url'),
+                'live_broadcast_content': snippet.get('liveBroadcastContent', 'none'),
+                'live_streaming_details': None
+            })
+
+        # A legacy bookmark establishes the new coverage anchor only after
+        # this first full scan. Do not trigger speculative historical backfill.
+        if complete_scan is None or reached_anchor or not token:
+            break
+        if page + 1 >= MAX_UPLOAD_PAGES_PER_CHANNEL:
+            raise RuntimeError(
+                f"Catch-up capacity exceeded for {channel_id}: over "
+                f"{MAX_VIDEOS_PER_CHANNEL * MAX_UPLOAD_PAGES_PER_CHANNEL} "
+                "uploads since the last complete scan; cutoff withheld"
+            )
+        if token in tokens_seen:
+            raise RuntimeError(
+                f"Incomplete YouTube channel scan for {channel_id} "
+                "(repeated page token); cutoff withheld"
+            )
+        tokens_seen.add(token)
+        next_token = token
+        print(f"📦 Bounded uploads catch-up: extra page for {channel_id}")
 
     return videos
-
 
 def get_reactions_with_stats(*, held=None):
     run_start = datetime.now(timezone.utc)
@@ -395,8 +468,7 @@ def get_reactions_with_stats(*, held=None):
 
     tracked = load_tracked_channels()
     if not tracked:
-        print("⚠️ No tracked channels found. Run discover_channels.py first.")
-        return [], run_start
+        raise RuntimeError("No tracked channels available; complete scan cannot be verified")
 
     print(f"📋 Tracking {len(tracked)} channels\n")
 
@@ -677,6 +749,7 @@ def run():
           f"{len(live_ids)} live IDs")
 
     last_published = load_last_run()
+    prior_complete_scan = load_complete_scan()
     original_held = load_held_videos()
     original_pending = load_pending_videos()
 
@@ -713,6 +786,7 @@ def run():
             print(f"📌 Initial bookmark set without Discord delivery: {newest}")
         if len(held) != len(original_held) or len(pending) != len(original_pending):
             save_notification_queue(held, pending)
+        save_complete_scan(run_start)
         print("\n🎉 All done!")
         return []
 
@@ -727,6 +801,9 @@ def run():
         # The IDs already queued or discovered are not discarded merely
         # because their published timestamp precedes the advancing cutoff.
         allowed_candidate = (FORCE_SEND_ALL or video['published_at'] > last_published
+                             or (prior_complete_scan is not None
+                                 and _parse_utc_timestamp(video['published_at'])
+                                 > prior_complete_scan)
                              or video.get('discovery_handoff')
                              or vid in held or vid in pending)
         if not allowed_candidate:
@@ -754,6 +831,11 @@ def run():
     if (list(held.values()) != original_held
             or list(pending.values()) != original_pending) and not DRY_RUN:
         save_notification_queue(held, pending)
+
+    # All channels and detail batches completed; the full ready/held queue
+    # has been staged. Advance the scan anchor before irreversible webhooks.
+    # Delivery failures preserve unsent IDs through the pending queue.
+    save_complete_scan(run_start)
 
     chosen = sorted(ready.values(), key=lambda v: (
         v['published_at'], v['video_id']))[:MAX_TO_SEND]
