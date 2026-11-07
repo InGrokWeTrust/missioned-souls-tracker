@@ -5,6 +5,7 @@ from googleapiclient.discovery import build
 from channel_exclusions import is_excluded_channel
 from discovery_video_handoff import add_candidates, active_candidates
 from reaction_name_policy import title_mentions_band, discovery_queries
+from tracked_channel_registry import read_registry, write_registry
 
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
 if not API_KEY:
@@ -43,21 +44,17 @@ def should_track_channel(channel_title):
 
 
 def load_tracked_channels():
-    try:
-        with open(TRACKED_CHANNELS_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            return data.get('channels', {}), data.get('last_discovery_run')
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}, None
+    """Load the established registry, refusing missing/corrupt/empty data."""
+    data = read_registry(TRACKED_CHANNELS_FILE)
+    return data["channels"], data.get("last_discovery_run")
 
 
 def save_tracked_channels(channels):
-    data = {
-        "channels": channels,
-        "last_discovery_run": datetime.now(timezone.utc).isoformat()
-    }
-    with open(TRACKED_CHANNELS_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+    """Keep all current channels unless existing explicit exclusion rules prune."""
+    write_registry(
+        TRACKED_CHANNELS_FILE, channels,
+        last_discovery_run=datetime.now(timezone.utc).isoformat(),
+    )
     print(f"💾 Saved {len(channels)} tracked channels to {TRACKED_CHANNELS_FILE}")
 
 
