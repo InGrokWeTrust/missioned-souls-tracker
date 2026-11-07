@@ -107,7 +107,21 @@ def restore_durable_queue():
             print("💾 Seeded durable reaction queue from existing bookmark")
         return
     if DRY_RUN:
-        print("🧪 DRY RUN: durable reaction queue inspected; bookmark unchanged")
+        # Never preview from a missing/stale artifact when the authoritative
+        # queue differs. A preview must not silently omit pending videos, and
+        # DRY_RUN must not create/restore local files.
+        try:
+            local = _read_bookmark()
+        except (ValueError, json.JSONDecodeError, UnicodeError) as exc:
+            raise RuntimeError(
+                "DRY RUN: invalid local bookmark; restore artifact before preview"
+            ) from exc
+        if _queue_snapshot(local) != remote:
+            raise RuntimeError(
+                "DRY RUN: local artifact differs from durable queue; "
+                "restore the artifact before preview"
+            )
+        print("🧪 DRY RUN: durable reaction queue verified; bookmark unchanged")
         return
     # With remote state present, it is safe to rebuild a missing or corrupt
     # local artifact. Remote unresolved delivery markers were checked first.
