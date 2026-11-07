@@ -54,8 +54,8 @@ class TransientHistoryWriteTests(unittest.TestCase):
         def put(method, path, payload=None):
             sent.append((method, path))
             raise transient()
-        with patch.object(history, "_read_remote", side_effect=[
-            (["old"], "sha-a"), (["old", VID], "sha-b"),
+        with patch.object(history, "_read_remote_document", side_effect=[
+            ({"version": 1, "sent_video_ids": ["old"]}, "sha-a"), ({"version": 1, "sent_video_ids": ["old", VID]}, "sha-b"),
         ]) as reads, patch.object(history, "_api_request", side_effect=put), patch.object(
             history.time, "sleep"
         ) as sleep:
@@ -72,8 +72,8 @@ class TransientHistoryWriteTests(unittest.TestCase):
             if len(sent) == 1:
                 raise transient()
             return {}
-        with patch.object(history, "_read_remote", side_effect=[
-            (["old"], "sha-a"), (["old", "other"], "sha-b"),
+        with patch.object(history, "_read_remote_document", side_effect=[
+            ({"version": 1, "sent_video_ids": ["old"]}, "sha-a"), ({"version": 1, "sent_video_ids": ["old", "other"]}, "sha-b"),
         ]), patch.object(history, "_api_request", side_effect=put), patch.object(
             history.time, "sleep"
         ):
@@ -82,8 +82,8 @@ class TransientHistoryWriteTests(unittest.TestCase):
         self.assertEqual([p["sha"] for p in sent], ["sha-a", "sha-b"])
 
     def test_five_502_failures_do_not_falsely_acknowledge(self):
-        with patch.object(history, "_read_remote",
-                          return_value=([], "same-sha")) as reads, patch.object(
+        with patch.object(history, "_read_remote_document",
+                          return_value=({"version": 1, "sent_video_ids": []}, "same-sha")) as reads, patch.object(
             history, "_api_request", side_effect=transient()
         ) as puts, patch.object(history.time, "sleep") as sleep:
             with self.assertRaises(HTTPError) as failure:
@@ -94,8 +94,8 @@ class TransientHistoryWriteTests(unittest.TestCase):
         self.assertEqual(sleep.call_count, 4)
 
     def test_transient_remote_read_502_also_retries(self):
-        with patch.object(history, "_read_remote", side_effect=[
-            transient(), (["old"], "sha-a"),
+        with patch.object(history, "_read_remote_document", side_effect=[
+            transient(), ({"version": 1, "sent_video_ids": ["old"]}, "sha-a"),
         ]), patch.object(history, "_api_request", return_value={}) as put, patch.object(
             history.time, "sleep"
         ) as sleep:
@@ -104,7 +104,7 @@ class TransientHistoryWriteTests(unittest.TestCase):
         sleep.assert_called_once()
 
     def test_403_is_not_retried_or_reinterpreted_as_success(self):
-        with patch.object(history, "_read_remote", return_value=([], "sha")), patch.object(
+        with patch.object(history, "_read_remote_document", return_value=({"version": 1, "sent_video_ids": []}, "sha")), patch.object(
             history, "_api_request", side_effect=transient(403)
         ) as put, patch.object(history.time, "sleep") as sleep:
             with self.assertRaises(HTTPError):
