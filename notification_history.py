@@ -168,21 +168,22 @@ def save_ids(kind, ids):
     incoming = _ids(ids)
     for attempt in range(MAX_HISTORY_WRITE_ATTEMPTS):
         try:
-            remote, sha = _read_remote(kind)
+            document, sha = _read_remote_document(kind)
+            if document.get(REMOTE_ATTEMPT_KEY) is not None:
+                raise RuntimeError(
+                    "Unreconciled durable Discord delivery attempt; history write blocked"
+                )
+            remote = document["sent_video_ids"]
             combined = merge_ids(remote, incoming)
             if combined == remote:
                 if attempt:
                     print("✅ Durable " + kind + " history already contains confirmed ID(s)")
                 return combined
-            value = {"version": 1, "sent_video_ids": combined}
-            encoded = base64.b64encode((json.dumps(value, indent=2) + "\n").encode()).decode()
-            body = {
-                "message": "Record confirmed " + kind + " notifications",
-                "branch": HISTORY_BRANCH,
-                "sha": sha,
-                "content": encoded,
-            }
-            _api_request("PUT", "contents/" + KINDS[kind], body)
+            # Preserve optional remote queue/cutoffs and future ledger metadata:
+            # older generic save_ids writers must not erase pending VODs.
+            updated = dict(document)
+            updated["sent_video_ids"] = combined
+            _put_remote_document(kind, updated, sha, "Record confirmed")
             print("💾 Durable " + kind + " history saved: " + str(len(combined)) + " IDs")
             return combined
         except HTTPError as error:
