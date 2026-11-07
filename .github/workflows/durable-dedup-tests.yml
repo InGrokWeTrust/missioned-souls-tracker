@@ -8,6 +8,8 @@ on:
       - 'notification_history.py'
       - 'channel_exclusions.py'
       - 'discover_channels.py'
+      - 'tracked_channel_registry.py'
+      - 'tests/test_tracked_registry_integrity.py'
       - 'tracked_channels.json'
       - 'tests/test_hcjb_exclusion.py'
       - 'tests/test_shorts_filter.py'
