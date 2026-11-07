@@ -15,7 +15,7 @@ permissions:
 
 # Serialize both notification workflows to avoid cross-run duplicate posts.
 concurrency:
-  group: missioned-souls-notifications-${{ github.ref }}
+  group: missioned-souls-notifications-global
   cancel-in-progress: false
   queue: max
 
