@@ -29,6 +29,7 @@ on:
       - 'tests/test_durable_dedup.py'
       - 'tests/test_history_502_reconciliation.py'
       - 'tests/test_live_502_reconciliation.py'
+      - 'tests/test_live_nz_timezone.py'
       - 'tests/test_incomplete_channel_scan.py'
       - 'tests/test_catchup_pagination.py'
       - 'notification_history.py'
