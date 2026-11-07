@@ -8,6 +8,15 @@ LIVE = ROOT / ".github/workflows/check_live_streams.yml"
 
 
 class WorkflowSafetyTests(unittest.TestCase):
+    def test_all_ref_notification_jobs_share_one_global_delivery_lock(self):
+        for path in (TRACKER, LIVE):
+            with self.subTest(workflow=path.name):
+                source = path.read_text(encoding="utf-8")
+                self.assertIn("group: missioned-souls-notifications-global", source)
+                self.assertIn("cancel-in-progress: false", source)
+                self.assertIn("queue: max", source)
+                self.assertNotIn("missioned-souls-notifications-${{ github.ref }}", source)
+
     def test_dry_run_setting_is_at_job_scope_for_all_steps(self):
         for path in (TRACKER, LIVE):
             with self.subTest(workflow=path.name):
