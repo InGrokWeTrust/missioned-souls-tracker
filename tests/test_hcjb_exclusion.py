@@ -8,6 +8,7 @@ import runpy
 import tempfile
 import unittest
 from pathlib import Path
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("YOUTUBE_API_KEY", "offline-test-key")
@@ -106,7 +107,8 @@ class HCJBExclusionTests(unittest.TestCase):
         }
         with patch.object(reactions, "read_ids", return_value=set()), patch.object(
             reactions, "load_last_run", return_value="2026-10-23T07:00:00Z"
-        ), patch.object(reactions, "get_reactions_with_stats", return_value=( [video], None )
+        ), patch.object(reactions, "get_reactions_with_stats",
+            return_value=([video], datetime.now(timezone.utc))
         ), patch.object(reactions.requests, "post") as post:
             result = reactions.run()
         self.assertEqual(result, [])

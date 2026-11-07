@@ -28,6 +28,7 @@ on:
       - 'tests/test_history_502_reconciliation.py'
       - 'tests/test_live_502_reconciliation.py'
       - 'tests/test_incomplete_channel_scan.py'
+      - 'tests/test_catchup_pagination.py'
       - 'notification_history.py'
       - '.github/workflows/youtube-tracker.yml'
       - '.github/workflows/check_live_streams.yml'
