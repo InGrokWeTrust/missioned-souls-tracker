@@ -6,7 +6,7 @@ import requests
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
-from notification_history import (read_ids, reserve_delivery,
+from notification_history import (read_ids, save_ids, reserve_delivery,
                                   confirm_delivery, reject_delivery)
 from channel_exclusions import is_excluded_channel
 from discovery_video_handoff import handoff_for_scan
