@@ -30,6 +30,7 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 │   └── check_live_streams.yml       # Runs check_live_streams.py
 ├── autoreactions.py                 # Main tracker
 ├── discover_channels.py             # Channel discovery
+├── tracked_channel_registry.py      # Fail-closed channel registry validation and atomic writes
 ├── check_live_streams.py            # Live stream detection
 ├── tracked_channels.json            # List of tracked channels (committed)
 ├── last_run.json                    # Bookmark (artifact, not committed)
@@ -89,12 +90,14 @@ Content-Type: application/json
 - Extracts unique channel IDs from results
 - Adds new channels to `tracked_channels.json`
 - Excludes vlog channels (except **Cherman Vlogs**)
-- Prunes channels inactive for 60+ days
-- Commits `tracked_channels.json` back to the repo
+- Marks channels absent from recent searches as dormant; retains them for upload scanning
+- Saves a validated nonempty registry atomically, then commits `tracked_channels.json` back to the repo
+
+**Registry recovery:** Missing, malformed, empty or structurally invalid `tracked_channels.json` is a workflow failure, not an empty initial setup. Scheduled discovery never recreates the registry automatically. Restore a validated file from Git history and review its contents before rerunning; new installations require an explicit, separately reviewed bootstrap.
 
 ### 2. Tracking (`autoreactions.py`)
 
-- Loads `tracked_channels.json`
+- Loads a validated existing `tracked_channels.json`; missing/corrupt data halts scanning before any Discord posts
 - For each channel, fetches up to 50 newest videos per `playlistItems.list` call (1 quota unit), with up to one extra page for a burst since the last complete scan
 - Filters titles to those containing **"Missioned Souls"**
 - Filters out shorts (`#short`, `#shorts`, `"shorts"`, duration < 120s)
