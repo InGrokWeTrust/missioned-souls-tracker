@@ -96,7 +96,15 @@ class RegistryReadIntegrityTests(unittest.TestCase):
             read_registry(self.path)
 
 
-class RegistryWriteIntegrityTests(RegistryReadIntegrityTests):
+class RegistryWriteIntegrityTests(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.path = Path(temp.name) / "tracked_channels.json"
+
+    def put(self, data):
+        self.path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
     def test_atomic_save_preserves_legacy_and_registry_metadata(self):
         before = sample_registry()
         self.put(before)
