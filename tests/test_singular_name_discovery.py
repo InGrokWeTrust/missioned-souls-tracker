@@ -227,7 +227,9 @@ class SingularTrackerTests(unittest.TestCase):
                 reactions, "read_ids", return_value=set()
             ), patch.object(reactions, "get_reactions_with_stats",
                            return_value=([old_video], datetime.now(timezone.utc))
-            ), patch.object(reactions.requests, "post") as post:
+            ), patch.object(reactions.requests, "post") as post, patch.object(
+                reactions, "restore_durable_queue"
+            ), patch.object(reactions, "save_reaction_queue"):
                 result = reactions.run()
             self.assertEqual(result, [])
             post.assert_not_called()

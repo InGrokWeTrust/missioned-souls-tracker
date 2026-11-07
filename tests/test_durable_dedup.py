@@ -49,8 +49,8 @@ class RemoteHistoryTests(unittest.TestCase):
         def record(method, path, payload=None):
             captured.append((method, path, payload))
             return {}
-        with patch.object(history, "_read_remote",
-                          return_value=(["old", "other"], "sha-1")), patch.object(
+        with patch.object(history, "_read_remote_document",
+                          return_value=({"version": 1, "sent_video_ids": ["old", "other"]}, "sha-1")), patch.object(
                               history, "_api_request", side_effect=record):
             ids = history.save_ids("reactions", ["old", "new"])
         self.assertEqual(ids, ["old", "other", "new"])
@@ -69,8 +69,8 @@ class RemoteHistoryTests(unittest.TestCase):
             if len(calls) == 1:
                 raise fail
             return {}
-        with patch.object(history, "_read_remote", side_effect=[
-            (["old"], "sha-a"), (["old", "someone-else"], "sha-b"),
+        with patch.object(history, "_read_remote_document", side_effect=[
+            ({"version": 1, "sent_video_ids": ["old"]}, "sha-a"), ({"version": 1, "sent_video_ids": ["old", "someone-else"]}, "sha-b"),
         ]), patch.object(history, "_api_request", side_effect=update):
             ids = history.save_ids("live", ["new"])
         self.assertEqual(ids, ["old", "someone-else", "new"])

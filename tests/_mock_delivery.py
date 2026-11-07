@@ -10,6 +10,16 @@ from unittest.mock import Mock, patch
 
 def patch_sender_delivery(testcase, *modules):
     for module in modules:
+        # Legacy scan/queue tests mock the remote transport boundary. The
+        # dedicated durable queue tests run against a simulated GitHub ledger.
+        if hasattr(module, "restore_durable_queue"):
+            recovery = patch.object(module, "restore_durable_queue")
+            recovery.start()
+            testcase.addCleanup(recovery.stop)
+        if hasattr(module, "save_reaction_queue"):
+            checkpoint = patch.object(module, "save_reaction_queue")
+            checkpoint.start()
+            testcase.addCleanup(checkpoint.stop)
         reserve = patch.object(module, "reserve_delivery", return_value="mocked-reservation")
         reserve.start()
         testcase.addCleanup(reserve.stop)

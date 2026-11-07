@@ -124,6 +124,16 @@ An unresolved durable marker is **not** proof that Discord accepted the alert. I
 
 **Limit:** GitHub remote history protects against repeated webhooks after lost artifacts, but the pending reaction queue still lives in workflow artifacts. Losing an artifact may lose unsent queue state; this checkpoint does not claim complete recovery of every unpublished or queued VOD.
 
+## 📬 Durable unsent reaction queue recovery
+
+The reaction tracker now mirrors its **ready queue, held-for-release queue, last delivered publication cutoff, and last complete scan cutoff** into the existing version-1 `history/reactions.json` on the permanent `notification-history` branch. This is distinct from the delivered video IDs: **pending/held does not mean delivered**. Before the first Discord webhook, the full queue and coverage checkpoint are committed remotely; each successful delivery is then removed from the queue after confirmed-ID recording.
+
+On the first upgraded production run, a valid existing `last_run.json` artifact is required to seed the remote queue. If that original artifact is unavailable, the run **fails closed**—it does not silently start with zero pending reactions. Once seeded, the GitHub history copy is authoritative: a missing, corrupt or stale local artifact can be reconstructed without discarding pending/held IDs or resetting the coverage cutoff. The artifact remains a useful operational snapshot, not the sole recovery source.
+
+A failed/ambiguous GitHub queue write is re-read and reconciled; if durability cannot be confirmed, the run stops before Discord sends or advances the local state. The existing cross-workflow remote pre-send attempt guard still blocks unresolved Discord deliveries.
+
+**Limit:** A previously lost artifact before this checkpoint cannot be retroactively reconstructed from the new queue state. Remote queue retention does not replace YouTube's verification of publication/thumbnail eligibility before posting. For emergencies, do not delete history files or resend queued IDs without comparing the delivered-ID history and Discord message identity.
+
 ## 📊 Quota Usage
 
 YouTube Data API v3 gives **10,000 units/day**.
