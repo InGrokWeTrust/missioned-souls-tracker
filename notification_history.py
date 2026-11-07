@@ -56,6 +56,47 @@ def _api_request(method, path, payload=None):
 # because it is committed to the same permanent branch as the ID history.
 REMOTE_ATTEMPT_KEY = "unconfirmed_discord_video_id"
 
+# Version-1 ledger extension. Confirmed IDs and pre-send attempt markers are
+# unchanged; the queue is an independently validated unsent state snapshot.
+REACTION_QUEUE_KEY = "reaction_queue"
+MAX_QUEUE_READY = 2000
+MAX_QUEUE_HELD = 200
+
+
+def _validate_reaction_queue(state):
+    """Canonical queue snapshot; never infer successful delivery from queue IDs."""
+    if not isinstance(state, dict) or state.get("version") != 1:
+        raise ValueError("Invalid durable reaction queue version")
+    seen = set()
+    result = {"version": 1}
+    for key, limit in (("pending_videos", MAX_QUEUE_READY),
+                       ("held_videos", MAX_QUEUE_HELD)):
+        values = state.get(key)
+        if not isinstance(values, list) or len(values) > limit:
+            raise ValueError("Invalid durable reaction queue entries: " + key)
+        normalized = []
+        for item in values:
+            if not isinstance(item, dict):
+                raise ValueError("Invalid durable reaction queue record")
+            record = {}
+            for field in ("video_id", "channel_id", "published_at"):
+                value = item.get(field)
+                if not isinstance(value, str) or not value or len(value) > 128:
+                    raise ValueError("Invalid durable reaction queue " + field)
+                record[field] = value
+            if record["video_id"] in seen:
+                raise ValueError("Duplicate video ID in durable reaction queue")
+            seen.add(record["video_id"])
+            normalized.append(record)
+        result[key] = normalized
+    for key in ("last_published_at", "last_complete_scan_at"):
+        value = state.get(key)
+        if value is not None and (not isinstance(value, str) or not value):
+            raise ValueError("Invalid durable reaction queue timestamp: " + key)
+        result[key] = value
+    return result
+
+
 
 def _validate_video_id(video_id):
     if not isinstance(video_id, str) or not 0 < len(video_id) <= 128:
@@ -79,6 +120,8 @@ def _read_remote_document(kind):
     marker = state.get(REMOTE_ATTEMPT_KEY)
     if marker is not None:
         _validate_video_id(marker)
+    if kind == "reactions" and REACTION_QUEUE_KEY in state:
+        state[REACTION_QUEUE_KEY] = _validate_reaction_queue(state[REACTION_QUEUE_KEY])
     return state, response["sha"]
 
 
@@ -265,3 +308,54 @@ def confirm_delivery(kind, video_id):
 def reject_delivery(kind, video_id):
     """Only for an explicitly rejected webhook response; never on timeout."""
     return _settle_delivery(kind, video_id, accepted=False)
+
+
+def read_reaction_queue():
+    """Return independently durable pending/held IDs and cutoffs, or None pre-upgrade.
+
+    Unlike delivered IDs, this state is NOT evidence that a Discord POST
+    succeeded. An unresolved remote attempt always blocks queue restoration.
+    """
+    if not HISTORY_ENABLED:
+        raise RuntimeError("Durable notification history must be enabled")
+    state, _ = _read_remote_document("reactions")
+    if state.get(REMOTE_ATTEMPT_KEY) is not None:
+        raise RuntimeError("Unreconciled durable Discord delivery attempt; queue recovery blocked")
+    queue = state.get(REACTION_QUEUE_KEY)
+    return _validate_reaction_queue(queue) if queue is not None else None
+
+
+def save_reaction_queue(snapshot):
+    """Commit queue/cutoffs before relying on local artifacts or sending webhooks.
+
+    The existing GitHub Contents SHA is the concurrency gate. After a 5xx
+    response, re-read the authoritative ledger to detect a committed write.
+    Preserve confirmed deliveries and any unrelated fields in the same file.
+    Never overwrite unresolved delivery markers.
+    """
+    _require_durable_writes()
+    requested = _validate_reaction_queue(snapshot)
+    for attempt in range(MAX_HISTORY_WRITE_ATTEMPTS):
+        try:
+            state, sha = _read_remote_document("reactions")
+            if state.get(REMOTE_ATTEMPT_KEY) is not None:
+                raise RuntimeError("Unreconciled durable Discord delivery attempt; queue write blocked")
+            if state.get(REACTION_QUEUE_KEY) == requested:
+                return requested
+            updated = dict(state)
+            updated[REACTION_QUEUE_KEY] = requested
+            _put_remote_document("reactions", updated, sha, "Checkpoint")
+            verified, _ = _read_remote_document("reactions")
+            if verified.get(REACTION_QUEUE_KEY) != requested:
+                raise RuntimeError("Durable reaction queue checkpoint not verified")
+            return requested
+        except HTTPError as error:
+            if error.code not in (409, 422) and error.code not in RETRYABLE_HISTORY_STATUS:
+                raise
+            if attempt == MAX_HISTORY_WRITE_ATTEMPTS - 1:
+                raise
+            if error.code in RETRYABLE_HISTORY_STATUS:
+                time.sleep(min(2 ** attempt, 4))
+            # A 5xx can mean the previous PUT committed. The next loop
+            # reconciles the remote data before attempting another write.
+    raise RuntimeError("Unable to persist durable reaction queue")
