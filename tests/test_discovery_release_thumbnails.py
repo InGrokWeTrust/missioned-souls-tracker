@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 import unittest
+from _mock_delivery import patch_sender_delivery
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -185,6 +186,9 @@ class DiscoveryHandoffTests(unittest.TestCase):
 
 
 class ThumbnailAndReleaseTests(unittest.TestCase):
+    def setUp(self):
+        patch_sender_delivery(self, tracker)
+
     def test_thumbnail_rejects_wrong_video_or_blank_image(self):
         self.assertTrue(valid_thumbnail(PIC, VID))
         self.assertFalse(valid_thumbnail(PIC, "another-video-id"))
@@ -322,6 +326,9 @@ class ThumbnailAndReleaseTests(unittest.TestCase):
 
 
 class LiveReleaseTests(unittest.TestCase):
+    def setUp(self):
+        patch_sender_delivery(self, live)
+
     def test_live_checker_reconfirms_stream_before_announcement(self):
         fake = MagicMock()
         fake.search.return_value.list.return_value.execute.return_value = {
