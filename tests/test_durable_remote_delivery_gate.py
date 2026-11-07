@@ -213,5 +213,145 @@ class DurableRemoteGateTests(unittest.TestCase):
         self.assertNotIn(MARKER, self.fake.files["reactions"])
 
 
+import tempfile
+from pathlib import Path
+from datetime import datetime, timezone
+from types import SimpleNamespace
+
+import autoreactions as reaction
+import check_live_streams as live
+
+
+def reaction_vod():
+    return {
+        "video_id": VID, "channel_id": "UCSimulated", "channel": "Test Reactor",
+        "title": "Missioned Souls - song REACTION",
+        "published_at": "2026-11-05T16:00:00Z",
+        "url": "https://youtu.be/" + VID,
+        "thumbnail": "https://i.ytimg.com/vi/" + VID + "/hqdefault.jpg",
+        "live_broadcast_content": "none",
+        "live_streaming_details": None, "metadata_confirmed": True,
+        "duration_sec": 600, "view_count": 4, "like_count": 1,
+        "comment_count": 0,
+    }
+
+
+def live_video():
+    return {
+        "video_id": VID, "channel_id": "UCSimulated", "channel": "Test Reactor",
+        "title": "Missioned Souls live show",
+        "published_at": "2026-11-05T16:00:00Z",
+        "url": "https://youtu.be/" + VID,
+        "thumbnail": "https://i.ytimg.com/vi/" + VID + "/hqdefault.jpg",
+        "live_broadcast_content": "live",
+    }
+
+
+class EndToEndSenderOrderingTests(unittest.TestCase):
+    """Run real sender/remote functions against a mocked GitHub Contents API."""
+
+    def setUp(self):
+        self.fake = FakeGitHubContents()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.bookmark = Path(tmp.name) / "last_run.json"
+        self.live_bookmark = Path(tmp.name) / "live_last_run.json"
+        self.live_bookmark.write_text('{"sent_video_ids": []}', encoding="utf-8")
+        patches = [
+            patch.object(history, "_api_request", side_effect=self.fake.request),
+            patch.object(history, "HISTORY_ENABLED", True),
+            patch.dict(os.environ, {"DRY_RUN": "false"}),
+            patch.object(reaction, "DRY_RUN", False),
+            patch.object(live, "DRY_RUN", False),
+            patch.object(reaction, "LAST_RUN_FILE", str(self.bookmark)),
+            patch.object(live, "LIVE_LAST_RUN_FILE", str(self.live_bookmark)),
+            patch.object(reaction.time, "sleep"),
+        ]
+        for p in patches:
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_reaction_sender_reserves_remotely_before_post_and_confirms_once(self):
+        def accepted(*args, **kwargs):
+            self.assertEqual(self.fake.files["reactions"].get(MARKER), VID)
+            self.assertEqual(json.loads(self.bookmark.read_text())[reaction.UNCERTAIN_DELIVERY_KEY], VID)
+            return SimpleNamespace(status_code=204)
+        with patch.object(reaction.requests, "post", side_effect=accepted) as post:
+            sent = reaction.send_to_discord(
+                [reaction_vod()], max_to_send=1,
+                before_post=reaction.mark_discord_attempt,
+                after_confirmed=reaction.clear_discord_attempt,
+                after_rejected=reaction.clear_discord_attempt,
+            )
+        self.assertEqual([v["video_id"] for v in sent], [VID])
+        post.assert_called_once()
+        self.assertEqual(self.fake.files["reactions"]["sent_video_ids"], [VID])
+        self.assertNotIn(MARKER, self.fake.files["reactions"])
+        self.assertNotIn(reaction.UNCERTAIN_DELIVERY_KEY,
+                         json.loads(self.bookmark.read_text()))
+
+    def test_runner_crash_after_reaction_discord_204_survives_lost_artifact(self):
+        with patch.object(reaction.requests, "post",
+                          return_value=SimpleNamespace(status_code=204)) as first_post, patch.object(
+            reaction, "confirm_delivery", side_effect=SystemExit(17)):
+            with self.assertRaises(SystemExit):
+                reaction.send_to_discord(
+                    [reaction_vod()], max_to_send=1,
+                    before_post=reaction.mark_discord_attempt,
+                    after_confirmed=reaction.clear_discord_attempt,
+                    after_rejected=reaction.clear_discord_attempt)
+        first_post.assert_called_once()
+        self.assertEqual(self.fake.files["reactions"].get(MARKER), VID)
+        self.bookmark.unlink()  # Runner artifact deleted; remote state survives.
+        with patch.object(reaction, "get_reactions_with_stats") as scan, patch.object(
+            reaction.requests, "post") as second_post:
+            with self.assertRaisesRegex(RuntimeError, "Unreconciled durable"):
+                reaction.run()
+        scan.assert_not_called()
+        second_post.assert_not_called()
+
+    def test_live_sender_reserves_remotely_before_post_and_confirms_once(self):
+        def accepted(*args, **kwargs):
+            self.assertEqual(self.fake.files["live"].get(MARKER), VID)
+            self.assertEqual(json.loads(self.live_bookmark.read_text())[
+                live.UNCERTAIN_LIVE_DELIVERY_KEY], VID)
+            return SimpleNamespace(status_code=204)
+        with patch.object(live.requests, "post", side_effect=accepted) as post:
+            sent = live.send_to_discord([live_video()])
+        self.assertEqual([v["video_id"] for v in sent], [VID])
+        post.assert_called_once()
+        self.assertEqual(self.fake.files["live"]["sent_video_ids"], [VID])
+        self.assertNotIn(MARKER, self.fake.files["live"])
+        self.assertNotIn(live.UNCERTAIN_LIVE_DELIVERY_KEY,
+                         json.loads(self.live_bookmark.read_text()))
+
+    def test_runner_crash_after_live_discord_204_survives_lost_artifact(self):
+        with patch.object(live.requests, "post",
+                          return_value=SimpleNamespace(status_code=204)) as first_post, patch.object(
+            live, "confirm_delivery", side_effect=SystemExit(17)):
+            with self.assertRaises(SystemExit):
+                live.send_to_discord([live_video()])
+        first_post.assert_called_once()
+        self.assertEqual(self.fake.files["live"].get(MARKER), VID)
+        self.live_bookmark.unlink()  # Runner artifact deleted; remote state survives.
+        with patch.object(live, "find_active_live_streams") as scan, patch.object(
+            live.requests, "post") as second_post:
+            with self.assertRaisesRegex(RuntimeError, "Unreconciled durable"):
+                live.run()
+        scan.assert_not_called()
+        second_post.assert_not_called()
+
+    def test_live_non204_releases_remote_and_local_without_confirming_id(self):
+        with patch.object(live.requests, "post",
+                          return_value=SimpleNamespace(status_code=429)) as post:
+            with self.assertRaisesRegex(RuntimeError, "HTTP 429"):
+                live.send_to_discord([live_video()])
+        post.assert_called_once()
+        self.assertEqual(self.fake.files["live"]["sent_video_ids"], [])
+        self.assertNotIn(MARKER, self.fake.files["live"])
+        self.assertNotIn(live.UNCERTAIN_LIVE_DELIVERY_KEY,
+                         json.loads(self.live_bookmark.read_text()))
+
+
 if __name__ == "__main__":
     unittest.main()
