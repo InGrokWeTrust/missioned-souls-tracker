@@ -6,7 +6,8 @@ import requests
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
-from notification_history import read_ids, save_ids
+from notification_history import (read_ids, reserve_delivery,
+                                  confirm_delivery, reject_delivery)
 from channel_exclusions import is_excluded_channel
 from discovery_video_handoff import handoff_for_scan
 from thumbnail_policy import select_thumbnail, valid_thumbnail, require_thumbnails
@@ -702,8 +703,10 @@ def send_to_discord(videos, max_to_send=5, run_start=None, seen_ids=None,
             "embeds": [embed]
         }
 
-        # Persist the in-flight ID before POST so that HTTP timeouts and
-        # GitHub write failures cannot cause an unattended duplicate.
+        # Remote marker is committed and verified BEFORE the irreversible
+        # webhook. A killed runner or missing artifact cannot erase it.
+        # Local bookmark protection remains an additional recovery layer.
+        reserve_delivery("reactions", vid)
         if before_post is not None:
             before_post(vid)
         try:
@@ -714,12 +717,13 @@ def send_to_discord(videos, max_to_send=5, run_start=None, seen_ids=None,
         if response.status_code != 204:
             # An explicit non-204 was rejected, so this attempt did not
             # receive successful acknowledgement from Discord.
+            reject_delivery("reactions", vid)
             if after_rejected is not None:
                 after_rejected(vid)
             raise RuntimeError(f"Discord HTTP {response.status_code} for {vid}; bookmark unchanged")
-        # A successful Discord POST and a confirmed-ID GitHub write are
-        # separate operations. Retry only the GitHub write, NEVER the POST.
-        save_ids("reactions", [vid])
+        # Confirm the ID and clear the remote marker in ONE CAS-protected
+        # GitHub history write. GitHub retries never replay Discord POST.
+        confirm_delivery("reactions", vid)
         if after_confirmed is not None:
             after_confirmed(vid)
         seen_ids.add(vid)
