@@ -7,6 +7,7 @@ import json
 import os
 import tempfile
 import unittest
+from _mock_delivery import patch_sender_delivery
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -51,6 +52,7 @@ def fake_details(v):
 
 class PendingQueueTests(unittest.TestCase):
     def setUp(self):
+        patch_sender_delivery(self, reactions)
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.bookmark = Path(self.tmp.name) / "last_run.json"
