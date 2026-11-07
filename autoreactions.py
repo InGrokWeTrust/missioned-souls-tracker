@@ -343,9 +343,27 @@ def fetch_channel_videos(channel_id, channel_title):
             playlistId=uploads_playlist_id,
             maxResults=MAX_VIDEOS_PER_CHANNEL
         ).execute()
-    except Exception as e:
-        print(f"  ❌ Error fetching {channel_title}: {e}")
-        return []
+    except Exception as exc:
+        # Returning [] conflates a failed scan with a genuinely empty channel.
+        # If another channel succeeds, the publication cutoff could advance
+        # past unseen videos. Fail the whole scan before queue/sending/cutoff.
+        # Do not echo the exception: its request URL may contain an API key.
+        status = getattr(getattr(exc, "resp", None), "status", None)
+        status_label = str(status) if isinstance(status, int) else "unknown"
+        raise RuntimeError(
+            f"Incomplete YouTube channel scan for {channel_id} "
+            f"({type(exc).__name__}, HTTP {status_label}); "
+            "notification delivery and publication cutoff withheld"
+        ) from None
+
+    # An explicit empty items list is valid. An invalid/missing list does
+    # not establish that the channel has no uploads.
+    if not isinstance(response, dict) or not isinstance(response.get('items'), list):
+        raise RuntimeError(
+            f"Incomplete YouTube channel scan for {channel_id} "
+            "(invalid uploads response); notification delivery and "
+            "publication cutoff withheld"
+        )
 
     videos = []
     for item in response.get('items', []):
