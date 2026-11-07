@@ -369,7 +369,8 @@
     "nyLsfmPi4K4",
     "P04wIFdmHv0",
     "5wkE_j0tCoU",
-    "SGs7rCfaHWk"
+    "SGs7rCfaHWk",
+    "GCyaa1iEmQE"
   ],
   "reaction_queue": {
     "version": 1,
@@ -404,6 +405,5 @@
     ],
     "last_published_at": "2026-11-07T14:00:08Z",
     "last_complete_scan_at": "2026-11-07T15:01:39.801786+00:00"
-  },
-  "unconfirmed_discord_video_id": "GCyaa1iEmQE"
+  }
 }
