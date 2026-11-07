@@ -30,35 +30,104 @@ MAX_STORED_IDS = 200
 youtube = build('youtube', 'v3', developerKey=API_KEY)
 
 
-def load_state():
-    """Load the sent video IDs and last check time."""
+# A marker is written before the Discord POST because a successful
+# webhook can be followed by an ambiguous GitHub history failure.
+UNCERTAIN_LIVE_DELIVERY_KEY = "unconfirmed_discord_video_id"
+
+
+def _read_live_state():
     try:
-        with open(LIVE_LAST_RUN_FILE, 'r', encoding='utf-8') as f:
+        with open(LIVE_LAST_RUN_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            sent_ids = data.get('sent_video_ids', [])
-            last_check = data.get('last_check')
-            # Backward compatibility: if old format, return empty list
-            if not isinstance(sent_ids, list):
-                sent_ids = []
-            return sent_ids, last_check
-    except (FileNotFoundError, json.JSONDecodeError):
-        return [], None
+    except FileNotFoundError:
+        return {}
+    # Malformed state may contain an unreconciled POST; do not silently reset it.
+    if not isinstance(data, dict):
+        raise ValueError("Invalid live bookmark (expected object)")
+    ids = data.get("sent_video_ids", [])
+    if (not isinstance(ids, list) or any(
+            not isinstance(vid, str) or not vid or len(vid) > 128
+            for vid in ids)):
+        raise ValueError("Invalid live sent-ID bookmark")
+    inflight = data.get(UNCERTAIN_LIVE_DELIVERY_KEY)
+    if inflight is not None and (
+            not isinstance(inflight, str) or not inflight or len(inflight) > 128):
+        raise ValueError("Invalid unconfirmed Discord delivery marker")
+    stamp = data.get("last_check")
+    if stamp is not None and not isinstance(stamp, str):
+        raise ValueError("Invalid live last-check bookmark")
+    return data
 
 
-def save_state(sent_ids):
-    """Save the sent video IDs (capped) and current time."""
+def _write_live_state(data):
     if DRY_RUN:
         print("🧪 DRY RUN: live bookmark write suppressed")
         return
-    # Cap at MAX_STORED_IDS, keeping the most recent
-    sent_ids = sent_ids[-MAX_STORED_IDS:]
-    data = {
-        "sent_video_ids": sent_ids,
-        "last_check": datetime.now(timezone.utc).isoformat()
-    }
-    with open(LIVE_LAST_RUN_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2)
-    print(f"💾 Updated {LIVE_LAST_RUN_FILE} → {len(sent_ids)} IDs tracked")
+    tmp = LIVE_LAST_RUN_FILE + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, LIVE_LAST_RUN_FILE)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
+def load_state():
+    data = _read_live_state()
+    return data.get("sent_video_ids", []), data.get("last_check")
+
+
+def save_state(sent_ids):
+    """Save confirmed IDs while preserving any unconfirmed delivery marker."""
+    if DRY_RUN:
+        print("🧪 DRY RUN: live bookmark write suppressed")
+        return
+    data = _read_live_state()
+    data["sent_video_ids"] = list(dict.fromkeys(sent_ids))[-MAX_STORED_IDS:]
+    data["last_check"] = datetime.now(timezone.utc).isoformat()
+    _write_live_state(data)
+    print(f"💾 Updated {LIVE_LAST_RUN_FILE} → {len(data['sent_video_ids'])} IDs tracked")
+
+
+def mark_live_discord_attempt(video_id):
+    """Persist the in-flight ID before a potentially irreversible webhook."""
+    if DRY_RUN:
+        raise RuntimeError("DRY RUN: live delivery attempt is disabled")
+    if not isinstance(video_id, str) or not video_id or len(video_id) > 128:
+        raise ValueError("Invalid live Discord delivery attempt ID")
+    data = _read_live_state()
+    if data.get(UNCERTAIN_LIVE_DELIVERY_KEY) is not None:
+        raise RuntimeError("Unreconciled Discord delivery attempt; refusing another live POST")
+    data[UNCERTAIN_LIVE_DELIVERY_KEY] = video_id
+    _write_live_state(data)
+
+
+def clear_live_discord_attempt(video_id):
+    """Remove a marker only after history acknowledgement or explicit rejection."""
+    data = _read_live_state()
+    if data.get(UNCERTAIN_LIVE_DELIVERY_KEY) != video_id:
+        raise RuntimeError("Discord live delivery marker mismatch; refusing to clear")
+    del data[UNCERTAIN_LIVE_DELIVERY_KEY]
+    _write_live_state(data)
+
+
+def check_unconfirmed_live_discord_attempt(confirmed_ids):
+    """Fail closed until the remote ledger confirms an uncertain Discord send."""
+    video_id = _read_live_state().get(UNCERTAIN_LIVE_DELIVERY_KEY)
+    if video_id is None:
+        return
+    if video_id in confirmed_ids:
+        if not DRY_RUN:
+            clear_live_discord_attempt(video_id)
+        print("✅ Previously uncertain live Discord attempt confirmed by durable history")
+        return
+    raise RuntimeError(
+        "Unreconciled Discord delivery attempt for livestream: verify the "
+        "Discord post and confirmed-ID history before resuming notifications"
+    )
 
 
 def humanize_ago(published_at_iso, now=None):
@@ -212,13 +281,18 @@ def send_to_discord(streams, run_start=None, seen_ids=None):
             "embeds": [embed]
         }
 
+        # Protect the gap between Discord acceptance and GitHub history write.
+        mark_live_discord_attempt(vid)
         try:
             response = requests.post(DISCORD_WEBHOOK_URL, json=data, timeout=10)
         except Exception as e:
-            raise RuntimeError(f"Discord live delivery failed for {vid}") from e
+            # The Discord outcome is unknown: do not retry the webhook.
+            raise RuntimeError(f"Discord delivery outcome uncertain for livestream {vid}") from e
         if response.status_code != 204:
+            clear_live_discord_attempt(vid)
             raise RuntimeError(f"Discord live HTTP {response.status_code} for {vid}")
         save_ids("live", [vid])
+        clear_live_discord_attempt(vid)
         seen_ids.add(vid)
         delivered.append(stream)
         print(f"✅ Sent: [{posted_value}] {stream['title'][:60]}...")
@@ -236,6 +310,7 @@ def run():
     reaction_ids = read_ids("reactions")
     live_ids = read_ids("live")
     already_delivered = reaction_ids | live_ids
+    check_unconfirmed_live_discord_attempt(already_delivered)
 
     run_start = datetime.now(timezone.utc)
     print(f"⏰ Run started at: {run_start.strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
