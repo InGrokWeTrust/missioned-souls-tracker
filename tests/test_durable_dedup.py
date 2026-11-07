@@ -232,7 +232,9 @@ class LiveDedupTests(unittest.TestCase):
             live, "save_state", side_effect=lambda v: ids.append(list(v))), patch.object(
             live, "find_active_live_streams", return_value=videos
         ), patch.object(live.requests, "post", return_value=SimpleNamespace(status_code=204)) as post, patch.object(
-            live.time, "sleep", return_value=None):
+            live.time, "sleep", return_value=None), patch.object(
+            live, "mark_live_discord_attempt"), patch.object(
+            live, "clear_live_discord_attempt"):
             first = live.run()
             second = live.run()
         self.assertEqual([v["video_id"] for v in first], ["new-live"])
@@ -246,7 +248,9 @@ class LiveDedupTests(unittest.TestCase):
             live, "load_state", return_value=([], None)
         ), patch.object(live, "find_active_live_streams", return_value=[livestream("fail")]
         ), patch.object(live.requests, "post", return_value=SimpleNamespace(status_code=500)
-        ), patch.object(live, "save_ids") as record, patch.object(live, "save_state") as save:
+        ), patch.object(live, "save_ids") as record, patch.object(live, "save_state") as save, patch.object(
+            live, "mark_live_discord_attempt"), patch.object(
+            live, "clear_live_discord_attempt"):
             with self.assertRaisesRegex(RuntimeError, "HTTP 500"):
                 live.run()
             record.assert_not_called()
