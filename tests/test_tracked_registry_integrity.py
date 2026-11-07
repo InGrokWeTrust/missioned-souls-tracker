@@ -175,7 +175,8 @@ class IntegratedRegistrySafetyTests(unittest.TestCase):
             reactions, "read_ids", return_value=set()
         ), patch.object(reactions, "youtube") as yt, patch.object(
             reactions.requests, "post") as post, patch.object(
-            reactions, "save_notification_queue") as queue:
+            reactions, "save_notification_queue") as queue, patch.object(
+            reactions, "restore_durable_queue"):
             with self.assertRaises(RegistryIntegrityError):
                 reactions.run()
         yt.playlistItems.assert_not_called()
