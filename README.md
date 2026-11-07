@@ -10,7 +10,7 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 
 | Script | Frequency | Purpose |
 |---|---|---|
-| `autoreactions.py` | Every 30 min | Scans tracked channels' uploads for new reactions |
+| `autoreactions.py` | Hourly at :15 (user-configured) | Scans tracked channels' uploads for new reactions |
 | `discover_channels.py` | Every 2 hours | Finds new reactor channels and updates the tracked list |
 | `check_live_streams.py` | Every 2 hours | Detects active Missioned Souls live streams |
 
@@ -54,7 +54,7 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 |---|---|---|
 | `CHANNEL_NAME` | `Missioned Souls` | Search keyword / channel to track |
 | `MAX_TO_SEND` | `6` | Max reactions sent to Discord per run |
-| `MAX_VIDEOS_PER_CHANNEL` | `5` | Videos scanned per channel |
+| `MAX_VIDEOS_PER_CHANNEL` | Deprecated | Replaced by fixed 50-upload API pages (1 quota unit per page) |
 | `FORCE_SEND_ALL` | `false` | When `true`, sends latest N regardless of bookmark |
 | `LAST_RUN_FILE` | `last_run.json` | Bookmark filename |
 
@@ -69,7 +69,7 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 
 | Entry | URL | Method | Body | Schedule |
 |---|---|---|---|---|
-| YouTube Reaction Tracker | `https://api.github.com/repos/<user>/<repo>/actions/workflows/youtube-tracker.yml/dispatches` | POST | `{"ref":"main"}` | Every 30 min |
+| YouTube Reaction Tracker | `https://api.github.com/repos/<user>/<repo>/actions/workflows/youtube-tracker.yml/dispatches` | POST | `{"ref":"main"}` | Hourly at :15 (user-configured) |
 | Discover Reactor Channels | `.../discover_channels.yml/dispatches` | POST | `{"ref":"main"}` | Every 2 hours |
 | Check Live Streams | `.../check_live_streams.yml/dispatches` | POST | `{"ref":"main"}` | Every 2 hours |
 
@@ -95,7 +95,7 @@ Content-Type: application/json
 ### 2. Tracking (`autoreactions.py`)
 
 - Loads `tracked_channels.json`
-- For each channel, fetches the 5 newest videos via `playlistItems.list`
+- For each channel, fetches up to 50 newest videos per `playlistItems.list` call (1 quota unit), with up to one extra page for a burst since the last complete scan
 - Filters titles to those containing **"Missioned Souls"**
 - Filters out shorts (`#short`, `#shorts`, `"shorts"`, duration < 120s)
 - Fetches stats + duration + `liveStreamingDetails` in one batch `videos.list` call
@@ -118,17 +118,19 @@ YouTube Data API v3 gives **10,000 units/day**.
 
 | Script | Runs/day | Units/run | Units/day |
 |---|---|---|---|
-| `autoreactions.py` | 48 | ~66 (channels) | ~3,200 |
-| `discover_channels.py` | 12 | ~100 | ~1,200 |
-| `check_live_streams.py` | 12 | ~100 | ~1,200 |
-| **Total** | | | **~5,600 (56%)** ✅ |
+| `autoreactions.py` | 24 | 186 channel pages + variable metadata/catch-up | ~4,464 base playlist units/day |
+| `discover_channels.py` | 12 | Up to 3 search calls/run | Up to 36 search calls/day |
+| `check_live_streams.py` | 12 | 1 search + detail verification/run | 12 search calls/day + details |
+| **Total** | | | **Variable: separate search allowance plus shared playlist/detail units** |
 
 **API unit costs:**
-- `search.list` = 100 units
+- `search.list` = 1 call against the separate 100-search-calls/day quota
 - `playlistItems.list` = 1 unit
 - `videos.list` = 1 unit (up to 50 IDs per call)
 
-**Capacity:** At 30-min tracker frequency + 2-hr discovery + 2-hr live checks, the system supports up to ~158 tracked channels.
+**Capacity:** At the user-configured hourly :15 schedule, 186 channels need ~4,464 base playlist requests/day. Extra pages are used only when needed; video details also count against the 10,000 shared-unit budget. cron-job.org is configured separately from GitHub, so verify its actual dispatch schedule there.
+
+**Catch-up safety:** A successful scan records `last_complete_scan_at` separately from the last delivered video. Each 50-upload page costs 1 unit, and a second page is fetched only when the prior scan timestamp is not reached. If 100 uploads are insufficient, the scan stops without advancing the cutoff. Legacy bookmarks seed the new timestamp after their first complete scan; they do not trigger unverified historical replay.
 
 ---
 
@@ -142,7 +144,7 @@ YouTube Data API v3 gives **10,000 units/day**.
 | **Live streams via `liveStreamingDetails`** | Only way to reliably detect archived stream VODs |
 | **ID-based dedup for live streams** | Handles scheduled streams with old `published_at` timestamps |
 | **No RSS feed** | YouTube blocks RSS from datacenter IPs (GitHub Actions) |
-| **30-min tracker frequency** | Doubles channel capacity vs 15-min; negligible latency impact |
+| **Hourly tracker frequency** | Reduces base channel scan requests by half versus every 30 minutes |
 | **No CSV/HTML output** | Unused; removed to reduce runtime and complexity |
 
 ---
