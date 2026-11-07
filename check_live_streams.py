@@ -3,6 +3,7 @@ import time
 import json
 import requests
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from googleapiclient.discovery import build
 from notification_history import read_ids, save_ids
 from channel_exclusions import is_excluded_channel
@@ -24,6 +25,9 @@ if not DISCORD_WEBHOOK_URL:
 
 # Cap on stored IDs to prevent unbounded growth
 MAX_STORED_IDS = 200
+
+# Match reaction notification times; ZoneInfo resolves NZST/NZDT by date.
+AUCKLAND_TZ = ZoneInfo("Pacific/Auckland")
 
 # ===========================================
 
@@ -162,10 +166,14 @@ def humanize_ago(published_at_iso, now=None):
 
 
 def format_published_time(published_at_iso):
+    """Show the livestream start in Auckland local time, including NZDT/NZST."""
     try:
         ts = published_at_iso.replace('Z', '+00:00')
         dt = datetime.fromisoformat(ts)
-        return dt.strftime('%I:%M %p').lstrip('0')
+        if dt.tzinfo is None:
+            # Match autoreactions.py: legacy unzoned timestamps mean UTC.
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(AUCKLAND_TZ).strftime('%I:%M %p %Z').lstrip('0')
     except Exception:
         return ""
 
