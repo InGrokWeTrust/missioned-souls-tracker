@@ -12,6 +12,7 @@ from discovery_video_handoff import handoff_for_scan
 from thumbnail_policy import select_thumbnail, valid_thumbnail, require_thumbnails
 from video_release_policy import is_published_vod
 from reaction_name_policy import title_mentions_band
+from tracked_channel_registry import read_registry
 
 # ================== READ CONFIG FROM ENVIRONMENT ==================
 API_KEY = os.environ.get("YOUTUBE_API_KEY")
@@ -246,17 +247,11 @@ def save_notification_queue(held, pending):
 
 
 def load_tracked_channels():
-    try:
-        with open(TRACKED_CHANNELS_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            channels = data.get('channels', {})
-            # Defense in depth: even an older tracked_channels.json cannot
-            # permit an excluded uploader to reach Discord.
-            return {cid: info for cid, info in channels.items()
-                    if not is_excluded_channel(cid)}
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
+    """Never treat corrupt or absent established channel data as zero channels."""
+    channels = read_registry(TRACKED_CHANNELS_FILE)["channels"]
+    # Maintain exact-ID exclusion without modifying the source registry.
+    return {cid: info for cid, info in channels.items()
+            if not is_excluded_channel(cid)}
 
 def parse_duration(duration_str):
     if not duration_str:
