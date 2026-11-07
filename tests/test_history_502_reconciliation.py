@@ -8,6 +8,7 @@ import json
 import os
 import tempfile
 import unittest
+from _mock_delivery import patch_sender_delivery
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -114,6 +115,7 @@ class TransientHistoryWriteTests(unittest.TestCase):
 
 class DiscordAttemptBookmarkTests(unittest.TestCase):
     def setUp(self):
+        patch_sender_delivery(self, reaction)
         folder = tempfile.TemporaryDirectory()
         self.addCleanup(folder.cleanup)
         self.path = Path(folder.name) / "last_run.json"
