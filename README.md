@@ -17,6 +17,7 @@ The system runs entirely on GitHub Actions, triggered externally by cron-job.org
 **Discord output:**
 - New reactions: posted with title, channel, views, likes, comments, and "Posted: HH:MM (Xm ago)"
 - Live streams: posted with `🔴 LIVE:` prefix and red sidebar
+- Livestream **Started** times: shown in Pacific/Auckland local time (NZDT/NZST), while the Discord embed timestamp preserves the original UTC instant
 - Shorts: always filtered out
 
 ---
