@@ -390,7 +390,8 @@
     "OGo7qEKI2qM",
     "ZirweR8kFHQ",
     "YawyuGe0kXw",
-    "9HxiFSdYr48"
+    "9HxiFSdYr48",
+    "6iQJugR9qHo"
   ],
   "reaction_queue": {
     "version": 1,
@@ -430,6 +431,5 @@
     ],
     "last_published_at": "2026-11-09T09:00:34Z",
     "last_complete_scan_at": "2026-11-09T12:31:08.299328+00:00"
-  },
-  "unconfirmed_discord_video_id": "6iQJugR9qHo"
+  }
 }
