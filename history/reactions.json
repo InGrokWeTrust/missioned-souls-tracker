@@ -387,7 +387,8 @@
     "v8XAOQZSI-k",
     "ooPYpQLN0Q4",
     "8sZQoPkPL8I",
-    "OGo7qEKI2qM"
+    "OGo7qEKI2qM",
+    "ZirweR8kFHQ"
   ],
   "reaction_queue": {
     "version": 1,
@@ -422,6 +423,5 @@
     ],
     "last_published_at": "2026-11-09T03:31:24Z",
     "last_complete_scan_at": "2026-11-09T05:31:13.633555+00:00"
-  },
-  "unconfirmed_discord_video_id": "ZirweR8kFHQ"
+  }
 }
