@@ -401,7 +401,8 @@
     "det44ojsxQA",
     "ms5Paidt94M",
     "U7aOHaKg5Fg",
-    "SZ-X6uwYSfc"
+    "SZ-X6uwYSfc",
+    "J59QOZJuwSo"
   ],
   "reaction_queue": {
     "version": 1,
@@ -441,6 +442,5 @@
     ],
     "last_published_at": "2026-11-10T00:23:57Z",
     "last_complete_scan_at": "2026-11-10T04:01:18.990650+00:00"
-  },
-  "unconfirmed_discord_video_id": "J59QOZJuwSo"
+  }
 }
