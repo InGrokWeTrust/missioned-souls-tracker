@@ -405,7 +405,8 @@
     "J59QOZJuwSo",
     "vV1ST-p4QJQ",
     "CjMAzHmwnME",
-    "bTsgJkB8yVk"
+    "bTsgJkB8yVk",
+    "CI8nNyM8jOw"
   ],
   "reaction_queue": {
     "version": 1,
@@ -445,6 +446,5 @@
     ],
     "last_published_at": "2026-11-10T12:04:42Z",
     "last_complete_scan_at": "2026-11-10T18:01:25.490890+00:00"
-  },
-  "unconfirmed_discord_video_id": "CI8nNyM8jOw"
+  }
 }
