@@ -104,11 +104,13 @@ def _validate_video_id(video_id):
     return video_id
 
 
-def _read_remote_document(kind):
-    """Read validated complete history, preserving optional attempt state."""
+def _read_remote_document(kind, *, ref=None):
+    """Read validated history; optionally pin the GET to an immutable commit."""
     if kind not in KINDS:
         raise ValueError("Unknown history stream")
-    path = quote(KINDS[kind], safe="/") + "?ref=" + quote(HISTORY_BRANCH)
+    path = quote(KINDS[kind], safe="/") + "?ref=" + quote(
+        ref if ref is not None else HISTORY_BRANCH, safe=""
+    )
     response = _api_request("GET", "contents/" + path)
     if response.get("type") != "file" or not response.get("sha"):
         raise ValueError("Durable history GitHub file is missing or invalid")
@@ -326,6 +328,48 @@ def read_reaction_queue():
     return _validate_reaction_queue(queue) if queue is not None else None
 
 
+# A newly acknowledged GitHub Contents commit can briefly be absent from
+# the read path. Verify the exact commit and its content blob, rather than
+# querying the moving branch immediately after the write.
+QUEUE_COMMIT_VERIFY_ATTEMPTS = 4
+
+
+def _verify_reaction_queue_commit(write_result, expected_document):
+    if not isinstance(write_result, dict):
+        raise RuntimeError("Durable reaction queue commit identity missing")
+    commit = write_result.get("commit")
+    content = write_result.get("content")
+    sha = commit.get("sha") if isinstance(commit, dict) else None
+    blob = content.get("sha") if isinstance(content, dict) else None
+    if (not isinstance(sha, str) or len(sha) != 40
+            or any(c not in "0123456789abcdefABCDEF" for c in sha)
+            or not isinstance(blob, str) or not blob):
+        raise RuntimeError(
+            "Durable reaction queue commit identity missing or invalid; "
+            "checkpoint unverified"
+        )
+
+    for check in range(QUEUE_COMMIT_VERIFY_ATTEMPTS):
+        try:
+            state, verified_blob = _read_remote_document("reactions", ref=sha)
+        except HTTPError as err:
+            # A freshly created commit may temporarily return HTTP 404/5xx.
+            # Other errors remain explicit failures; never make another PUT.
+            if err.code not in (404, 500, 502, 503, 504):
+                raise
+        else:
+            # Confirm the pinned commit's exact complete ledger, not merely
+            # the pending count or a possibly stale branch snapshot.
+            if verified_blob == blob and state == expected_document:
+                return
+        if check + 1 < QUEUE_COMMIT_VERIFY_ATTEMPTS:
+            time.sleep(min(2 ** check, 4))
+    raise RuntimeError(
+        "Durable reaction queue checkpoint not verified at committed SHA; "
+        "local state and Discord delivery withheld"
+    )
+
+
 def save_reaction_queue(snapshot):
     """Commit queue/cutoffs before relying on local artifacts or sending webhooks.
 
@@ -345,10 +389,8 @@ def save_reaction_queue(snapshot):
                 return requested
             updated = dict(state)
             updated[REACTION_QUEUE_KEY] = requested
-            _put_remote_document("reactions", updated, sha, "Checkpoint")
-            verified, _ = _read_remote_document("reactions")
-            if verified.get(REACTION_QUEUE_KEY) != requested:
-                raise RuntimeError("Durable reaction queue checkpoint not verified")
+            write_result = _put_remote_document("reactions", updated, sha, "Checkpoint")
+            _verify_reaction_queue_commit(write_result, updated)
             return requested
         except HTTPError as error:
             if error.code not in (409, 422) and error.code not in RETRYABLE_HISTORY_STATUS:
