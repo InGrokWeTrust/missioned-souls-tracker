@@ -67,7 +67,10 @@ class FakeGitHubContents:
         self.puts.append((kind, deepcopy(data)))
         if self.fail_after_put:
             raise error(self.fail_after_put.pop(0))
-        return {"content": {"sha": f"sha-{self.revisions[kind]}"}}
+        return {
+            "content": {"sha": f"sha-{self.revisions[kind]}"},
+            "commit": {"sha": f"{self.revisions[kind]:040x}"},
+        }
 
 
 class DurableRemoteGateTests(unittest.TestCase):
