@@ -403,7 +403,8 @@
     "U7aOHaKg5Fg",
     "SZ-X6uwYSfc",
     "J59QOZJuwSo",
-    "vV1ST-p4QJQ"
+    "vV1ST-p4QJQ",
+    "CjMAzHmwnME"
   ],
   "reaction_queue": {
     "version": 1,
@@ -438,6 +439,5 @@
     ],
     "last_published_at": "2026-11-10T11:00:06Z",
     "last_complete_scan_at": "2026-11-10T12:31:12.248007+00:00"
-  },
-  "unconfirmed_discord_video_id": "CjMAzHmwnME"
+  }
 }
