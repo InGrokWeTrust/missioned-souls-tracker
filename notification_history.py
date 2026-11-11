@@ -226,38 +226,60 @@ def _put_remote_document(kind, state, sha, action):
 
 
 def reserve_delivery(kind, video_id):
-    """Persist an unresolved attempt remotely BEFORE any Discord POST.
+    """Commit a unique pre-Discord attempt, reconciling SHA conflicts safely.
 
-    If GitHub gives an ambiguous response, fail closed even if the marker
-    might have committed. Only a completed, verified reserve can POST.
+    Only a definite 409 can be retried with a newly fetched ledger SHA. A
+    timeout/5xx may already have committed the marker: never repeat that PUT
+    or send Discord in that ambiguous state. Before every 409 retry, inspect
+    BOTH histories for confirmed IDs and outstanding delivery attempts.
     """
     _require_durable_writes()
     _validate_video_id(video_id)
     if kind not in KINDS:
         raise ValueError("Unknown notification history kind")
-    documents = {}
-    for stream in KINDS:
-        documents[stream] = _read_remote_document(stream)
-        data, _ = documents[stream]
-        if data.get(REMOTE_ATTEMPT_KEY) is not None:
-            raise RuntimeError(
-                "Unreconciled durable Discord delivery attempt; "
-                "verify Discord and permanent history before another POST"
-            )
-        if video_id in data["sent_video_ids"]:
-            raise RuntimeError("Video is already durably confirmed; duplicate POST blocked")
-    data, sha = documents[kind]
-    proposed = dict(data)
-    proposed[REMOTE_ATTEMPT_KEY] = video_id
-    _put_remote_document(kind, proposed, sha, "Reserve")
-    # Verify the marker exists in authoritative remote state before POST.
-    persisted, _ = _read_remote_document(kind)
-    if (persisted.get(REMOTE_ATTEMPT_KEY) != video_id
-            or video_id in persisted["sent_video_ids"]):
-        raise RuntimeError("Durable Discord reservation not verified; POST blocked")
-    print("🔐 Durable " + kind + " delivery attempt reserved")
-    return video_id
 
+    for attempt in range(MAX_HISTORY_WRITE_ATTEMPTS):
+        documents = {}
+        for stream in KINDS:
+            documents[stream] = _read_remote_document(stream)
+            data, _ = documents[stream]
+            if data.get(REMOTE_ATTEMPT_KEY) is not None:
+                raise RuntimeError(
+                    "Unreconciled durable Discord delivery attempt; "
+                    "verify Discord and permanent history before another POST"
+                )
+            if video_id in data["sent_video_ids"]:
+                raise RuntimeError(
+                    "Video is already durably confirmed; duplicate POST blocked"
+                )
+
+        data, sha = documents[kind]
+        proposed = dict(data)
+        proposed[REMOTE_ATTEMPT_KEY] = video_id
+        try:
+            write_result = _put_remote_document(kind, proposed, sha, "Reserve")
+        except HTTPError as exc:
+            if exc.code != 409:
+                # Ambiguous 5xx/timeouts must NOT replay a reservation.
+                raise
+            if attempt + 1 == MAX_HISTORY_WRITE_ATTEMPTS:
+                raise
+            # GitHub's recently updated history blob may not be visible
+            # from a moving branch immediately after a queue checkpoint.
+            # Only retry with a NEW read and matching SHA; never the old PUT.
+            time.sleep(min(2 ** attempt, 4))
+            continue
+
+        # Do not use an immediate moving-branch GET: it may still be stale.
+        # The pinned commit and blob must match the entire proposed ledger
+        # before any Discord webhook is permitted.
+        _verify_remote_document_commit(
+            kind, write_result, proposed, "Durable Discord reservation"
+        )
+        print("🔐 Durable " + kind + " delivery attempt reserved")
+        return video_id
+
+    raise RuntimeError("Unable to reserve durable Discord delivery")
 
 def _settle_delivery(kind, video_id, *, accepted):
     _require_durable_writes()
@@ -334,9 +356,14 @@ def read_reaction_queue():
 QUEUE_COMMIT_VERIFY_ATTEMPTS = 4
 
 
-def _verify_reaction_queue_commit(write_result, expected_document):
+def _verify_remote_document_commit(kind, write_result, expected_document, label):
+    """Verify one successful GitHub PUT by its immutable commit and blob.
+
+    Does not retry the PUT or infer that a missing/persistent mismatched
+    commit is successful. Used for both queue checkpoints and reservations.
+    """
     if not isinstance(write_result, dict):
-        raise RuntimeError("Durable reaction queue commit identity missing")
+        raise RuntimeError(label + " commit identity missing")
     commit = write_result.get("commit")
     content = write_result.get("content")
     sha = commit.get("sha") if isinstance(commit, dict) else None
@@ -345,30 +372,33 @@ def _verify_reaction_queue_commit(write_result, expected_document):
             or any(c not in "0123456789abcdefABCDEF" for c in sha)
             or not isinstance(blob, str) or not blob):
         raise RuntimeError(
-            "Durable reaction queue commit identity missing or invalid; "
-            "checkpoint unverified"
+            label + " commit identity missing or invalid; not verified"
         )
 
     for check in range(QUEUE_COMMIT_VERIFY_ATTEMPTS):
         try:
-            state, verified_blob = _read_remote_document("reactions", ref=sha)
+            state, verified_blob = _read_remote_document(kind, ref=sha)
         except HTTPError as err:
-            # A freshly created commit may temporarily return HTTP 404/5xx.
-            # Other errors remain explicit failures; never make another PUT.
+            # A fresh commit can temporarily return HTTP 404/5xx. No PUT
+            # retry is performed, and other errors fail immediately.
             if err.code not in (404, 500, 502, 503, 504):
                 raise
         else:
-            # Confirm the pinned commit's exact complete ledger, not merely
-            # the pending count or a possibly stale branch snapshot.
             if verified_blob == blob and state == expected_document:
                 return
         if check + 1 < QUEUE_COMMIT_VERIFY_ATTEMPTS:
             time.sleep(min(2 ** check, 4))
     raise RuntimeError(
-        "Durable reaction queue checkpoint not verified at committed SHA; "
+        label + " not verified at committed SHA; "
         "local state and Discord delivery withheld"
     )
 
+
+def _verify_reaction_queue_commit(write_result, expected_document):
+    return _verify_remote_document_commit(
+        "reactions", write_result, expected_document,
+        "Durable reaction queue checkpoint"
+    )
 
 def save_reaction_queue(snapshot):
     """Commit queue/cutoffs before relying on local artifacts or sending webhooks.
