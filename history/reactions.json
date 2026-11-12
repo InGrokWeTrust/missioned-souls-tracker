@@ -417,7 +417,8 @@
     "xGa4hv_0zZ0",
     "ISFgepy5wQo",
     "nb-PqLa7qzU",
-    "-ILqJgPQnFM"
+    "-ILqJgPQnFM",
+    "SSig8rBzmIA"
   ],
   "reaction_queue": {
     "version": 1,
@@ -452,6 +453,5 @@
     ],
     "last_published_at": "2026-11-12T06:00:13Z",
     "last_complete_scan_at": "2026-11-12T08:10:56.684343+00:00"
-  },
-  "unconfirmed_discord_video_id": "SSig8rBzmIA"
+  }
 }
