@@ -419,7 +419,8 @@
     "nb-PqLa7qzU",
     "-ILqJgPQnFM",
     "SSig8rBzmIA",
-    "ms_QQhqVHhE"
+    "ms_QQhqVHhE",
+    "jccs0PTBGEU"
   ],
   "reaction_queue": {
     "version": 1,
@@ -454,6 +455,5 @@
     ],
     "last_published_at": "2026-11-12T11:00:18Z",
     "last_complete_scan_at": "2026-11-12T22:11:03.851464+00:00"
-  },
-  "unconfirmed_discord_video_id": "jccs0PTBGEU"
+  }
 }
