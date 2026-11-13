@@ -426,7 +426,8 @@
     "ZZYh1SgBvCU",
     "5NWGHRDU1n0",
     "TMLqOK3dr5U",
-    "EzdW_FvylTw"
+    "EzdW_FvylTw",
+    "ctAmPsklj-0"
   ],
   "reaction_queue": {
     "version": 1,
@@ -471,6 +472,5 @@
     ],
     "last_published_at": "2026-11-13T12:00:01Z",
     "last_complete_scan_at": "2026-11-13T15:10:55.126882+00:00"
-  },
-  "unconfirmed_discord_video_id": "ctAmPsklj-0"
+  }
 }
