@@ -421,7 +421,8 @@
     "SSig8rBzmIA",
     "ms_QQhqVHhE",
     "jccs0PTBGEU",
-    "9ie39Z_h7WY"
+    "9ie39Z_h7WY",
+    "cRDmmdvctQU"
   ],
   "reaction_queue": {
     "version": 1,
@@ -456,6 +457,5 @@
     ],
     "last_published_at": "2026-11-13T02:41:01Z",
     "last_complete_scan_at": "2026-11-13T04:11:02.885203+00:00"
-  },
-  "unconfirmed_discord_video_id": "cRDmmdvctQU"
+  }
 }
