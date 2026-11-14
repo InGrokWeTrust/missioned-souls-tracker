@@ -431,7 +431,8 @@
     "oLe019JysEY",
     "cIRSpB9qATA",
     "kqCstGRHgbA",
-    "VdbmbsF-3jc"
+    "VdbmbsF-3jc",
+    "bB2IK80hNbI"
   ],
   "reaction_queue": {
     "version": 1,
@@ -481,6 +482,5 @@
     ],
     "last_published_at": "2026-11-14T00:42:18Z",
     "last_complete_scan_at": "2026-11-14T02:11:01.241553+00:00"
-  },
-  "unconfirmed_discord_video_id": "bB2IK80hNbI"
+  }
 }
