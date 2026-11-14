@@ -439,7 +439,8 @@
     "1vDn44diUv0",
     "nfTX8hsL1uY",
     "3l9X4VAbD1E",
-    "QgTcpPjjAec"
+    "QgTcpPjjAec",
+    "n1wrIgk421E"
   ],
   "reaction_queue": {
     "version": 1,
@@ -484,6 +485,5 @@
     ],
     "last_published_at": "2026-11-14T16:45:09Z",
     "last_complete_scan_at": "2026-11-14T18:10:56.291442+00:00"
-  },
-  "unconfirmed_discord_video_id": "n1wrIgk421E"
+  }
 }
