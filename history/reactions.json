@@ -446,7 +446,8 @@
     "4o6HUvLF9s4",
     "VF9_GSzm3Ss",
     "t-pSYx2fPcc",
-    "1eRbuGcnQBw"
+    "1eRbuGcnQBw",
+    "ChyAStqEzoU"
   ],
   "reaction_queue": {
     "version": 1,
@@ -491,6 +492,5 @@
     ],
     "last_published_at": "2026-11-15T10:45:20Z",
     "last_complete_scan_at": "2026-11-15T12:10:48.169774+00:00"
-  },
-  "unconfirmed_discord_video_id": "ChyAStqEzoU"
+  }
 }
