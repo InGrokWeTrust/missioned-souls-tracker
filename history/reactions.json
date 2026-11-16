@@ -452,7 +452,8 @@
     "KBEapYkjmmA",
     "SoNsh7LQYvk",
     "VABWItOtPCk",
-    "QuIIysV22SE"
+    "QuIIysV22SE",
+    "jlHd3em0DJk"
   ],
   "reaction_queue": {
     "version": 1,
@@ -497,6 +498,5 @@
     ],
     "last_published_at": "2026-11-16T09:00:21Z",
     "last_complete_scan_at": "2026-11-16T11:11:04.814050+00:00"
-  },
-  "unconfirmed_discord_video_id": "jlHd3em0DJk"
+  }
 }
