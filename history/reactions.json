@@ -450,7 +450,8 @@
     "ChyAStqEzoU",
     "OyEKD8sWbIA",
     "KBEapYkjmmA",
-    "SoNsh7LQYvk"
+    "SoNsh7LQYvk",
+    "VABWItOtPCk"
   ],
   "reaction_queue": {
     "version": 1,
@@ -500,6 +501,5 @@
     ],
     "last_published_at": "2026-11-16T05:00:00Z",
     "last_complete_scan_at": "2026-11-16T09:10:52.453579+00:00"
-  },
-  "unconfirmed_discord_video_id": "VABWItOtPCk"
+  }
 }
