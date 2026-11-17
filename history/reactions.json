@@ -467,7 +467,8 @@
     "igiUZ9PX7kU",
     "ltob05I2nzA",
     "FIvD2W4ff3o",
-    "mYZPXQaIvYs"
+    "mYZPXQaIvYs",
+    "otNkiNCrD-A"
   ],
   "reaction_queue": {
     "version": 1,
@@ -517,6 +518,5 @@
     ],
     "last_published_at": "2026-11-17T15:31:44Z",
     "last_complete_scan_at": "2026-11-17T18:11:05.036452+00:00"
-  },
-  "unconfirmed_discord_video_id": "otNkiNCrD-A"
+  }
 }
