@@ -488,7 +488,8 @@
     "7UHUG4rItqA",
     "MDcDksHmyTU",
     "jgXn0vQ9oFo",
-    "-PKw7q6m5rU"
+    "-PKw7q6m5rU",
+    "U65lBxoG4fw"
   ],
   "reaction_queue": {
     "version": 1,
@@ -548,6 +549,5 @@
     ],
     "last_published_at": "2026-11-18T22:00:12Z",
     "last_complete_scan_at": "2026-11-18T23:10:57.908316+00:00"
-  },
-  "unconfirmed_discord_video_id": "U65lBxoG4fw"
+  }
 }
