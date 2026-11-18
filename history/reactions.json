@@ -475,7 +475,8 @@
     "V8DTT3oiA1I",
     "4G78MYjxKfQ",
     "XQ_EOe-1qNM",
-    "jS6-_V2FPnk"
+    "jS6-_V2FPnk",
+    "vCm1gDqUrCA"
   ],
   "reaction_queue": {
     "version": 1,
@@ -525,6 +526,5 @@
     ],
     "last_published_at": "2026-11-18T07:35:39Z",
     "last_complete_scan_at": "2026-11-18T10:10:56.405777+00:00"
-  },
-  "unconfirmed_discord_video_id": "vCm1gDqUrCA"
+  }
 }
