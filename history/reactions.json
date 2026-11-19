@@ -500,7 +500,8 @@
     "bcnMfuZck6w",
     "vnfcfLI5734",
     "b86p-fK4mBY",
-    "M6B2Vi5WSkQ"
+    "M6B2Vi5WSkQ",
+    "5TpYwXtQRaI"
   ],
   "reaction_queue": {
     "version": 1,
@@ -560,6 +561,5 @@
     ],
     "last_published_at": "2026-11-19T13:00:33Z",
     "last_complete_scan_at": "2026-11-19T18:10:54.763589+00:00"
-  },
-  "unconfirmed_discord_video_id": "5TpYwXtQRaI"
+  }
 }
