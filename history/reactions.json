@@ -490,7 +490,8 @@
     "jgXn0vQ9oFo",
     "-PKw7q6m5rU",
     "U65lBxoG4fw",
-    "b0R9EjlN86E"
+    "b0R9EjlN86E",
+    "CLECEdN1ljw"
   ],
   "reaction_queue": {
     "version": 1,
@@ -550,6 +551,5 @@
     ],
     "last_published_at": "2026-11-18T23:00:09Z",
     "last_complete_scan_at": "2026-11-19T00:10:58.801145+00:00"
-  },
-  "unconfirmed_discord_video_id": "CLECEdN1ljw"
+  }
 }
