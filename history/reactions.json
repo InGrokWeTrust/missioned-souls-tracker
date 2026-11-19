@@ -498,7 +498,8 @@
     "rSjJzqHe4tw",
     "5IEXwzUCaA0",
     "bcnMfuZck6w",
-    "vnfcfLI5734"
+    "vnfcfLI5734",
+    "b86p-fK4mBY"
   ],
   "reaction_queue": {
     "version": 1,
@@ -548,6 +549,5 @@
     ],
     "last_published_at": "2026-11-19T11:00:34Z",
     "last_complete_scan_at": "2026-11-19T13:11:04.611230+00:00"
-  },
-  "unconfirmed_discord_video_id": "b86p-fK4mBY"
+  }
 }
