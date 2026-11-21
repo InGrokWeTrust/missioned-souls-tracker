@@ -527,7 +527,13 @@
   ],
   "reaction_queue": {
     "version": 1,
-    "pending_videos": [],
+    "pending_videos": [
+      {
+        "video_id": "RyaYWK85948",
+        "channel_id": "UCVtNX9wHTraq3sInjv19WuA",
+        "published_at": "2026-11-21T13:07:00Z"
+      }
+    ],
     "held_videos": [
       {
         "video_id": "93WO9jYFrbo",
@@ -558,11 +564,6 @@
         "video_id": "diRFHDBgpew",
         "channel_id": "UCIVmJPriTtfAjpY2AM5i0hw",
         "published_at": "2026-11-18T03:50:50Z"
-      },
-      {
-        "video_id": "MP5lOQkb0v8",
-        "channel_id": "UCP-kGozEU2blvmzI8jNCoKg",
-        "published_at": "2026-11-19T14:02:58Z"
       },
       {
         "video_id": "W8ZB1UGgJf0",
