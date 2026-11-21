@@ -517,7 +517,8 @@
     "19Ich7C4oXg",
     "n45mHVdnVP8",
     "x_rgUc_DLzY",
-    "uieYbITAheM"
+    "uieYbITAheM",
+    "8TSEVjOytHI"
   ],
   "reaction_queue": {
     "version": 1,
@@ -572,6 +573,5 @@
     ],
     "last_published_at": "2026-11-20T23:30:30Z",
     "last_complete_scan_at": "2026-11-21T04:10:55.631375+00:00"
-  },
-  "unconfirmed_discord_video_id": "8TSEVjOytHI"
+  }
 }
