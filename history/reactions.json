@@ -522,7 +522,8 @@
     "OSkpfG-S9sM",
     "_5w7G2ca1sY",
     "F5DV3UqYSXw",
-    "0dXLuicfJTQ"
+    "0dXLuicfJTQ",
+    "hsgA3SreBZY"
   ],
   "reaction_queue": {
     "version": 1,
@@ -587,6 +588,5 @@
     ],
     "last_published_at": "2026-11-21T09:00:00Z",
     "last_complete_scan_at": "2026-11-21T12:10:57.944744+00:00"
-  },
-  "unconfirmed_discord_video_id": "hsgA3SreBZY"
+  }
 }
