@@ -521,7 +521,8 @@
     "8TSEVjOytHI",
     "OSkpfG-S9sM",
     "_5w7G2ca1sY",
-    "F5DV3UqYSXw"
+    "F5DV3UqYSXw",
+    "0dXLuicfJTQ"
   ],
   "reaction_queue": {
     "version": 1,
@@ -586,6 +587,5 @@
     ],
     "last_published_at": "2026-11-21T08:04:30Z",
     "last_complete_scan_at": "2026-11-21T09:10:54.503393+00:00"
-  },
-  "unconfirmed_discord_video_id": "0dXLuicfJTQ"
+  }
 }
