@@ -543,7 +543,8 @@
     "9RF4rArQob0",
     "4DgQoc_2qac",
     "Mu8odiH6wiw",
-    "Wf1PguHPb6A"
+    "Wf1PguHPb6A",
+    "-Gefp2f7TdM"
   ],
   "reaction_queue": {
     "version": 1,
@@ -608,6 +609,5 @@
     ],
     "last_published_at": "2026-11-23T15:00:23Z",
     "last_complete_scan_at": "2026-11-23T19:10:52.981685+00:00"
-  },
-  "unconfirmed_discord_video_id": "-Gefp2f7TdM"
+  }
 }
