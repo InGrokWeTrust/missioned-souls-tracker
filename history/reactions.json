@@ -536,7 +536,8 @@
     "C3Xkc8emnoQ",
     "UZzr15A_lLY",
     "6UeWkQQcUcU",
-    "HeHWqSGOQpU"
+    "HeHWqSGOQpU",
+    "zpmI6LeOIk4"
   ],
   "reaction_queue": {
     "version": 1,
@@ -596,6 +597,5 @@
     ],
     "last_published_at": "2026-11-23T03:15:28Z",
     "last_complete_scan_at": "2026-11-23T05:10:50.995880+00:00"
-  },
-  "unconfirmed_discord_video_id": "zpmI6LeOIk4"
+  }
 }
