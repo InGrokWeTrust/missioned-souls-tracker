@@ -545,7 +545,8 @@
     "Mu8odiH6wiw",
     "Wf1PguHPb6A",
     "-Gefp2f7TdM",
-    "2kIaoUHD3wo"
+    "2kIaoUHD3wo",
+    "VqtUuzivip4"
   ],
   "reaction_queue": {
     "version": 1,
@@ -615,6 +616,5 @@
     ],
     "last_published_at": "2026-11-23T22:30:01Z",
     "last_complete_scan_at": "2026-11-24T01:10:51.445389+00:00"
-  },
-  "unconfirmed_discord_video_id": "VqtUuzivip4"
+  }
 }
