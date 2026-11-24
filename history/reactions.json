@@ -552,7 +552,8 @@
     "9K8p0WCvRcY",
     "cMISqiulJpU",
     "9vB7-Tyenjc",
-    "JaonMFP63tc"
+    "JaonMFP63tc",
+    "8QczNDFyJts"
   ],
   "reaction_queue": {
     "version": 1,
@@ -622,6 +623,5 @@
     ],
     "last_published_at": "2026-11-24T11:30:35Z",
     "last_complete_scan_at": "2026-11-24T23:10:54.203084+00:00"
-  },
-  "unconfirmed_discord_video_id": "8QczNDFyJts"
+  }
 }
