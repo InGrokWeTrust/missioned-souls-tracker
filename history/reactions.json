@@ -556,13 +556,7 @@
   ],
   "reaction_queue": {
     "version": 1,
-    "pending_videos": [
-      {
-        "video_id": "JaonMFP63tc",
-        "channel_id": "UCeAf_CPDRtxc_-UPmqzC4Aw",
-        "published_at": "2026-11-24T11:30:35Z"
-      }
-    ],
+    "pending_videos": [],
     "held_videos": [
       {
         "video_id": "93WO9jYFrbo",
