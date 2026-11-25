@@ -556,7 +556,8 @@
     "8QczNDFyJts",
     "61uzNxfIjL4",
     "OqvVzmaYpAA",
-    "EVBMSMFmTK8"
+    "EVBMSMFmTK8",
+    "DHp5Ej-maOw"
   ],
   "reaction_queue": {
     "version": 1,
@@ -621,6 +622,5 @@
     ],
     "last_published_at": "2026-11-25T08:00:10Z",
     "last_complete_scan_at": "2026-11-25T11:10:54.527648+00:00"
-  },
-  "unconfirmed_discord_video_id": "DHp5Ej-maOw"
+  }
 }
