@@ -555,7 +555,8 @@
     "JaonMFP63tc",
     "8QczNDFyJts",
     "61uzNxfIjL4",
-    "OqvVzmaYpAA"
+    "OqvVzmaYpAA",
+    "EVBMSMFmTK8"
   ],
   "reaction_queue": {
     "version": 1,
@@ -620,6 +621,5 @@
     ],
     "last_published_at": "2026-11-25T06:15:24Z",
     "last_complete_scan_at": "2026-11-25T08:10:59.815793+00:00"
-  },
-  "unconfirmed_discord_video_id": "EVBMSMFmTK8"
+  }
 }
