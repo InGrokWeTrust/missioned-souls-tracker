@@ -564,13 +564,7 @@
   ],
   "reaction_queue": {
     "version": 1,
-    "pending_videos": [
-      {
-        "video_id": "YQDCkez_YE4",
-        "channel_id": "UC0fWDW-CjwgYOIWNVWJH0CQ",
-        "published_at": "2026-11-25T13:00:29Z"
-      }
-    ],
+    "pending_videos": [],
     "held_videos": [
       {
         "video_id": "93WO9jYFrbo",
