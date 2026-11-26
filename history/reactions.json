@@ -566,7 +566,8 @@
     "iwKxOXDrzTo",
     "YH9oMrvzJtE",
     "f-ss5qq9MRI",
-    "jyLZvZOZG8Y"
+    "jyLZvZOZG8Y",
+    "X6B5ratCXe8"
   ],
   "reaction_queue": {
     "version": 1,
@@ -626,6 +627,5 @@
     ],
     "last_published_at": "2026-11-25T22:59:00Z",
     "last_complete_scan_at": "2026-11-26T11:10:52.183013+00:00"
-  },
-  "unconfirmed_discord_video_id": "X6B5ratCXe8"
+  }
 }
