@@ -568,16 +568,12 @@
     "f-ss5qq9MRI",
     "jyLZvZOZG8Y",
     "X6B5ratCXe8",
-    "CEdV6R8qrMU"
+    "CEdV6R8qrMU",
+    "GIU9aPNaNeg"
   ],
   "reaction_queue": {
     "version": 1,
     "pending_videos": [
-      {
-        "video_id": "GIU9aPNaNeg",
-        "channel_id": "UC_3F20laOQoBGwjTPUjcreQ",
-        "published_at": "2026-11-26T14:19:21Z"
-      },
       {
         "video_id": "dArbw_LVUko",
         "channel_id": "UCV8aPBobvkyD3AHNqhHYOOg",
@@ -633,6 +629,5 @@
     ],
     "last_published_at": "2026-11-26T13:00:25Z",
     "last_complete_scan_at": "2026-11-26T15:11:01.454998+00:00"
-  },
-  "unconfirmed_discord_video_id": "GIU9aPNaNeg"
+  }
 }
