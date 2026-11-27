@@ -1,4 +1,4 @@
-"""Offline tests for the exact HCJB exclusion without changing broad matching."""
+"""Offline tests for exact channel exclusions without changing broad matching."""
 
 import contextlib
 import io
@@ -23,6 +23,7 @@ from channel_exclusions import EXCLUDED_CHANNEL_IDS, is_excluded_channel
 
 
 HCJB = "UCtEs-cB4K1XFnXgLrIWW1Zg"
+TOPIC = "UCcP_2YD7lJBLXvG0BiccK_A"
 GOOD = "UCExampleNormalReactor"
 
 
@@ -45,7 +46,7 @@ class HCJBExclusionTests(unittest.TestCase):
         patch_sender_delivery(self, reactions, live)
 
     def test_exact_id_only_not_broad_title_keyword_ban(self):
-        self.assertEqual(EXCLUDED_CHANNEL_IDS, frozenset({HCJB}))
+        self.assertEqual(EXCLUDED_CHANNEL_IDS, frozenset({HCJB, TOPIC}))
         self.assertTrue(is_excluded_channel(HCJB))
         self.assertFalse(is_excluded_channel(GOOD))
         self.assertFalse(is_excluded_channel("HCJB Music Reaction"))
@@ -168,6 +169,75 @@ class HCJBExclusionTests(unittest.TestCase):
         self.assertEqual(result, [])
         post.assert_not_called()
         save.assert_called_once()
+
+
+class ReleaseTopicExclusionTests(unittest.TestCase):
+    def setUp(self):
+        patch_sender_delivery(self, reactions, live)
+
+    def test_exact_topic_id_only(self):
+        self.assertTrue(is_excluded_channel(TOPIC))
+        self.assertFalse(is_excluded_channel(GOOD))
+        self.assertFalse(is_excluded_channel("Release - Topic"))
+
+    def test_reaction_loader_skips_topic_preserves_other_channel(self):
+        with tempfile.TemporaryDirectory() as folder:
+            registry = Path(folder) / "tracked.json"
+            registry.write_text(json.dumps({"channels": {
+                TOPIC: {"title": "Release - Topic"},
+                GOOD: {"title": "Release - Topic"},
+                HCJB: {"title": "HCJB Music Reaction"},
+            }}), encoding="utf-8")
+            with patch.object(reactions, "TRACKED_CHANNELS_FILE", str(registry)):
+                found = reactions.load_tracked_channels()
+            self.assertEqual(set(found), {GOOD})
+
+    def test_discovery_drops_topic_and_its_handoff(self):
+        fake = MagicMock()
+        fake.search.return_value.list.return_value.execute.return_value = {
+            "items": [search_item(TOPIC, "Release - Topic"),
+                      search_item(GOOD, "Release - Topic")]
+        }
+        with patch.object(discovery, "youtube", fake):
+            found, handoff = discovery.discover_channels(include_videos=True)
+        self.assertEqual(found, {GOOD: "Release - Topic"})
+        self.assertNotIn(TOPIC, handoff)
+        self.assertIn(GOOD, handoff)
+
+    def test_discovery_prunes_topic_preserves_existing_reactor(self):
+        with tempfile.TemporaryDirectory() as folder:
+            registry = Path(folder) / "tracked.json"
+            registry.write_text(json.dumps({"channels": {
+                TOPIC: {"title": "Release - Topic", "last_seen_at": "2026-11-27T08:00:00Z"},
+                GOOD: {"title": "My Reactor", "last_seen_at": "2026-11-27T08:00:00Z"},
+            }}), encoding="utf-8")
+            mock_youtube = MagicMock()
+            mock_youtube.search.return_value.list.return_value.execute.return_value = {"items": []}
+            with patch.dict(os.environ, {"TRACKED_CHANNELS_FILE": str(registry)}), patch(
+                "googleapiclient.discovery.build", return_value=mock_youtube
+            ), contextlib.redirect_stdout(io.StringIO()):
+                runpy.run_path(discovery.__file__, run_name="__main__")
+            saved = json.loads(registry.read_text(encoding="utf-8"))["channels"]
+            self.assertEqual(set(saved), {GOOD})
+
+    def test_reaction_and_live_final_guards_block_topic(self):
+        for sender in (reactions, live):
+            with self.subTest(sender=sender.__name__), patch.object(
+                sender.requests, "post") as post, patch.object(sender, "save_ids") as saved:
+                self.assertEqual(sender.send_to_discord([
+                    {"channel_id": TOPIC, "video_id": "topic-video"}
+                ]), [])
+                post.assert_not_called()
+                saved.assert_not_called()
+
+    def test_live_search_drops_topic(self):
+        fake = MagicMock()
+        fake.search.return_value.list.return_value.execute.return_value = {
+            "items": [search_item(TOPIC, "Release - Topic")]
+        }
+        with patch.object(live, "youtube", fake):
+            self.assertEqual(live.find_active_live_streams(), [])
+        fake.videos.assert_not_called()
 
 
 if __name__ == "__main__":
