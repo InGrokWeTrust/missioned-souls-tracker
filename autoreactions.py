@@ -458,7 +458,34 @@ def fetch_channel_videos(channel_id, channel_title):
         if next_token is not None:
             args["pageToken"] = next_token
         try:
-            response = youtube.playlistItems().list(**args).execute()
+            try:
+                response = youtube.playlistItems().list(**args).execute()
+            except Exception as initial:
+                # Only a first-page 404 can justify re-resolving the uploads
+                # playlist. Never reuse a pagination token for a new playlist.
+                if page != 0 or getattr(getattr(initial, "resp", None), "status", None) != 404:
+                    raise
+                metadata = youtube.channels().list(
+                    part="contentDetails", id=channel_id
+                ).execute()
+                items = metadata.get("items") if isinstance(metadata, dict) else None
+                if not isinstance(items, list) or len(items) != 1:
+                    raise
+                channel = items[0]
+                if not isinstance(channel, dict) or channel.get("id") != channel_id:
+                    raise
+                details = channel.get("contentDetails")
+                related = details.get("relatedPlaylists") if isinstance(details, dict) else None
+                official = related.get("uploads") if isinstance(related, dict) else None
+                if (not isinstance(official, str) or not official
+                        or len(official) > 128 or any(c.isspace() for c in official)):
+                    raise
+                uploads_playlist_id = official
+                args["playlistId"] = official
+                print(f"⚠️ Uploads playlist returned HTTP 404; retrying official playlist for {channel_id}")
+                # One bounded retry, including when the official ID is the
+                # same. A second failure is still an incomplete scan.
+                response = youtube.playlistItems().list(**args).execute()
         except Exception as exc:
             # Never include raw exceptions: their API URLs may contain keys.
             status = getattr(getattr(exc, "resp", None), "status", None)
