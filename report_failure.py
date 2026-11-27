@@ -89,6 +89,9 @@ def classify_error(log, workflow=""):
         )
 
     if ("unreconciled discord delivery attempt" in low or
+            "unreconciled durable discord delivery attempt" in low or
+            "no matching remote delivery attempt; refusing to infer result" in low or
+            "different remote delivery attempt is active; refusing mutation" in low or
             "discord delivery outcome uncertain" in low or
             "invalid unconfirmed discord delivery marker" in low):
         return (
