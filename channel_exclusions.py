@@ -6,6 +6,7 @@ These exclusions do not change the original broad Missioned Souls title matching
 
 EXCLUDED_CHANNEL_IDS = frozenset({
     "UCtEs-cB4K1XFnXgLrIWW1Zg",  # HCJB Music Reaction
+    "UCcP_2YD7lJBLXvG0BiccK_A",  # Release - Topic; operator-approved exclusion after persistent uploads 404
 })
 
 
