@@ -578,7 +578,8 @@
     "ZBkqgwCaVFQ",
     "q3p1kqFRCWg",
     "x8rKREJpQ64",
-    "ef9MpWhh26I"
+    "ef9MpWhh26I",
+    "iBOE5lEpjEI"
   ],
   "reaction_queue": {
     "version": 1,
@@ -688,6 +689,5 @@
     ],
     "last_published_at": "2026-11-26T13:00:25Z",
     "last_complete_scan_at": "2026-11-27T11:48:37.486920+00:00"
-  },
-  "unconfirmed_discord_video_id": "iBOE5lEpjEI"
+  }
 }
