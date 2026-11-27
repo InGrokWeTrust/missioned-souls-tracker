@@ -296,6 +296,16 @@ def _settle_delivery(kind, video_id, *, accepted):
                     return ids  # A previous ambiguous PUT already committed.
                 if not accepted and video_id not in ids:
                     return ids  # Explicit rejection was already cleared.
+                # The reservation was verified at its immutable commit before
+                # Discord was called, but the moving branch read may lag.
+                # Retry only a missing marker after an accepted webhook. Never
+                # manufacture a marker or confirmed ID from that stale read.
+                if accepted and attempt + 1 < MAX_HISTORY_WRITE_ATTEMPTS:
+                    delay = min(2 ** attempt, 4)
+                    print("⚠️ GitHub delivery reservation not visible; "
+                          f"rechecking after {delay}s")
+                    time.sleep(delay)
+                    continue
                 raise RuntimeError("No matching remote delivery attempt; refusing to infer result")
             if marker != video_id:
                 raise RuntimeError("Different remote delivery attempt is active; refusing mutation")
