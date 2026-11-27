@@ -65,6 +65,15 @@ def classify_error(log, workflow=""):
             "and API permissions in the repository settings.",
         )
 
+    if ("incomplete youtube channel scan" in low and
+            "http 404" in low and "cutoff withheld" in low):
+        return (
+            "YouTube uploads playlist unavailable",
+            "A tracked channel's uploads could not be retrieved. "
+            "The scan cutoff was preserved to avoid missing reactions. "
+            "Review the affected channel in the tracker logs before resuming.",
+        )
+
     if "last_run.json" in low or "live_last_run.json" in low:
         if any(t in low for t in ("not found", "missing", "corrupt", "invalid",
                                  "jsondecodeerror", "filenotfounderror",
