@@ -578,6 +578,51 @@
         "video_id": "dArbw_LVUko",
         "channel_id": "UCV8aPBobvkyD3AHNqhHYOOg",
         "published_at": "2026-11-26T15:00:27Z"
+      },
+      {
+        "video_id": "DNbv9_TMzUU",
+        "channel_id": "UChTyVmUyLZ8GmeQ-bBxmJQA",
+        "published_at": "2026-11-26T19:00:24Z"
+      },
+      {
+        "video_id": "HYW_ehKsPBw",
+        "channel_id": "UCvTMsKn1wKiOTMza_AFKk1g",
+        "published_at": "2026-11-26T20:00:21Z"
+      },
+      {
+        "video_id": "lVj2vEplKfo",
+        "channel_id": "UC1eU2jizrLY2Vr0S0lOz8Lg",
+        "published_at": "2026-11-26T22:00:32Z"
+      },
+      {
+        "video_id": "VnB6SEyj6Hg",
+        "channel_id": "UCv5YxCx5TOzdGnqjeLTqliw",
+        "published_at": "2026-11-27T00:58:49Z"
+      },
+      {
+        "video_id": "ZBkqgwCaVFQ",
+        "channel_id": "UCSlY9oi5Ra_poD3D3gK2I0A",
+        "published_at": "2026-11-27T03:49:26Z"
+      },
+      {
+        "video_id": "q3p1kqFRCWg",
+        "channel_id": "UCSlY9oi5Ra_poD3D3gK2I0A",
+        "published_at": "2026-11-27T04:14:22Z"
+      },
+      {
+        "video_id": "x8rKREJpQ64",
+        "channel_id": "UClMb79RC9_r4rIvZZUQ2ftg",
+        "published_at": "2026-11-27T11:00:15Z"
+      },
+      {
+        "video_id": "ef9MpWhh26I",
+        "channel_id": "UC5JU81qAJKcvPM12Sklb8AQ",
+        "published_at": "2026-11-27T11:30:24Z"
+      },
+      {
+        "video_id": "iBOE5lEpjEI",
+        "channel_id": "UChMzbkGlhqgDvMcP5QnVYeA",
+        "published_at": "2026-11-27T11:45:30Z"
       }
     ],
     "held_videos": [
@@ -625,6 +670,11 @@
         "video_id": "WtH9mhwlKmY",
         "channel_id": "UCP-kGozEU2blvmzI8jNCoKg",
         "published_at": "2026-11-26T10:39:51Z"
+      },
+      {
+        "video_id": "p6NY-iBe6fs",
+        "channel_id": "UCeZsd3Bn4j5Ao73k7NSm1pg",
+        "published_at": "2026-11-26T14:39:17Z"
       }
     ],
     "last_published_at": "2026-11-26T13:00:25Z",
